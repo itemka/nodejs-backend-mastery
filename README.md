@@ -18,6 +18,8 @@ This repository is designed as a professional reference for developers looking t
 - Docker, CI/CD, and deployment workflows
 - Performance tuning and scalability strategies
 - Cloud integration (AWS), environment management
+- Security best practices and data protection
+- Input validation and middleware patterns
 
 ## Structure
 
