@@ -1,0 +1,10 @@
+node_modules/
+dist/
+.env
+.env.local
+.env.*.local
+# Allow template files but protect secrets
+!.env.development
+!.env.test
+!.env.production
+*.log
