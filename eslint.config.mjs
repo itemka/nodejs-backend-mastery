@@ -29,13 +29,16 @@ export default [
   pluginPromise.configs['flat/recommended'],
   unicorn.configs.recommended,
 
-  // Override parser for .mjs files specifically
+  // Override parser for .mjs and .js files (when package.json has "type": "module")
   {
-    files: ['**/*.mjs'],
+    files: ['**/*.{mjs,js}'],
     languageOptions: {
       ecmaVersion: 'latest',
       sourceType: 'module',
       globals: { ...globals.node, ...globals.es2020 },
+    },
+    rules: {
+      'n/no-unpublished-import': 'off', // Allow devDependencies in build scripts
     },
   },
 

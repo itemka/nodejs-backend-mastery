@@ -5,7 +5,8 @@
     "noEmit": false,
     "baseUrl": ".",
     "paths": {
-      "@/*": ["src/*"]
+      "@/*": ["src/*"],
+      "@workspaces/packages/config": ["../../packages/config/src/index.ts"]
     }
   },
   "include": ["src"]

@@ -1,7 +1,5 @@
+import { baseSchema, defineEnv } from '@workspaces/packages/config';
 import dotenv from 'dotenv';
-
-// TODO: Fix this import.
-import { baseSchema, defineEnv } from '../../../packages/config/dist/index.js';
 
 dotenv.config();
 
