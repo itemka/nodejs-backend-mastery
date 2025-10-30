@@ -1,4 +1,5 @@
 <!-- TODO: Re-evaluate scope and approach before starting implementation. -->
+<!-- TODO: The build packages via Turbo or similar and the built artifact should contains only the packages logic. -->
 
 # Shop MVC (Express)
 

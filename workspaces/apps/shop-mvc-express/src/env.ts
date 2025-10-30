@@ -1,8 +1,8 @@
-// import { z } from 'zod';
-import { baseSchema, defineEnv } from '../../../packages/config/src/index.js';
+import dotenv from 'dotenv';
 
-const schema = baseSchema.extend({
-  // Example: DATABASE_URL: z.string().optional(),
-});
+// TODO: Fix this import.
+import { baseSchema, defineEnv } from '../../../packages/config/dist/index.js';
 
-export const env = defineEnv(schema);
+dotenv.config();
+
+export const env = defineEnv(baseSchema);

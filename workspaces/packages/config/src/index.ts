@@ -1,16 +1,8 @@
 import { z } from 'zod';
 
-// TODO: review list of env variables and its values (will do later by my self)
 export const baseSchema = z.object({
+  NODE_ENV: z.enum(['development', 'qa', 'production']).default('development'),
   PORT: z.coerce.number().int().min(0).max(65_535).default(3000).describe('Port for HTTP server'),
-  NODE_ENV: z
-    .enum(['development', 'test', 'production'])
-    .default('development')
-    .describe('Runtime environment'),
-  // LOG_LEVEL: z
-  //   .enum(['trace', 'debug', 'info', 'warn', 'error', 'fatal', 'silent'])
-  //   .default('info')
-  //   .describe('Application log level'),
 });
 
 export type BaseEnv = z.infer<typeof baseSchema>;
@@ -25,9 +17,15 @@ export function defineEnv<T extends z.ZodTypeAny>(schema: T): z.infer<T> {
   const parsed = schema.safeParse(process.env);
 
   if (!parsed.success) {
-    const flattened = parsed.error.flatten();
-    const details = Object.entries(flattened.fieldErrors)
-      .flatMap(([key, msgs]) => (msgs ?? []).map((m) => `${key}: ${m}`))
+    const flattened = parsed.error.flatten((issue) => issue.message);
+    const details = Object.entries(flattened.fieldErrors ?? {})
+      .flatMap(([key, messages]) => {
+        const msgs: string[] = Array.isArray(messages)
+          ? messages.filter((msg): msg is string => typeof msg === 'string')
+          : [];
+
+        return msgs.map((msg) => `${key}: ${msg}`);
+      })
       .join('; ');
 
     throw new Error(details ? `Invalid environment: ${details}` : 'Invalid environment');

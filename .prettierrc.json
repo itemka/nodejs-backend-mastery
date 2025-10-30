@@ -10,7 +10,17 @@
   "bracketSameLine": false,
   "proseWrap": "preserve",
   "overrides": [
-    { "files": "*.md", "options": { "printWidth": 80 } },
-    { "files": ["*.yml", "*.yaml"], "options": { "singleQuote": false } }
+    {
+      "files": "*.md",
+      "options": {
+        "printWidth": 80
+      }
+    },
+    {
+      "files": ["*.yml", "*.yaml"],
+      "options": {
+        "singleQuote": false
+      }
+    }
   ]
 }
