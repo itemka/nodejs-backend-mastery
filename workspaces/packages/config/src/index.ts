@@ -1,7 +1,7 @@
 import { z } from 'zod';
 
 export const baseSchema = z.object({
-  NODE_ENV: z.enum(['development', 'qa', 'production']).default('development'),
+  NODE_ENV: z.enum(['development', 'qa', 'production', 'test']).default('development'),
   PORT: z.coerce.number().int().min(0).max(65_535).default(3000).describe('Port for HTTP server'),
 });
 
