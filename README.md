@@ -1,5 +1,7 @@
 # Node.js Backend Mastery
 
+<!-- TODO: review and adjust it -->
+
 A practical and well-structured knowledge base for building scalable, secure, and maintainable backend systems with Node.js.
 
 ## Purpose

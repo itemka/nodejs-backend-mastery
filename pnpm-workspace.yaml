@@ -1,0 +1,6 @@
+packages:
+  - workspaces/apps/*
+  - workspaces/packages/*
+
+ignoredBuiltDependencies:
+  - esbuild
