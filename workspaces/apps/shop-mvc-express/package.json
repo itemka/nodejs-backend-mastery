@@ -2,12 +2,13 @@
   "name": "shop-mvc-express",
   "type": "module",
   "engines": {
-    "node": ">=20"
+    "node": ">=22"
   },
   "scripts": {
     "dev": "tsx watch --tsconfig tsconfig.json src/server.ts",
     "build": "node build.js",
-    "start": "node dist/server.js"
+    "start": "node dist/server.js",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
     "dotenv": "^17.2.3",

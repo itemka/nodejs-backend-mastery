@@ -1,0 +1,163 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [main, master]
+    types: [opened, synchronize, reopened, ready_for_review]
+    paths-ignore:
+      - "docs/**"
+      - "**/*.md"
+  push:
+    branches: [main]
+    paths-ignore:
+      - "docs/**"
+      - "**/*.md"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  detect:
+    name: Detect changed apps
+    runs-on: ubuntu-latest
+    outputs:
+      apps: ${{ steps.detect.outputs.apps }}
+      any: ${{ steps.detect.outputs.any }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - id: detect
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ "${{ github.event_name }}" == "pull_request" ]]; then
+            base="${{ github.event.pull_request.base.sha }}"
+            head="${{ github.event.pull_request.head.sha }}"
+          elif [[ "${{ github.event_name }}" == "push" ]]; then
+            # Use the commit before the push as the diff base to include all commits in the push
+            base="${{ github.event.before }}"
+            # Fallbacks for edge cases (e.g., new branch where before is all zeros)
+            if [[ -z "$base" || "$base" == "0000000000000000000000000000000000000000" ]]; then
+              # Try merge-base with the remote branch; if that fails, use the root commit
+              base="$(git merge-base HEAD "origin/${GITHUB_REF#refs/heads/}")" || true
+              if [[ -z "$base" ]]; then
+                base="$(git rev-list --max-parents=0 HEAD | tail -1)"
+              fi
+            fi
+            head="${{ github.sha }}"
+          else
+            echo "apps=[]" >> "$GITHUB_OUTPUT"
+            echo "any=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          mapfile -t files < <(git diff --name-only "$base" "$head" || true)
+          declare -A seen=()
+          uniq=()
+          for f in "${files[@]}"; do
+            if [[ "$f" =~ ^workspaces/apps/([^/]+)/ ]]; then
+              app="${BASH_REMATCH[1]}"
+              if [[ -z "${seen[$app]+x}" ]]; then
+                uniq+=("$app")
+                seen[$app]=1
+              fi
+            fi
+          done
+          if [[ "${#uniq[@]}" -eq 0 ]]; then
+            echo "apps=[]" >> "$GITHUB_OUTPUT"
+            echo "any=false" >> "$GITHUB_OUTPUT"
+          else
+            apps_json=$(printf '%s\n' "${uniq[@]}" | jq -R -s -c 'split("\n")[:-1]')
+            echo "apps=$apps_json" >> "$GITHUB_OUTPUT"
+            echo "any=true" >> "$GITHUB_OUTPUT"
+          fi
+
+  quality:
+    name: Lint / Format / Types / Unit
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        node: [22.x]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Enable Corepack (pnpm)
+        run: corepack enable
+      - name: Setup Node ${{ matrix.node }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+      - name: Install deps
+        run: pnpm install --frozen-lockfile
+      - name: ESLint
+        run: pnpm run lint
+      - name: Prettier (check)
+        run: pnpm run format:check
+      - name: Type check
+        run: pnpm run typecheck
+      - name: Unit tests
+        run: pnpm run test
+
+  app:
+    name: Build ${{ matrix.app }}
+    needs: [detect, quality]
+    if: needs.detect.outputs.any == 'true'
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22.x]
+        app: ${{ fromJSON(needs.detect.outputs.apps) }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Enable Corepack (pnpm)
+        run: corepack enable
+      - name: Setup Node ${{ matrix.node }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+      - name: Install deps
+        run: pnpm install --frozen-lockfile
+      - name: Lint ${{ matrix.app }}
+        run: pnpm -w --filter ./workspaces/apps/${{ matrix.app }}... run --if-present lint
+      - name: Typecheck ${{ matrix.app }}
+        run: pnpm -w --filter ./workspaces/apps/${{ matrix.app }}... run --if-present typecheck
+      - name: Test ${{ matrix.app }}
+        run: pnpm -w --filter ./workspaces/apps/${{ matrix.app }}... run --if-present test
+      - name: Build ${{ matrix.app }}
+        run: pnpm -w --filter ./workspaces/apps/${{ matrix.app }}... run build
+
+  security:
+    name: Audit / Gitleaks
+    needs: quality
+    if: always() && ( github.event_name == 'pull_request' || github.ref == 'refs/heads/main' )
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        node: [22.x]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Enable Corepack (pnpm)
+        run: corepack enable
+      - name: Setup Node ${{ matrix.node }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+      - name: Install deps
+        run: pnpm install --frozen-lockfile
+      - name: Audit (fail on high)
+        run: pnpm dlx audit-ci@^6 --high --package-manager pnpm
+      - uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
