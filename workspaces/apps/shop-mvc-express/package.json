@@ -6,7 +6,7 @@
   },
   "scripts": {
     "dev": "tsx watch --tsconfig tsconfig.json src/server.ts",
-    "build": "node build.js",
+    "build": "node esbuild.config.mjs",
     "start": "node dist/server.js",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
