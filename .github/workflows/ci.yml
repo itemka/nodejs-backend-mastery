@@ -157,7 +157,7 @@ jobs:
       - name: Install deps
         run: pnpm install --frozen-lockfile
       - name: Audit (fail on high)
-        run: pnpm dlx audit-ci@^6 --high
+        run: pnpm dlx audit-ci@^6 --high --package-manager pnpm
       - uses: gitleaks/gitleaks-action@v2
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
