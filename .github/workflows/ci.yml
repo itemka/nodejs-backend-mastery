@@ -1,0 +1,149 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [main, master]
+    types: [opened, synchronize, reopened, ready_for_review]
+    paths-ignore:
+      - "docs/**"
+      - "**/*.md"
+  push:
+    branches: [main]
+    paths-ignore:
+      - "docs/**"
+      - "**/*.md"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  detect:
+    name: Detect changed apps
+    runs-on: ubuntu-latest
+    outputs:
+      apps: ${{ steps.detect.outputs.apps }}
+      any: ${{ steps.detect.outputs.any }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - id: detect
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ "${{ github.event_name }}" == "pull_request" ]]; then
+            base="${{ github.event.pull_request.base.sha }}"
+            head="${{ github.event.pull_request.head.sha }}"
+          elif [[ "${{ github.event_name }}" == "push" ]]; then
+            base="$(git rev-parse HEAD^)"
+            head="HEAD"
+          else
+            echo "apps=[]" >> "$GITHUB_OUTPUT"
+            echo "any=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          mapfile -t files < <(git diff --name-only "$base" "$head" || true)
+          declare -A seen=()
+          uniq=()
+          for f in "${files[@]}"; do
+            if [[ "$f" =~ ^workspaces/apps/([^/]+)/ ]]; then
+              app="${BASH_REMATCH[1]}"
+              if [[ -z "${seen[$app]+x}" ]]; then
+                uniq+=("$app")
+                seen[$app]=1
+              fi
+            fi
+          done
+          if [[ "${#uniq[@]}" -eq 0 ]]; then
+            echo "apps=[]" >> "$GITHUB_OUTPUT"
+            echo "any=false" >> "$GITHUB_OUTPUT"
+          else
+            apps_json=$(printf '%s\n' "${uniq[@]}" | jq -R -s -c 'split("\n")[:-1]')
+            echo "apps=$apps_json" >> "$GITHUB_OUTPUT"
+            echo "any=true" >> "$GITHUB_OUTPUT"
+          fi
+
+  quality:
+    name: Lint / Format / Types / Unit
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        node: [22.x]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Enable Corepack (pnpm)
+        run: corepack enable
+      - name: Setup Node ${{ matrix.node }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+      - name: Install deps
+        run: pnpm install --frozen-lockfile
+      - name: ESLint
+        run: pnpm run lint
+      - name: Prettier (check)
+        run: pnpm run format:check
+      - name: Type check
+        run: pnpm run typecheck
+      - name: Unit tests
+        run: pnpm run test
+
+  app:
+    name: Build ${{ matrix.app }}
+    needs: [detect, quality]
+    if: needs.detect.outputs.any == 'true'
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [20.x, 22.x]
+        app: ${{ fromJSON(needs.detect.outputs.apps) }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Enable Corepack (pnpm)
+        run: corepack enable
+      - name: Setup Node ${{ matrix.node }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+      - name: Install deps
+        run: pnpm install --frozen-lockfile
+      - name: Lint ${{ matrix.app }}
+        run: pnpm -w --filter ./workspaces/apps/${{ matrix.app }}... run lint --if-present
+      - name: Typecheck ${{ matrix.app }}
+        run: pnpm -w --filter ./workspaces/apps/${{ matrix.app }}... run typecheck --if-present
+      - name: Test ${{ matrix.app }}
+        run: pnpm -w --filter ./workspaces/apps/${{ matrix.app }}... run test --if-present
+      - name: Build ${{ matrix.app }}
+        run: pnpm -w --filter ./workspaces/apps/${{ matrix.app }}... run build
+
+  security:
+    name: Audit / Gitleaks
+    needs: quality
+    if: always() && ( github.event_name == 'pull_request' || github.ref == 'refs/heads/main' || github.event_name == 'schedule' )
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Enable Corepack (pnpm)
+        run: corepack enable
+      - name: Setup Node 22.x
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22.x
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+      - name: Install deps
+        run: pnpm install --frozen-lockfile
+      - name: Audit (fail on high)
+        run: pnpm dlx audit-ci@^6 --high
+      - uses: gitleaks/gitleaks-action@v2
+        with:
+          args: --no-banner
