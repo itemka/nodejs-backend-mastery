@@ -132,6 +132,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - name: Enable Corepack (pnpm)
         run: corepack enable
       - name: Setup Node 22.x
@@ -145,5 +147,5 @@ jobs:
       - name: Audit (fail on high)
         run: pnpm dlx audit-ci@^6 --high
       - uses: gitleaks/gitleaks-action@v2
-        with:
-          args: --no-banner
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
