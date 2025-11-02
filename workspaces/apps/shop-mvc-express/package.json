@@ -2,7 +2,7 @@
   "name": "shop-mvc-express",
   "type": "module",
   "engines": {
-    "node": ">=20"
+    "node": ">=22"
   },
   "scripts": {
     "dev": "tsx watch --tsconfig tsconfig.json src/server.ts",

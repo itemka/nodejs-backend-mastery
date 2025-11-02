@@ -22,7 +22,7 @@ await esbuild.build({
   entryPoints: ['src/server.ts'],
   bundle: true,
   platform: 'node',
-  target: 'node20',
+  target: 'node22',
   format: 'esm',
   outdir: 'dist',
   packages: 'external', // Keep node_modules external
