@@ -28,7 +28,7 @@ await esbuild.build({
   packages: 'external', // Keep node_modules external
   plugins: [workspacePlugin],
   platform: 'node',
-  target: 'node20',
+  target: 'node22',
   format: 'esm', // matches "type": "module"
   bundle: true,
   sourcemap: true,
