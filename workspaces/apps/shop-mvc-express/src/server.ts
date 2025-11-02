@@ -1,16 +1,15 @@
-import express from 'express';
-
-import { env } from './env.js';
+import { createApp } from './app';
+import { env } from './env';
+import { registerGracefulShutdown } from './infra/shutdown';
 
 const { NODE_ENV, PORT } = env;
-const app = express();
 
-app.use(express.json());
+const app = createApp();
 
-app.get('/health', (_req, res) => {
-  res.json({ status: 'ok' });
+const server = app.listen(PORT, () => {
+  console.log(`Server listening on http://localhost:${PORT} in ${NODE_ENV} mode`);
 });
 
-app.listen(PORT, () => {
-  console.log(`Server listening on http://localhost:${PORT} in ${NODE_ENV} mode`);
+registerGracefulShutdown(server, {
+  // add later: closeAll: async () => { await db.end(); await redis.quit(); ... }
 });
