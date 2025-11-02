@@ -117,11 +117,11 @@ jobs:
       - name: Install deps
         run: pnpm install --frozen-lockfile
       - name: Lint ${{ matrix.app }}
-        run: pnpm -w --filter ./workspaces/apps/${{ matrix.app }}... run lint --if-present
+        run: pnpm -w --filter ./workspaces/apps/${{ matrix.app }}... run --if-present lint
       - name: Typecheck ${{ matrix.app }}
-        run: pnpm -w --filter ./workspaces/apps/${{ matrix.app }}... run typecheck --if-present
+        run: pnpm -w --filter ./workspaces/apps/${{ matrix.app }}... run --if-present typecheck
       - name: Test ${{ matrix.app }}
-        run: pnpm -w --filter ./workspaces/apps/${{ matrix.app }}... run test --if-present
+        run: pnpm -w --filter ./workspaces/apps/${{ matrix.app }}... run --if-present test
       - name: Build ${{ matrix.app }}
         run: pnpm -w --filter ./workspaces/apps/${{ matrix.app }}... run build
 
