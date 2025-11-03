@@ -12,11 +12,14 @@
   },
   "dependencies": {
     "dotenv": "^17.2.3",
+    "escape-html": "^1.0.3",
     "express": "^5.1.0",
+    "helmet": "^8.1.0",
     "uuid": "^13.0.0",
     "zod": "^4.1.12"
   },
   "devDependencies": {
+    "@types/escape-html": "^1.0.4",
     "@types/express": "^5.0.4",
     "@types/node": "^24.9.2",
     "esbuild": "^0.25.11",

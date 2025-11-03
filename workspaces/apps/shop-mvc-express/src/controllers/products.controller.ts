@@ -1,3 +1,4 @@
+import escapeHtml from 'escape-html';
 import type { Request, Response, NextFunction } from 'express';
 import { z } from 'zod';
 
@@ -12,7 +13,7 @@ interface Product {
 const products: Product[] = [];
 
 const createProductSchema = z.object({
-  title: z.string().min(1, 'Title is required').max(100, 'Title is too long'),
+  title: z.string().min(1, 'Title is required').max(100, 'Title is too long').transform(escapeHtml),
 });
 
 /**
@@ -257,8 +258,7 @@ export function listProducts(_req: Request, res: Response) {
                   .map(
                     (p) => `
                   <li class="product-item">
-                    <strong>${p.title}</strong>
-                    <small style="color: #999; margin-left: 10px;">ID: ${p.id}</small>
+                    <strong>${escapeHtml(p.title)}</strong>
                   </li>
                 `,
                   )
