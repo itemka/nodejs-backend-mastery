@@ -2,7 +2,7 @@ import escapeHtml from 'escape-html';
 import type { Request, Response, NextFunction } from 'express';
 import { z } from 'zod';
 
-import { generateCorrelationId } from '@/utils/id';
+import { generateId } from '@/utils/id';
 
 interface Product {
   id: string;
@@ -165,7 +165,7 @@ export function createProduct(req: Request, res: Response, next: NextFunction) {
     }
 
     const product: Product = {
-      id: generateCorrelationId(),
+      id: generateId(),
       title: result.data.title,
     };
 
