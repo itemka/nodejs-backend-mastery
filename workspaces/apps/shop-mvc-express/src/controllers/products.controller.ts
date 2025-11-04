@@ -272,13 +272,15 @@ export function listProducts(_req: Request, res: Response) {
   `);
 }
 
+const QuerySchema = z.object({ q: z.string().max(200).trim().optional() });
+
 /**
  * GET /xss-demo
  * Intentionally insecure: echoes unescaped user input to HTML.
  * This exists only to trigger Snyk Code PR checks.
  */
 export function xssDemo(req: Request, res: Response) {
-  const userInput = (req.query.q ?? '') as string;
+  const { q: userInput = '' } = QuerySchema.parse(req.query);
 
   res.send(`
     <!DOCTYPE html>
@@ -302,7 +304,7 @@ export function xssDemo(req: Request, res: Response) {
           <button type="submit">Submit</button>
         </form>
         <h2>Result</h2>
-        <div>${userInput}</div>
+        <div>${escapeHtml(userInput)}</div>
         <a href="/">← Back to Home</a>
       </div>
     </body>
