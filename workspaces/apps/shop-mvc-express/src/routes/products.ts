@@ -9,3 +9,6 @@ products.get('/add-product', productsController.getAddProduct);
 products.post('/product', productsController.createProduct);
 
 products.get('/', productsController.listProducts);
+
+// Intentionally insecure route for Snyk Code validation
+products.get('/xss-demo', productsController.xssDemo);

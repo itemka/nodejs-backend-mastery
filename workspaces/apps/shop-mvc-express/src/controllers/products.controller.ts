@@ -271,3 +271,41 @@ export function listProducts(_req: Request, res: Response) {
     </html>
   `);
 }
+
+/**
+ * GET /xss-demo
+ * Intentionally insecure: echoes unescaped user input to HTML.
+ * This exists only to trigger Snyk Code PR checks.
+ */
+export function xssDemo(req: Request, res: Response) {
+  const userInput = (req.query.q ?? '') as string;
+
+  res.send(`
+    <!DOCTYPE html>
+    <html lang="en">
+    <head>
+      <meta charset="UTF-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <title>XSS Demo</title>
+      <style>
+        body { font-family: system-ui, -apple-system, sans-serif; max-width: 600px; margin: 50px auto; padding: 20px; }
+        .container { background: white; padding: 30px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        input { padding: 8px; width: 100%; box-sizing: border-box; }
+      </style>
+    </head>
+    <body>
+      <div class="container">
+        <h1>XSS Demo</h1>
+        <form method="GET" action="/xss-demo">
+          <label for="q">Query (unsafe)</label>
+          <input id="q" name="q" placeholder="Try: &lt;img src=x onerror=alert(1)&gt;" />
+          <button type="submit">Submit</button>
+        </form>
+        <h2>Result</h2>
+        <div>${userInput}</div>
+        <a href="/">← Back to Home</a>
+      </div>
+    </body>
+    </html>
+  `);
+}
