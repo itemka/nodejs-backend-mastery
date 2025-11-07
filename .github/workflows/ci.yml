@@ -180,7 +180,15 @@ jobs:
           path: ~/.sonar/cache
           key: ${{ runner.os }}-sonar
           restore-keys: ${{ runner.os }}-sonar
+      - name: Skip SonarCloud on forked PRs (no secrets)
+        if: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.fork == true }}
+        run: echo "Fork PR detected: skipping SonarCloud scan (no secrets exposed)."
       - name: SonarCloud Scan
+        if: >
+          ${{
+            (github.event_name == 'push' && github.ref == 'refs/heads/main' && secrets.SONAR_TOKEN != '') ||
+            (github.event_name == 'pull_request' && github.event.pull_request.head.repo.fork == false && secrets.SONAR_TOKEN != '')
+          }}
         uses: SonarSource/sonarqube-scan-action@v6
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} # Needed for PR decoration, if any
