@@ -156,7 +156,7 @@ export function createProduct(req: Request, res: Response, next: NextFunction) {
         <body>
           <div class="error">
             <h2>Validation Error</h2>
-            <p>${errorMessages}</p>
+            <p>${escapeHtml(errorMessages)}</p>
           </div>
           <a href="/add-product">← Go back</a>
         </body>
