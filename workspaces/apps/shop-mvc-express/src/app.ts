@@ -2,7 +2,7 @@ import express from 'express';
 import helmet from 'helmet';
 
 import { env } from './env';
-import { routes } from './routes';
+import { createAppRouter } from './routes';
 
 export function createApp() {
   const app = express();
@@ -41,7 +41,7 @@ export function createApp() {
     }),
   );
 
-  app.use(routes);
+  app.use(createAppRouter());
   // TODO: not found middleware
 
   return app;
