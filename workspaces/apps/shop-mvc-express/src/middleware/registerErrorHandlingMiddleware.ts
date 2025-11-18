@@ -10,6 +10,8 @@ import { config } from '../config';
 import { type SafeHtml, renderErrorPage } from '../views/renderErrorPage';
 import { renderNotFoundPage } from '../views/renderNotFoundPage';
 
+const DEFAULT_NOT_FOUND_MESSAGE = 'The page you are looking for could not be found.';
+
 export function registerErrorHandlingMiddleware() {
   const router = Router();
 
@@ -18,7 +20,7 @@ export function registerErrorHandlingMiddleware() {
     next(
       new NotFoundError({
         details: { path: req.path },
-        message: 'The page you are looking for could not be found.',
+        message: DEFAULT_NOT_FOUND_MESSAGE,
       }),
     );
   });
@@ -36,8 +38,14 @@ export function registerErrorHandlingMiddleware() {
     const isNotFound = normalizedError.statusCode === 404;
 
     if (preferredType === 'html') {
+      const publicMessage = getPublicErrorMessage(normalizedError, isProdEnv);
+
       if (isNotFound) {
-        const html = renderNotFoundPage({ path: req.path });
+        const hasCustomMessage = publicMessage !== DEFAULT_NOT_FOUND_MESSAGE;
+
+        const html = renderNotFoundPage(
+          hasCustomMessage ? { message: publicMessage, path: req.path } : { path: req.path },
+        );
 
         return res.status(normalizedError.statusCode).send(html);
       }
@@ -51,7 +59,7 @@ export function registerErrorHandlingMiddleware() {
 
       const html = renderErrorPage({
         detailsHtml,
-        message: getPublicErrorMessage(normalizedError, isProdEnv),
+        message: publicMessage,
         statusCode: normalizedError.statusCode,
         title: 'Something went wrong',
       });
