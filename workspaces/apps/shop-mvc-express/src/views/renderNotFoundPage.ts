@@ -1,5 +1,3 @@
-import escapeHtml from 'escape-html';
-
 import { renderErrorPage } from './renderErrorPage';
 
 interface NotFoundPageOptions {
@@ -10,7 +8,7 @@ export function renderNotFoundPage(options: NotFoundPageOptions = {}): string {
   const { path } = options;
 
   const message = path
-    ? `The page "${escapeHtml(path)}" could not be found.`
+    ? `The page "${path}" could not be found.`
     : 'The page you are looking for could not be found.';
 
   return renderErrorPage({
