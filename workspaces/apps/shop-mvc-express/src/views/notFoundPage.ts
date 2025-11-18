@@ -1,4 +1,4 @@
-import { renderErrorPage } from './renderErrorPage';
+import { errorPage } from './errorPage';
 
 interface NotFoundPageOptions {
   path?: string;
@@ -9,7 +9,7 @@ interface NotFoundPageOptions {
   message?: string;
 }
 
-export function renderNotFoundPage(options: NotFoundPageOptions = {}): string {
+export function notFoundPage(options: NotFoundPageOptions = {}): string {
   const { message: overrideMessage, path } = options;
 
   const message =
@@ -18,7 +18,7 @@ export function renderNotFoundPage(options: NotFoundPageOptions = {}): string {
       ? `The page "${path}" could not be found.`
       : 'The page you are looking for could not be found.');
 
-  return renderErrorPage({
+  return errorPage({
     message,
     statusCode: 404,
     title: 'Page not found',

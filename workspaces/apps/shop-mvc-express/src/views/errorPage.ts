@@ -15,7 +15,7 @@ interface ErrorPageOptions {
   detailsHtml?: SafeHtml | undefined;
 }
 
-export function renderErrorPage(options: ErrorPageOptions): string {
+export function errorPage(options: ErrorPageOptions): string {
   const { detailsHtml, message, statusCode, title } = options;
 
   const safeTitle = escapeHtml(title);

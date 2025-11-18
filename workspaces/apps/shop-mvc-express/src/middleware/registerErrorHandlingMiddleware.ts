@@ -7,8 +7,8 @@ import escapeHtml from 'escape-html';
 import { Router, type NextFunction, type Request, type Response } from 'express';
 
 import { config } from '../config';
-import { type SafeHtml, renderErrorPage } from '../views/renderErrorPage';
-import { renderNotFoundPage } from '../views/renderNotFoundPage';
+import { type SafeHtml, errorPage } from '../views/errorPage';
+import { notFoundPage } from '../views/notFoundPage';
 
 const DEFAULT_NOT_FOUND_MESSAGE = 'The page you are looking for could not be found.';
 
@@ -43,7 +43,7 @@ export function registerErrorHandlingMiddleware() {
       if (isNotFound) {
         const hasCustomMessage = publicMessage !== DEFAULT_NOT_FOUND_MESSAGE;
 
-        const html = renderNotFoundPage(
+        const html = notFoundPage(
           hasCustomMessage ? { message: publicMessage, path: req.path } : { path: req.path },
         );
 
@@ -57,7 +57,7 @@ export function registerErrorHandlingMiddleware() {
           ? (`<strong>Stack trace</strong>\n\n${escapedStack}` as SafeHtml)
           : undefined;
 
-      const html = renderErrorPage({
+      const html = errorPage({
         detailsHtml,
         message: publicMessage,
         statusCode: normalizedError.statusCode,
