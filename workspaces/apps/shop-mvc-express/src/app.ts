@@ -1,8 +1,9 @@
 import express from 'express';
 import helmet from 'helmet';
 
-import { env } from './env';
-import { routes } from './routes';
+import { config } from './config';
+import { registerErrorHandlingMiddleware } from './middleware/registerErrorHandlingMiddleware';
+import { createAppRouter } from './routes';
 
 export function createApp() {
   const app = express();
@@ -12,7 +13,7 @@ export function createApp() {
 
   // TODO: Implement later: review existing ones and add other Helmet defaults (noSniff, frameguard, hidePoweredBy, etc.)
   // Security headers via Helmet
-  const isProd = env.NODE_ENV === 'production';
+  const isProd = config.nodeEnv === 'production';
   app.use(
     helmet({
       // Enable CSP with strict script policy; allow inline styles for our templates
@@ -41,8 +42,9 @@ export function createApp() {
     }),
   );
 
-  app.use(routes);
-  // TODO: not found middleware
+  app.use(createAppRouter());
+
+  app.use(registerErrorHandlingMiddleware());
 
   return app;
 }

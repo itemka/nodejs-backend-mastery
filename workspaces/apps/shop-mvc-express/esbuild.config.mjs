@@ -16,6 +16,13 @@ const workspacePlugin = {
         external: false,
       };
     });
+
+    build.onResolve({ filter: /^@workspaces\/packages\/errors$/ }, () => {
+      return {
+        path: path.join(__dirname, '../../packages/errors/src/index.ts'),
+        external: false,
+      };
+    });
   },
 };
 

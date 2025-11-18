@@ -16,11 +16,7 @@ const createProductSchema = z.object({
   title: z.string().min(1, 'Title is required').max(100, 'Title is too long').trim(),
 });
 
-/**
- * GET /add-product
- * Renders the add product form
- */
-export function getAddProduct(_req: Request, res: Response) {
+export function renderCreateProductForm(_req: Request, res: Response) {
   res.send(`
     <!DOCTYPE html>
     <html lang="en">
@@ -95,7 +91,7 @@ export function getAddProduct(_req: Request, res: Response) {
     <body>
       <div class="container">
         <h1>Add Product</h1>
-        <form action="/product" method="POST">
+        <form action="/products" method="POST">
           <label for="title">Product Title</label>
           <input 
             type="text" 
@@ -107,17 +103,13 @@ export function getAddProduct(_req: Request, res: Response) {
           />
           <button type="submit">Add Product</button>
         </form>
-        <a href="/" class="back-link">← Back to Home</a>
+        <a href="/products" class="back-link">← Back to Products</a>
       </div>
     </body>
     </html>
   `);
 }
 
-/**
- * POST /product
- * Handles product creation
- */
 export function createProduct(req: Request, res: Response, next: NextFunction) {
   try {
     const result = createProductSchema.safeParse(req.body);
@@ -158,7 +150,7 @@ export function createProduct(req: Request, res: Response, next: NextFunction) {
             <h2>Validation Error</h2>
             <p>${escapeHtml(errorMessages)}</p>
           </div>
-          <a href="/add-product">← Go back</a>
+          <a href="/products/new">← Go back</a>
         </body>
         </html>
       `);
@@ -174,17 +166,13 @@ export function createProduct(req: Request, res: Response, next: NextFunction) {
     console.log('Product created:', product);
     console.log('All products:', products);
 
-    res.redirect('/');
+    res.redirect('/products');
   } catch (error) {
     next(error);
   }
 }
 
-/**
- * GET /
- * Displays list of products
- */
-export function listProducts(_req: Request, res: Response) {
+export function getProducts(_req: Request, res: Response) {
   res.send(`
     <!DOCTYPE html>
     <html lang="en">
@@ -247,8 +235,7 @@ export function listProducts(_req: Request, res: Response) {
     <body>
       <div class="container">
         <h1>Shop Products</h1>
-        <a href="/add-product" class="add-btn">+ Add New Product</a>
-        
+        <a href="/products/new" class="add-btn">+ Add New Product</a>
         ${
           products.length === 0
             ? '<div class="empty-state">No products yet. Add your first product!</div>'
