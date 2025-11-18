@@ -6,7 +6,7 @@ const app = createApp();
 
 const server = app.listen(config.port, () => {
   console.log(
-    `Server listening on http://localhost:${config.port} in ${config.nodeEnv} mode (APP_ENV=${config.env})`,
+    `Server listening on http://localhost:${config.port} in ${config.nodeEnv} mode (DEPLOYMENT_ENV=${config.deploymentEnv})`,
   );
 });
 

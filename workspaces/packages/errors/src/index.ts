@@ -152,12 +152,7 @@ export interface UnauthorizedErrorDetails {
    * Optional internal reason for logging/diagnostics.
    * Avoid exposing sensitive information directly to clients.
    */
-  reason?:
-    | 'MISSING_TOKEN'
-    | 'INVALID_TOKEN'
-    | 'EXPIRED_TOKEN'
-    | 'INSUFFICIENT_SCOPE'
-    | (string & {});
+  reason?: string;
 }
 
 // eslint-disable-next-line @typescript-eslint/no-empty-object-type
@@ -189,7 +184,7 @@ export interface ForbiddenErrorDetails {
    * Optional internal reason for logging/diagnostics.
    * Avoid exposing sensitive information directly to clients.
    */
-  reason?: 'INSUFFICIENT_PERMISSIONS' | 'POLICY_VIOLATION' | (string & {});
+  reason?: string;
 }
 
 // eslint-disable-next-line @typescript-eslint/no-empty-object-type

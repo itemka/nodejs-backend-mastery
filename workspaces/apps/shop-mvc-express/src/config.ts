@@ -1,9 +1,11 @@
-import type { AppEnv } from '@workspaces/packages/config';
+import type { DeploymentEnv } from '@workspaces/packages/config';
 
 import { env } from './env';
 
-// TODO: Replace with actual URL
-const serviceUrlsByEnv: Record<AppEnv, { userService: string }> = {
+type ShopMvcExpressDeploymentEnv = Exclude<DeploymentEnv, 'staging'>;
+
+// TODO: Replace with actual URLs for real services
+const serviceUrlsByEnv: Record<ShopMvcExpressDeploymentEnv, { userService: string }> = {
   dev: {
     userService: 'https://user-service-dev.internal',
   },
@@ -18,9 +20,19 @@ const serviceUrlsByEnv: Record<AppEnv, { userService: string }> = {
   },
 };
 
+function toShopMvcExpressDeploymentEnv(envValue: DeploymentEnv): ShopMvcExpressDeploymentEnv {
+  if (envValue === 'staging') {
+    throw new Error('DEPLOYMENT_ENV="staging" is not supported for shop-mvc-express');
+  }
+
+  return envValue;
+}
+
+const deploymentEnv = toShopMvcExpressDeploymentEnv(env.DEPLOYMENT_ENV);
+
 export const config = {
-  env: env.APP_ENV,
+  deploymentEnv,
   nodeEnv: env.NODE_ENV,
   port: env.PORT,
-  services: serviceUrlsByEnv[env.APP_ENV],
+  services: serviceUrlsByEnv[deploymentEnv],
 } as const;

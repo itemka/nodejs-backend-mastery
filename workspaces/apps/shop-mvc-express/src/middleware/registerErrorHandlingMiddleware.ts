@@ -6,7 +6,7 @@ import {
 import escapeHtml from 'escape-html';
 import { Router, type NextFunction, type Request, type Response } from 'express';
 
-import { env } from '../env';
+import { config } from '../config';
 import { type SafeHtml, renderErrorPage } from '../views/renderErrorPage';
 import { renderNotFoundPage } from '../views/renderNotFoundPage';
 
@@ -28,12 +28,11 @@ export function registerErrorHandlingMiddleware() {
     const normalizedError = normalizeHttpError(err);
 
     // TODO: log via implemented logger later (plus correlationId/requestId when request logging middleware is added)
-    // After line 25 (destructuring normalizedError)
-    // Future: add correlationId/requestId when request logging middleware is added);
+    // Future: add correlationId/requestId when request logging middleware is added
     console.error('Request error normalizedError:', normalizedError);
 
     const preferredType = getPreferredResponseType(req);
-    const isProdEnv = env.NODE_ENV === 'production';
+    const isProdEnv = config.nodeEnv === 'production';
     const isNotFound = normalizedError.statusCode === 404;
 
     if (preferredType === 'html') {

@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-export const appEnvSchema = z
+export const deploymentEnvSchema = z
   .enum(['local', 'dev', 'qa', 'staging', 'prod'])
   .describe('Deployment stage / environment (infra & services)');
 
@@ -9,13 +9,13 @@ export const nodeEnvSchema = z
   .describe('Node.js runtime mode');
 
 export const baseSchema = z.object({
-  APP_ENV: appEnvSchema.default('local'),
+  DEPLOYMENT_ENV: deploymentEnvSchema.default('local'),
   NODE_ENV: nodeEnvSchema.default('development'),
   PORT: z.coerce.number().int().min(0).max(65_535).default(3000).describe('Port for HTTP server'),
 });
 
 export type BaseEnv = z.infer<typeof baseSchema>;
-export type AppEnv = z.infer<typeof appEnvSchema>;
+export type DeploymentEnv = z.infer<typeof deploymentEnvSchema>;
 export type NodeEnv = z.infer<typeof nodeEnvSchema>;
 
 /**

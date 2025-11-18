@@ -13,7 +13,11 @@ export function wrapAsync<
 >(
   handler: (req: TRequest, res: TResponse, next: NextFunction) => TResult | Promise<TResult>,
 ): RequestHandler {
-  return ((req: TRequest, res: TResponse, next: NextFunction) => {
-    void Promise.resolve(handler(req, res, next)).catch(next);
+  return (async (req: TRequest, res: TResponse, next: NextFunction) => {
+    try {
+      return await handler(req, res, next);
+    } catch (error) {
+      next(error);
+    }
   }) as unknown as RequestHandler;
 }
