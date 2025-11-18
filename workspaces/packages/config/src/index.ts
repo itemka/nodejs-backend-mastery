@@ -1,11 +1,22 @@
 import { z } from 'zod';
 
+export const appEnvSchema = z
+  .enum(['local', 'dev', 'qa', 'staging', 'prod'])
+  .describe('Deployment stage / environment (infra & services)');
+
+export const nodeEnvSchema = z
+  .enum(['development', 'test', 'production'])
+  .describe('Node.js runtime mode');
+
 export const baseSchema = z.object({
-  NODE_ENV: z.enum(['development', 'qa', 'production', 'test']).default('development'),
+  APP_ENV: appEnvSchema.default('local'),
+  NODE_ENV: nodeEnvSchema.default('development'),
   PORT: z.coerce.number().int().min(0).max(65_535).default(3000).describe('Port for HTTP server'),
 });
 
 export type BaseEnv = z.infer<typeof baseSchema>;
+export type AppEnv = z.infer<typeof appEnvSchema>;
+export type NodeEnv = z.infer<typeof nodeEnvSchema>;
 
 /**
  * Load + validate env for any app.

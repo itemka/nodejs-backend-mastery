@@ -2,6 +2,7 @@ import express from 'express';
 import helmet from 'helmet';
 
 import { env } from './env';
+import { registerErrorHandlingMiddleware } from './middleware/registerErrorHandlingMiddleware';
 import { createAppRouter } from './routes';
 
 export function createApp() {
@@ -42,7 +43,8 @@ export function createApp() {
   );
 
   app.use(createAppRouter());
-  // TODO: not found middleware
+
+  app.use(registerErrorHandlingMiddleware());
 
   return app;
 }

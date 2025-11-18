@@ -1,13 +1,13 @@
 import { createApp } from './app';
-import { env } from './env';
+import { config } from './config';
 import { registerGracefulShutdown } from './infra/shutdown';
-
-const { NODE_ENV, PORT } = env;
 
 const app = createApp();
 
-const server = app.listen(PORT, () => {
-  console.log(`Server listening on http://localhost:${PORT} in ${NODE_ENV} mode`);
+const server = app.listen(config.port, () => {
+  console.log(
+    `Server listening on http://localhost:${config.port} in ${config.nodeEnv} mode (APP_ENV=${config.env})`,
+  );
 });
 
 registerGracefulShutdown(server, {

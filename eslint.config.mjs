@@ -88,6 +88,17 @@ export default [
       // Useful unicorn tweaks (keep the rest from preset)
       'unicorn/prevent-abbreviations': 'off', // too noisy in real codebases
       'unicorn/prefer-node-protocol': 'error',
+      'unicorn/filename-case': [
+        'error',
+        {
+          // Allow multiple conventions across the monorepo.
+          cases: {
+            kebabCase: true,
+            camelCase: true,
+            pascalCase: true,
+          },
+        },
+      ],
 
       // Nice, autofixable order for imports/keys/etc.
       'perfectionist/sort-imports': [
