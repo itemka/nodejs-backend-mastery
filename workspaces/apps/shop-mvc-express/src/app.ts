@@ -8,8 +8,8 @@ import { createAppRouter } from './routes';
 export function createApp() {
   const app = express();
 
-  app.use(express.json());
-  app.use(express.urlencoded({ extended: false })); // Parse HTML form data
+  app.use(express.json({ limit: config.requestLimits.body }));
+  app.use(express.urlencoded({ extended: false, limit: config.requestLimits.body })); // Parse HTML form data
 
   // TODO: Implement later: review existing ones and add other Helmet defaults (noSniff, frameguard, hidePoweredBy, etc.)
   // Security headers via Helmet

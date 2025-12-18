@@ -34,5 +34,8 @@ export const config = {
   deploymentEnv,
   nodeEnv: env.NODE_ENV,
   port: env.PORT,
+  requestLimits: {
+    body: env.BODY_PARSER_LIMIT,
+  },
   services: serviceUrlsByEnv[deploymentEnv],
 } as const;
