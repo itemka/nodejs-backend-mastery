@@ -92,8 +92,10 @@ export function normalizeHttpError(error: unknown): NormalizedHttpError {
   };
 }
 
-export interface NotFoundErrorOptions
-  extends Omit<HttpErrorOptions<{ path?: string }>, 'statusCode'> {
+export interface NotFoundErrorOptions extends Omit<
+  HttpErrorOptions<{ path?: string }>,
+  'statusCode'
+> {
   /**
    * Override the default error code. Defaults to "NOT_FOUND" when omitted.
    */
@@ -125,8 +127,10 @@ export interface ValidationErrorDetails {
 }
 
 // eslint-disable-next-line @typescript-eslint/no-empty-object-type
-export interface ValidationErrorOptions
-  extends Omit<HttpErrorOptions<ValidationErrorDetails>, 'statusCode'> {}
+export interface ValidationErrorOptions extends Omit<
+  HttpErrorOptions<ValidationErrorDetails>,
+  'statusCode'
+> {}
 
 /**
  * Represents a client-side input/validation error (HTTP 400).
@@ -156,8 +160,10 @@ export interface UnauthorizedErrorDetails {
 }
 
 // eslint-disable-next-line @typescript-eslint/no-empty-object-type
-export interface UnauthorizedErrorOptions
-  extends Omit<HttpErrorOptions<UnauthorizedErrorDetails>, 'statusCode'> {}
+export interface UnauthorizedErrorOptions extends Omit<
+  HttpErrorOptions<UnauthorizedErrorDetails>,
+  'statusCode'
+> {}
 
 /**
  * Represents an authentication failure (HTTP 401).
@@ -188,8 +194,10 @@ export interface ForbiddenErrorDetails {
 }
 
 // eslint-disable-next-line @typescript-eslint/no-empty-object-type
-export interface ForbiddenErrorOptions
-  extends Omit<HttpErrorOptions<ForbiddenErrorDetails>, 'statusCode'> {}
+export interface ForbiddenErrorOptions extends Omit<
+  HttpErrorOptions<ForbiddenErrorDetails>,
+  'statusCode'
+> {}
 
 /**
  * Represents an authorization failure (HTTP 403).
@@ -220,8 +228,10 @@ export interface ConflictErrorDetails {
 }
 
 // eslint-disable-next-line @typescript-eslint/no-empty-object-type
-export interface ConflictErrorOptions
-  extends Omit<HttpErrorOptions<ConflictErrorDetails>, 'statusCode'> {}
+export interface ConflictErrorOptions extends Omit<
+  HttpErrorOptions<ConflictErrorDetails>,
+  'statusCode'
+> {}
 
 /**
  * Represents a conflict with the current state of the resource (HTTP 409).
@@ -251,8 +261,10 @@ export interface TooManyRequestsErrorDetails {
 }
 
 // eslint-disable-next-line @typescript-eslint/no-empty-object-type
-export interface TooManyRequestsErrorOptions
-  extends Omit<HttpErrorOptions<TooManyRequestsErrorDetails>, 'statusCode'> {}
+export interface TooManyRequestsErrorOptions extends Omit<
+  HttpErrorOptions<TooManyRequestsErrorDetails>,
+  'statusCode'
+> {}
 
 /**
  * Represents a rate limiting error (HTTP 429).
