@@ -91,6 +91,8 @@ Development mode starts the Express API and Vite client together:
 pnpm --filter local-llm-playground dev
 ```
 
+The `dev` script runs the API and the Vite dev server in parallel. The `client:dev` step polls `GET /api/health` on the dev API origin (see `VITE_DEV_API_ORIGIN` in `.env.example`) until the backend responds or a timeout elapses, then starts Vite so the UI does not load against a cold API. If you need Vite immediately without that wait (for example when debugging the client against a remote API), use `pnpm --filter local-llm-playground client:dev:vite` instead.
+
 Open:
 
 - Vite client: `http://localhost:5173`
@@ -107,7 +109,8 @@ After `build` + `start`, the backend serves the built client from `http://localh
 
 ## Scripts
 
-- `pnpm --filter local-llm-playground dev`
+- `pnpm --filter local-llm-playground dev` — API + Vite; client waits for API health before starting Vite when `VITE_API_BASE_URL` is unset
+- `pnpm --filter local-llm-playground client:dev:vite` — Vite only, no API readiness wait (use from the `local-llm-playground` package directory or via pnpm as above)
 - `pnpm --filter local-llm-playground build`
 - `pnpm --filter local-llm-playground start`
 - `pnpm --filter local-llm-playground typecheck`

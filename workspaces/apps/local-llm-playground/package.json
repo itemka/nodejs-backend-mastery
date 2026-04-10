@@ -8,7 +8,8 @@
   "scripts": {
     "dev": "concurrently -k -n api,web -c blue,magenta \"pnpm backend:dev\" \"pnpm client:dev\"",
     "backend:dev": "tsx watch --tsconfig backend/tsconfig.json backend/src/server.ts",
-    "client:dev": "vite --config client/vite.config.ts",
+    "client:dev": "node ./scripts/wait-for-api-and-run-vite.mjs",
+    "client:dev:vite": "vite --config client/vite.config.ts",
     "build": "pnpm build:backend && pnpm build:client",
     "build:backend": "node backend/esbuild.config.mjs",
     "build:client": "vite build --config client/vite.config.ts",

@@ -50,6 +50,10 @@ const initialCompareState: CompareUiState = {
   status: 'idle',
 };
 
+const metadataLoadMaxAttempts = 3;
+/** Delay after each failed attempt before the next (length = max attempts − 1). */
+const metadataRetryDelaysMs = [200, 400] as const;
+
 function createInitialCheckerSections(): Record<CheckerSectionKey, CheckerSectionState> {
   return {
     check: { status: 'idle' },
@@ -76,27 +80,49 @@ export default function App() {
   >(createInitialCheckerSections());
   const chatAbortControllerRef = useRef<AbortController | undefined>(undefined);
   const compareAbortControllerRef = useRef<AbortController | undefined>(undefined);
+  const metadataRefreshRequestRef = useRef(0);
 
   const refreshMetadata = useCallback(async (): Promise<void> => {
+    const requestId = metadataRefreshRequestRef.current + 1;
+    metadataRefreshRequestRef.current = requestId;
+
     setHealthState({ status: 'loading' });
     setModelsState({ status: 'loading' });
 
-    const [healthResult, modelsResult] = await Promise.allSettled([
-      api.getHealth(),
-      api.getModels(),
-    ]);
+    for (let attempt = 0; attempt < metadataLoadMaxAttempts; attempt++) {
+      const [healthResult, modelsResult] = await Promise.allSettled([
+        api.getHealth(),
+        api.getModels(),
+      ]);
 
-    if (healthResult.status === 'fulfilled') {
-      setHealthState({ data: healthResult.value, status: 'success' });
-    } else {
-      setHealthState({ error: toErrorMessage(healthResult.reason), status: 'error' });
-    }
+      if (metadataRefreshRequestRef.current !== requestId) {
+        return;
+      }
 
-    if (modelsResult.status === 'fulfilled') {
-      setModelsState({ data: modelsResult.value, status: 'success' });
-    } else {
-      setModelsState({ error: toErrorMessage(modelsResult.reason), status: 'error' });
+      const canRetryAttempt =
+        attempt < metadataLoadMaxAttempts - 1 && shouldRetryMetadataLoad(healthResult, modelsResult);
+
+      if (canRetryAttempt) {
+        await sleep(metadataRetryDelaysMs[attempt]!);
+
+        if (metadataRefreshRequestRef.current !== requestId) {
+          return;
+        }
+
+        continue;
+      }
+
+      setHealthState(toLoadState(healthResult));
+      setModelsState(toLoadState(modelsResult));
+
+      return;
     }
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      metadataRefreshRequestRef.current += 1;
+    };
   }, []);
 
   useEffect(() => {
@@ -480,6 +506,14 @@ async function loadCheckerSection(section: CheckerSectionKey): Promise<LlmChecke
   return await api.llmChecker.ollamaPlan();
 }
 
+function toLoadState<T>(result: PromiseSettledResult<T>): LoadState<T> {
+  if (result.status === 'fulfilled') {
+    return { data: result.value, status: 'success' };
+  }
+
+  return { error: toErrorMessage(result.reason), status: 'error' };
+}
+
 function toErrorMessage(error: unknown): string {
   if (error instanceof ApiClientError) {
     return error.message;
@@ -490,6 +524,25 @@ function toErrorMessage(error: unknown): string {
   }
 
   return 'Unexpected client error.';
+}
+
+function shouldRetryMetadataLoad(
+  healthResult: PromiseSettledResult<HealthResponse>,
+  modelsResult: PromiseSettledResult<ModelsResponse>,
+): boolean {
+  return isRetryableMetadataResult(healthResult) || isRetryableMetadataResult(modelsResult);
+}
+
+function isRetryableMetadataResult<T>(result: PromiseSettledResult<T>): boolean {
+  return result.status === 'rejected' && isRetryableMetadataError(result.reason);
+}
+
+function isRetryableMetadataError(error: unknown): boolean {
+  if (error instanceof ApiClientError) {
+    return error.statusCode === 408 || error.statusCode === 429 || error.statusCode >= 500;
+  }
+
+  return error instanceof Error;
 }
 
 function getHealthLabel(healthState: LoadState<HealthResponse>): string {
@@ -530,4 +583,10 @@ function getViewTitle(view: WorkspaceView): string {
   }
 
   return 'LLM Checker';
+}
+
+async function sleep(milliseconds: number): Promise<void> {
+  await new Promise<void>((resolve) => {
+    globalThis.setTimeout(resolve, milliseconds);
+  });
 }
