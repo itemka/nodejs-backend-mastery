@@ -166,11 +166,11 @@ export default function App() {
 
     const payload = {
       maxTokens: settings.maxTokens,
+      model: selectedModelId,
       stream: settings.stream,
       systemPrompt: settings.systemPrompt,
       temperature: settings.temperature,
       userPrompt: settings.userPrompt,
-      ...(settings.model && isSupportedModelId(settings.model) ? { model: settings.model } : {}),
     };
 
     setChatState({

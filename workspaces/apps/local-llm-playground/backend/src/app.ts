@@ -43,7 +43,14 @@ export function createApp(): {
 
   if (existsSync(clientIndexPath)) {
     app.use(express.static(clientDistDir));
-    app.get(/^(?!\/api).*/, (_request, response) => {
+
+    app.get(/^(?!\/api).*/, (request, response, next) => {
+      if (!isHtmlNavigationRequest(request)) {
+        next();
+
+        return;
+      }
+
       response.sendFile(clientIndexPath);
     });
   }
@@ -55,4 +62,10 @@ export function createApp(): {
     app,
     context,
   };
+}
+
+function isHtmlNavigationRequest(request: express.Request): boolean {
+  const acceptHeader = request.get('accept');
+
+  return typeof acceptHeader === 'string' && acceptHeader.includes('text/html');
 }
