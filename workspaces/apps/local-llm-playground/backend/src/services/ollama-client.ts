@@ -225,6 +225,8 @@ async function readChatStream(
     const chunk = await reader.read();
 
     if (chunk.done) {
+      flushStreamDecoder(decoder, handlers, state);
+
       return;
     }
 
@@ -242,7 +244,27 @@ function processStreamChunk(
   handlers: StreamHandlers,
   state: StreamState,
 ): void {
-  state.buffer += decoder.decode(chunk, { stream: true });
+  processDecodedStreamText(decoder.decode(chunk, { stream: true }), handlers, state);
+}
+
+function flushStreamDecoder(
+  decoder: TextDecoder,
+  handlers: StreamHandlers,
+  state: StreamState,
+): void {
+  processDecodedStreamText(decoder.decode(), handlers, state);
+}
+
+function processDecodedStreamText(
+  decodedText: string,
+  handlers: StreamHandlers,
+  state: StreamState,
+): void {
+  if (!decodedText) {
+    return;
+  }
+
+  state.buffer += decodedText;
   assertStreamBufferWithinLimit(state.buffer);
 
   const extracted = extractSseEvents(state.buffer);

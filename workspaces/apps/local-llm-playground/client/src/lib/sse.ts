@@ -20,6 +20,8 @@ export async function readSseStream(
       const chunk = await reader.read();
 
       if (chunk.done) {
+        buffer += decoder.decode();
+
         break;
       }
 

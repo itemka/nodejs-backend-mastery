@@ -209,6 +209,10 @@ export default function App() {
       await refreshMetadata();
     } catch (error) {
       if (abortController.signal.aborted) {
+        if (chatAbortControllerRef.current !== abortController) {
+          return;
+        }
+
         setChatState((current) => ({
           ...current,
           error: 'Request cancelled.',
