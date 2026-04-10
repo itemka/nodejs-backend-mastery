@@ -50,7 +50,7 @@ export function SidebarNav({
   installedCount,
   onRefresh,
   onViewChange,
-}: SidebarNavProps) {
+}: Readonly<SidebarNavProps>) {
   return (
     <aside className="border-b border-slate-200 bg-[#f8f8f8] lg:sticky lg:top-0 lg:h-screen lg:border-b-0 lg:border-r">
       <div className="flex h-full flex-col gap-5 p-4">

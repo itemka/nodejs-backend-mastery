@@ -22,7 +22,7 @@ export function ChatPanel({
   onSettingsChange,
   selectedModelId,
   settings,
-}: ChatPanelProps) {
+}: Readonly<ChatPanelProps>) {
   const isBusy = chatState.status === 'loading' || chatState.status === 'streaming';
   const modelCountLabel = models.length === 1 ? '1 model' : `${models.length} models`;
   let statusLabel = 'Ready';
@@ -213,7 +213,7 @@ interface MessageBlockProps {
   meta?: string;
 }
 
-function MessageBlock({ align, body, label, meta }: MessageBlockProps) {
+function MessageBlock({ align, body, label, meta }: Readonly<MessageBlockProps>) {
   const isRightAligned = align === 'right';
   const wrapperClassName = isRightAligned ? 'flex justify-end' : 'flex justify-start';
   const blockClassName = isRightAligned

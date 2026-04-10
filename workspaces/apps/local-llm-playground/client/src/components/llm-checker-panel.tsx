@@ -16,7 +16,11 @@ const sectionLabels: Record<CheckerSectionKey, string> = {
   reasoningRecommendation: 'Reasoning Recommendation',
 };
 
-export function LlmCheckerPanel({ onLoadAll, onLoadSection, sections }: LlmCheckerPanelProps) {
+export function LlmCheckerPanel({
+  onLoadAll,
+  onLoadSection,
+  sections,
+}: Readonly<LlmCheckerPanelProps>) {
   return (
     <SectionCard
       actions={

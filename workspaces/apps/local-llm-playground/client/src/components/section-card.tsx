@@ -6,7 +6,7 @@ interface SectionCardProps extends PropsWithChildren {
   title: string;
 }
 
-export function SectionCard({ actions, children, description, title }: SectionCardProps) {
+export function SectionCard({ actions, children, description, title }: Readonly<SectionCardProps>) {
   const descriptionNode = description ? (
     <p className="mt-1 text-sm leading-6 text-slate-500">{description}</p>
   ) : undefined;

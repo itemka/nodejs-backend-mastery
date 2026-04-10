@@ -59,6 +59,20 @@ interface StreamHandlers {
   onStart(): void;
 }
 
+interface StreamState {
+  buffer: string;
+  model: string;
+  responseText: string;
+}
+
+interface StreamReader {
+  cancel(): Promise<void>;
+  read(): Promise<{
+    done: boolean;
+    value?: Uint8Array;
+  }>;
+}
+
 export class OllamaClient {
   public constructor(
     private readonly options: {
@@ -139,77 +153,17 @@ export class OllamaClient {
     handlers.onStart();
 
     const reader = response.body.getReader();
-    const decoder = new TextDecoder();
-    const maxBufferSize = 1024 * 1024;
-    let buffer = '';
-    let model = input.model;
-    let responseText = '';
+    const state: StreamState = {
+      buffer: '',
+      model: input.model,
+      responseText: '',
+    };
 
     try {
-      while (true) {
-        const chunk = await reader.read();
+      await readChatStream(reader, handlers, state);
 
-        if (chunk.done) {
-          break;
-        }
-
-        if (!(chunk.value instanceof Uint8Array)) {
-          continue;
-        }
-
-        buffer += decoder.decode(chunk.value, { stream: true });
-
-        if (buffer.length > maxBufferSize) {
-          throw new AppError({
-            code: 'OLLAMA_STREAM_OVERFLOW',
-            message: 'The Ollama stream buffer exceeded the maximum allowed size.',
-            statusCode: 502,
-          });
-        }
-
-        const extracted = extractSseEvents(buffer);
-        buffer = extracted.remainder;
-
-        for (const event of extracted.events) {
-          const parsed = parseOpenAiStreamEvent(event);
-
-          if (parsed.done) {
-            continue;
-          }
-
-          if (parsed.model) {
-            model = parsed.model;
-          }
-
-          if (!parsed.deltaText) {
-            continue;
-          }
-
-          responseText += parsed.deltaText;
-          handlers.onDelta(parsed.deltaText);
-        }
-      }
-
-      if (buffer.trim()) {
-        const extracted = extractSseEvents(`${buffer}\n\n`);
-
-        for (const event of extracted.events) {
-          const parsed = parseOpenAiStreamEvent(event);
-
-          if (parsed.done || !parsed.deltaText) {
-            continue;
-          }
-
-          responseText += parsed.deltaText;
-          handlers.onDelta(parsed.deltaText);
-        }
-      }
-
-      handlers.onDone({
-        latencyMs: Math.round(performance.now() - startedAt),
-        model,
-        responseText,
-      });
+      flushRemainingEvents(handlers, state);
+      handlers.onDone(createStreamResult(startedAt, state));
     } catch (error) {
       reader.cancel().catch(() => {
         // Intentionally ignoring cancel errors on a failed stream.
@@ -258,6 +212,100 @@ export class OllamaClient {
       'content-type': 'application/json',
     };
   }
+}
+
+async function readChatStream(
+  reader: StreamReader,
+  handlers: StreamHandlers,
+  state: StreamState,
+): Promise<void> {
+  const decoder = new TextDecoder();
+
+  while (true) {
+    const chunk = await reader.read();
+
+    if (chunk.done) {
+      return;
+    }
+
+    if (!(chunk.value instanceof Uint8Array)) {
+      continue;
+    }
+
+    processStreamChunk(chunk.value, decoder, handlers, state);
+  }
+}
+
+function processStreamChunk(
+  chunk: Uint8Array,
+  decoder: TextDecoder,
+  handlers: StreamHandlers,
+  state: StreamState,
+): void {
+  state.buffer += decoder.decode(chunk, { stream: true });
+  assertStreamBufferWithinLimit(state.buffer);
+
+  const extracted = extractSseEvents(state.buffer);
+  state.buffer = extracted.remainder;
+
+  emitParsedEvents(extracted.events, handlers, state, true);
+}
+
+function emitParsedEvents(
+  events: string[],
+  handlers: StreamHandlers,
+  state: StreamState,
+  captureModel: boolean,
+): void {
+  for (const event of events) {
+    const parsed = parseOpenAiStreamEvent(event);
+
+    if (parsed.done) {
+      continue;
+    }
+
+    if (captureModel && parsed.model) {
+      state.model = parsed.model;
+    }
+
+    if (!parsed.deltaText) {
+      continue;
+    }
+
+    state.responseText += parsed.deltaText;
+    handlers.onDelta(parsed.deltaText);
+  }
+}
+
+function flushRemainingEvents(handlers: StreamHandlers, state: StreamState): void {
+  if (!state.buffer.trim()) {
+    return;
+  }
+
+  const extracted = extractSseEvents(`${state.buffer}\n\n`);
+  emitParsedEvents(extracted.events, handlers, state, false);
+}
+
+function createStreamResult(startedAt: number, state: StreamState): OllamaChatResult {
+  return {
+    latencyMs: Math.round(performance.now() - startedAt),
+    model: state.model,
+    responseText: state.responseText,
+  };
+}
+
+function assertStreamBufferWithinLimit(buffer: string): void {
+  const maxBufferSize = 1024 * 1024;
+
+  if (buffer.length <= maxBufferSize) {
+    return;
+  }
+
+  throw new AppError({
+    code: 'OLLAMA_STREAM_OVERFLOW',
+    message: 'The Ollama stream buffer exceeded the maximum allowed size.',
+    statusCode: 502,
+  });
 }
 
 function buildMessages(input: OllamaChatInput): { content: string; role: 'system' | 'user' }[] {

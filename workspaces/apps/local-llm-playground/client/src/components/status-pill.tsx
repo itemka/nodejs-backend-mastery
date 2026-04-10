@@ -10,7 +10,7 @@ const toneClassNames: Record<NonNullable<StatusPillProps['tone']>, string> = {
   warning: 'border-amber-200 bg-amber-50 text-amber-700',
 };
 
-export function StatusPill({ children, tone = 'neutral' }: StatusPillProps) {
+export function StatusPill({ children, tone = 'neutral' }: Readonly<StatusPillProps>) {
   return (
     <span
       className={`inline-flex items-center rounded-lg border px-2.5 py-1 text-xs font-medium ${toneClassNames[tone]}`}

@@ -19,7 +19,7 @@ export function ComparePanel({
   onRun,
   onSettingsChange,
   settings,
-}: ComparePanelProps) {
+}: Readonly<ComparePanelProps>) {
   const isBusy = compareState.status === 'loading';
   const selectedModels = new Set(settings.compareModelIds);
   let statusTone: 'error' | 'neutral' | 'success' | 'warning' = 'neutral';
@@ -70,9 +70,11 @@ export function ComparePanel({
           <div className="grid gap-3 md:grid-cols-2">
             {models.map((model) => {
               const checked = selectedModels.has(model.id);
+              const modelOptionLabel = `${model.label}. ${model.installed ? 'Installed locally' : 'Not installed locally'}.`;
 
               return (
                 <label
+                  aria-label={modelOptionLabel}
                   className={`flex items-start gap-3 rounded-2xl border px-4 py-4 text-sm transition ${
                     checked
                       ? 'border-slate-900 bg-slate-900 text-white'

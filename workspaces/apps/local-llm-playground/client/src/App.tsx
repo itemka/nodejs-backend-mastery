@@ -100,7 +100,9 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    void refreshMetadata();
+    refreshMetadata().catch(() => {
+      // refreshMetadata maps fetch failures into component state via Promise.allSettled.
+    });
   }, [refreshMetadata]);
 
   const models = useMemo(
@@ -328,6 +330,42 @@ export default function App() {
     }
   }
 
+  function handleRefreshRequest(): void {
+    refreshMetadata().catch(() => {
+      // refreshMetadata maps fetch failures into component state via Promise.allSettled.
+    });
+  }
+
+  function handleCopyRequest(): void {
+    handleCopyResponse().catch(() => {
+      // handleCopyResponse handles clipboard failures internally.
+    });
+  }
+
+  function handleSendRequest(): void {
+    handleSend().catch(() => {
+      // handleSend maps request failures into chat state.
+    });
+  }
+
+  function handleCompareRequest(): void {
+    handleCompare().catch(() => {
+      // handleCompare maps request failures into compare state.
+    });
+  }
+
+  function handleLoadAllCheckerRequest(): void {
+    handleLoadAllChecker().catch(() => {
+      // handleLoadAllChecker delegates failures to the section-level handlers.
+    });
+  }
+
+  function handleLoadCheckerSectionRequest(section: CheckerSectionKey): void {
+    handleLoadCheckerSection(section).catch(() => {
+      // handleLoadCheckerSection maps failures into checker section state.
+    });
+  }
+
   const healthTone = getHealthTone(healthState);
   const healthLabel = getHealthLabel(healthState);
   const pageTitle = getViewTitle(activeView);
@@ -340,9 +378,7 @@ export default function App() {
           healthLabel={healthLabel}
           healthTone={healthTone}
           installedCount={models.filter((model) => model.installed).length}
-          onRefresh={() => {
-            void refreshMetadata();
-          }}
+          onRefresh={handleRefreshRequest}
           onViewChange={setActiveView}
         />
 
@@ -356,9 +392,7 @@ export default function App() {
                   <StatusPill tone={healthTone}>{healthLabel}</StatusPill>
                   <button
                     className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:border-slate-300 hover:bg-slate-50"
-                    onClick={() => {
-                      void refreshMetadata();
-                    }}
+                    onClick={handleRefreshRequest}
                     type="button"
                   >
                     Refresh
@@ -376,12 +410,8 @@ export default function App() {
                 onAbort={() => {
                   chatAbortControllerRef.current?.abort();
                 }}
-                onCopy={() => {
-                  void handleCopyResponse();
-                }}
-                onSend={() => {
-                  void handleSend();
-                }}
+                onCopy={handleCopyRequest}
+                onSend={handleSendRequest}
                 onSettingsChange={updateSettings}
                 selectedModelId={selectedModelId}
                 settings={settings}
@@ -395,9 +425,7 @@ export default function App() {
                 onAbort={() => {
                   compareAbortControllerRef.current?.abort();
                 }}
-                onRun={() => {
-                  void handleCompare();
-                }}
+                onRun={handleCompareRequest}
                 onSettingsChange={updateSettings}
                 settings={settings}
               />
@@ -405,12 +433,8 @@ export default function App() {
 
             {activeView === 'checker' ? (
               <LlmCheckerPanel
-                onLoadAll={() => {
-                  void handleLoadAllChecker();
-                }}
-                onLoadSection={(section) => {
-                  void handleLoadCheckerSection(section);
-                }}
+                onLoadAll={handleLoadAllCheckerRequest}
+                onLoadSection={handleLoadCheckerSectionRequest}
                 sections={checkerSections}
               />
             ) : undefined}
