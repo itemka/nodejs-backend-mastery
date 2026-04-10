@@ -100,7 +100,8 @@ export default function App() {
       }
 
       const canRetryAttempt =
-        attempt < metadataLoadMaxAttempts - 1 && shouldRetryMetadataLoad(healthResult, modelsResult);
+        attempt < metadataLoadMaxAttempts - 1 &&
+        shouldRetryMetadataLoad(healthResult, modelsResult);
 
       if (canRetryAttempt) {
         await sleep(metadataRetryDelaysMs[attempt]!);
