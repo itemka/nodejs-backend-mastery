@@ -255,12 +255,20 @@ export default function App() {
         abortController.signal,
       );
 
+      if (compareAbortControllerRef.current !== abortController) {
+        return;
+      }
+
       setCompareState({
         results: result.results,
         status: 'success',
       });
       await refreshMetadata();
     } catch (error) {
+      if (compareAbortControllerRef.current !== abortController) {
+        return;
+      }
+
       setCompareState({
         error: abortController.signal.aborted ? 'Comparison cancelled.' : toErrorMessage(error),
         results: [],
