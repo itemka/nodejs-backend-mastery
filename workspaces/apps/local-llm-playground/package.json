@@ -1,0 +1,46 @@
+{
+  "name": "local-llm-playground",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "dev": "concurrently -k -n api,web -c blue,magenta \"pnpm backend:dev\" \"pnpm client:dev\"",
+    "backend:dev": "tsx watch --tsconfig backend/tsconfig.json backend/src/server.ts",
+    "client:dev": "vite --config client/vite.config.ts",
+    "build": "pnpm build:backend && pnpm build:client",
+    "build:backend": "node backend/esbuild.config.mjs",
+    "build:client": "vite build --config client/vite.config.ts",
+    "start": "node dist/backend/server.js",
+    "preview": "vite preview --config client/vite.config.ts",
+    "typecheck": "pnpm typecheck:backend && pnpm typecheck:client",
+    "typecheck:backend": "tsc -p backend/tsconfig.json --noEmit",
+    "typecheck:client": "tsc -p client/tsconfig.json --noEmit",
+    "lint": "eslint backend client shared --ext .ts,.tsx",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "dotenv": "^17.2.3",
+    "express": "^5.2.1",
+    "llm-checker": "^3.5.12",
+    "react": "^19.2.5",
+    "react-dom": "^19.2.5",
+    "zod": "^4.1.12"
+  },
+  "devDependencies": {
+    "@tailwindcss/vite": "^4.2.2",
+    "@types/express": "^5.0.5",
+    "@types/node": "^25.5.2",
+    "@types/react": "^19.2.14",
+    "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-react": "^6.0.1",
+    "concurrently": "^9.2.1",
+    "esbuild": "^0.28.0",
+    "tailwindcss": "^4.2.2",
+    "tsx": "^4.20.6",
+    "typescript": "^5.9.3",
+    "vite": "^8.0.7",
+    "vitest": "^4.1.3"
+  }
+}

@@ -42,6 +42,21 @@ export default [
     },
   },
 
+  {
+    name: 'project:browser',
+    files: ['**/client/**/*.{js,jsx,ts,tsx}'],
+    ignores: ['**/client/*.config.*'],
+    languageOptions: {
+      globals: {
+        ...globals.browser,
+        ...globals.es2020,
+      },
+    },
+    rules: {
+      'n/no-unsupported-features/node-builtins': 'off',
+    },
+  },
+
   // TypeScript with typed rules (only for TS files)
   ...tseslint.configs.recommendedTypeChecked.map((config) => ({
     ...config,
