@@ -263,7 +263,10 @@ export default function App() {
         results: result.results,
         status: 'success',
       });
-      await refreshMetadata();
+
+      if (compareAbortControllerRef.current === abortController) {
+        await refreshMetadata();
+      }
     } catch (error) {
       if (compareAbortControllerRef.current !== abortController) {
         return;
