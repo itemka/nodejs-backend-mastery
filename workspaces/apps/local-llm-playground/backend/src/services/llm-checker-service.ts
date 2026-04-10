@@ -1,4 +1,6 @@
-import { spawn } from 'node:child_process';
+import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process';
+import { createRequire } from 'node:module';
+import path from 'node:path';
 
 import type { RecommendationCategory } from '../../../shared/api.js';
 import { AppError } from '../lib/app-error.js';
@@ -18,6 +20,12 @@ type CommandInput =
 
 const cacheTtlMs = 5 * 60 * 1000;
 const maxOutputBytes = 512 * 1024;
+const require = createRequire(import.meta.url);
+const llmCheckerCliPath = path.join(
+  path.dirname(require.resolve('llm-checker/package.json')),
+  'bin',
+  'cli.js',
+);
 
 export function buildLlmCheckerCommand(input: CommandInput): string[] {
   switch (input.kind) {
@@ -49,11 +57,16 @@ export function buildLlmCheckerCommand(input: CommandInput): string[] {
 export function buildLlmCheckerEnv(
   input: NodeJS.ProcessEnv,
   ollamaBaseUrl: string,
+  platform: NodeJS.Platform = process.platform,
 ): NodeJS.ProcessEnv {
+  const trustedPath = buildTrustedPath(platform, input.SystemRoot);
+
   return {
     ...input,
     FORCE_COLOR: '0',
     OLLAMA_BASE_URL: ollamaBaseUrl,
+    PATH: trustedPath,
+    ...(platform === 'win32' ? { Path: trustedPath } : {}),
   };
 }
 
@@ -158,7 +171,9 @@ export class LlmCheckerService {
     llmCheckerArgs: string[],
     signal?: AbortSignal,
   ): Promise<CachedCommandResult> {
-    const command = ['pnpm', 'exec', 'llm-checker', ...llmCheckerArgs];
+    const command = [process.execPath, llmCheckerCliPath, ...llmCheckerArgs];
+    const executablePath = process.execPath;
+    const executableArgs = [llmCheckerCliPath, ...llmCheckerArgs];
     const startedAt = performance.now();
 
     if (signal?.aborted) {
@@ -166,11 +181,11 @@ export class LlmCheckerService {
     }
 
     return await new Promise<CachedCommandResult>((resolve, reject) => {
-      const child = spawn('pnpm', command.slice(1), {
+      const child: ChildProcessWithoutNullStreams = spawn(executablePath, executableArgs, {
         cwd: process.cwd(),
         env: buildLlmCheckerEnv(process.env, this.ollamaBaseUrl),
         shell: false,
-        stdio: 'pipe',
+        stdio: ['pipe', 'pipe', 'pipe'],
       });
 
       const stdoutChunks: string[] = [];
@@ -349,6 +364,25 @@ function createAbortError(): Error {
   error.name = 'AbortError';
 
   return error;
+}
+
+function buildTrustedPath(platform: NodeJS.Platform, systemRoot?: string): string {
+  if (platform === 'win32') {
+    const trimmedSystemRoot = systemRoot?.trim();
+    const resolvedSystemRoot =
+      trimmedSystemRoot && trimmedSystemRoot.length > 0
+        ? trimmedSystemRoot
+        : String.raw`C:\Windows`;
+
+    return [
+      path.join(resolvedSystemRoot, 'System32'),
+      resolvedSystemRoot,
+      path.join(resolvedSystemRoot, 'System32', 'Wbem'),
+      path.join(resolvedSystemRoot, 'System32', 'WindowsPowerShell', 'v1.0'),
+    ].join(';');
+  }
+
+  return ['/usr/bin', '/bin', '/usr/sbin', '/sbin', '/usr/local/bin'].join(':');
 }
 
 function mapCategoryToOptimizationProfile(category: RecommendationCategory): string {

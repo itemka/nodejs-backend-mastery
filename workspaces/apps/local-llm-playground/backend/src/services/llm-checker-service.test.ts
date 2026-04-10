@@ -7,13 +7,14 @@ describe('backend/services/llm-checker-service', () => {
     const env = buildLlmCheckerEnv(
       {
         OLLAMA_BASE_URL: 'http://localhost:11434/v1',
-        PATH: '/usr/bin',
+        PATH: '/tmp/bin',
       },
       'http://localhost:11434',
+      'linux',
     );
 
     expect(env.OLLAMA_BASE_URL).toBe('http://localhost:11434');
-    expect(env.PATH).toBe('/usr/bin');
+    expect(env.PATH).toBe('/usr/bin:/bin:/usr/sbin:/sbin:/usr/local/bin');
     expect(env.FORCE_COLOR).toBe('0');
   });
 
