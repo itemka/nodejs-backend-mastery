@@ -1,8 +1,6 @@
-import escapeHtml from 'escape-html';
+import type { SafeHtml } from '../safeHtml';
 
-export function createProductValidationErrorPage(errorMessages: string): string {
-  const safeMessages = escapeHtml(errorMessages);
-
+export function createProductValidationErrorPage(errorMessagesHtml: SafeHtml): string {
   return `
     <!DOCTYPE html>
     <html lang="en">
@@ -34,7 +32,7 @@ export function createProductValidationErrorPage(errorMessages: string): string 
     <body>
       <div class="error">
         <h2>Validation Error</h2>
-        <p>${safeMessages}</p>
+        <p>${errorMessagesHtml}</p>
       </div>
       <a href="/products/new">← Go back</a>
     </body>

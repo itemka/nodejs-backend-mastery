@@ -1,6 +1,6 @@
 import escapeHtml from 'escape-html';
 
-export type SafeHtml = string & { __brand: 'SafeHtml' };
+import type { SafeHtml } from './safeHtml';
 
 interface ErrorPageOptions {
   statusCode: number;
