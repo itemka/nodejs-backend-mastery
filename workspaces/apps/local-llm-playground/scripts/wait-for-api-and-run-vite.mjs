@@ -6,7 +6,7 @@ import process from 'node:process';
 
 const configuredApiBaseUrl = normalizeOptionalEnvironmentValue(process.env.VITE_API_BASE_URL);
 const developmentApiOrigin =
-  normalizeOptionalEnvironmentValue(process.env.VITE_DEV_API_ORIGIN) ?? 'https://localhost:4000';
+  normalizeOptionalEnvironmentValue(process.env.VITE_DEV_API_ORIGIN) ?? 'https://127.0.0.1:4000';
 const pollIntervalMs = 150;
 const readinessTimeoutMs = 15_000;
 
@@ -96,6 +96,7 @@ function requestReadinessResponse(readinessUrl, timeoutMs) {
         },
         method: 'GET',
         rejectUnauthorized: !isLocalTlsOrigin(readinessUrl),
+        signal: AbortSignal.timeout(timeoutMs),
       },
       (response) => {
         resolve(response);
@@ -103,10 +104,6 @@ function requestReadinessResponse(readinessUrl, timeoutMs) {
     );
 
     request.on('error', reject);
-
-    request.setTimeout(timeoutMs, () => {
-      request.destroy(new Error(`Backend readiness check timed out after ${timeoutMs}ms.`));
-    });
 
     request.end();
   });
