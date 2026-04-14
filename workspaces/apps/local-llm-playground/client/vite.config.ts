@@ -18,7 +18,8 @@ export default defineConfig({
     proxy: {
       '/api': {
         changeOrigin: true,
-        target: process.env.VITE_DEV_API_ORIGIN ?? 'http://localhost:4000',
+        secure: false,
+        target: process.env.VITE_DEV_API_ORIGIN ?? 'https://localhost:4000',
       },
     },
   },

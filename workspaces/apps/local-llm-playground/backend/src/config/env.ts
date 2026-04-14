@@ -11,6 +11,9 @@ const envSchema = z.object({
     .refine((value) => isSupportedModelId(value), {
       message: 'DEFAULT_MODEL must be one of the configured supported models.',
     }),
+  HOST: z.string().trim().min(1).default('127.0.0.1'),
+  HTTPS_CERT_PATH: z.string().trim().min(1).default('.certs/localhost.pem'),
+  HTTPS_KEY_PATH: z.string().trim().min(1).default('.certs/localhost-key.pem'),
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
   OLLAMA_API_KEY: z.string().trim().min(1).default('ollama'),
   OLLAMA_BASE_URL: z.string().url().default('http://localhost:11434/v1'),

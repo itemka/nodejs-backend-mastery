@@ -54,12 +54,26 @@ workspaces/apps/local-llm-playground/
 Copy `.env.example` to `.env`:
 
 ```bash
+HOST=127.0.0.1
+HTTPS_CERT_PATH=.certs/localhost.pem
+HTTPS_KEY_PATH=.certs/localhost-key.pem
 PORT=4000
 OLLAMA_BASE_URL=http://localhost:11434/v1
 OLLAMA_RAW_BASE_URL=http://localhost:11434
 OLLAMA_API_KEY=ollama
 DEFAULT_MODEL=qwen2.5:7b
 REQUEST_TIMEOUT_MS=120000
+```
+
+Generate local HTTPS certificates before starting the backend. `mkcert` is the simplest option on macOS:
+
+```bash
+brew install mkcert
+mkdir -p workspaces/apps/local-llm-playground/.certs
+mkcert \
+  -key-file workspaces/apps/local-llm-playground/.certs/localhost-key.pem \
+  -cert-file workspaces/apps/local-llm-playground/.certs/localhost.pem \
+  localhost 127.0.0.1 ::1
 ```
 
 ## Setup
@@ -91,12 +105,12 @@ Development mode starts the Express API and Vite client together:
 pnpm --filter local-llm-playground dev
 ```
 
-The `dev` script runs the API and the Vite dev server in parallel. The `client:dev` step polls `GET /api/health` on the dev API origin (see `VITE_DEV_API_ORIGIN` in `.env.example`) until the backend responds or a timeout elapses, then starts Vite so the UI does not load against a cold API. If you need Vite immediately without that wait (for example when debugging the client against a remote API), use `pnpm --filter local-llm-playground client:dev:vite` instead.
+The `dev` script runs the API and the Vite dev server in parallel. The `client:dev` step polls `GET /api/health` on the dev API origin (see `VITE_DEV_API_ORIGIN` in `.env.example`) until the backend responds or a timeout elapses, then starts Vite so the UI does not load against a cold API. The default dev origin is `https://localhost:4000`, and the Vite proxy is configured to work with a local self-signed certificate. If you need Vite immediately without that wait (for example when debugging the client against a remote API), use `pnpm --filter local-llm-playground client:dev:vite` instead.
 
 Open:
 
 - Vite client: `http://localhost:5173`
-- API health: `http://localhost:4000/api/health`
+- API health: `https://localhost:4000/api/health`
 
 Production-like local run:
 
@@ -105,7 +119,7 @@ pnpm --filter local-llm-playground build
 pnpm --filter local-llm-playground start
 ```
 
-After `build` + `start`, the backend serves the built client from `http://localhost:4000`.
+After `build` + `start`, the backend serves the built client from `https://localhost:4000`.
 
 ## Scripts
 
