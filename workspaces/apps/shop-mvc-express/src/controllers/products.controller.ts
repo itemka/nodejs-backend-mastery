@@ -17,7 +17,7 @@ const createProductSchema = z.object({
 });
 
 export function renderCreateProductForm(_req: Request, res: Response) {
-  res.send(createProductFormPage());
+  res.type('html').end(createProductFormPage());
 }
 
 export function createProduct(req: Request, res: Response, next: NextFunction) {
@@ -28,7 +28,10 @@ export function createProduct(req: Request, res: Response, next: NextFunction) {
       const errorMessages = result.error.issues.map((issue) => issue.message).join(', ');
       const safeErrorMessagesHtml = escapeHtml(errorMessages) as SafeHtml;
 
-      return res.status(400).send(createProductValidationErrorPage(safeErrorMessagesHtml));
+      return res
+        .status(400)
+        .type('html')
+        .end(createProductValidationErrorPage(safeErrorMessagesHtml));
     }
 
     const product: Product = {
@@ -48,7 +51,7 @@ export function createProduct(req: Request, res: Response, next: NextFunction) {
 }
 
 export function getProducts(_req: Request, res: Response) {
-  res.send(
+  res.type('html').end(
     productsPage({
       products: products.map((product) => toProductListItemViewModel(product)),
     }),

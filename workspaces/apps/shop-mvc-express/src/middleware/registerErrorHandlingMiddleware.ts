@@ -48,7 +48,7 @@ export function registerErrorHandlingMiddleware() {
           hasCustomMessage ? { message: publicMessage, path: req.path } : { path: req.path },
         );
 
-        return res.status(normalizedError.statusCode).send(html);
+        return res.status(normalizedError.statusCode).type('html').end(html);
       }
 
       const escapedStack = normalizedError.stack ? escapeHtml(normalizedError.stack) : undefined;
@@ -65,7 +65,7 @@ export function registerErrorHandlingMiddleware() {
         title: 'Something went wrong',
       });
 
-      return res.status(normalizedError.statusCode).send(html);
+      return res.status(normalizedError.statusCode).type('html').end(html);
     }
 
     // Fallback to JSON for non-HTML clients (e.g. API clients)
