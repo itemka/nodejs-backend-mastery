@@ -8,8 +8,9 @@ import { defineConfig, loadEnv, type ServerOptions } from 'vite';
 const rootDir = fileURLToPath(new URL('.', import.meta.url));
 const workspaceDir = path.resolve(rootDir, '..');
 
-export default defineConfig(({ command, mode }) => {
+export default defineConfig(({ command, isPreview, mode }) => {
   const env = loadEnv(mode, workspaceDir, '');
+  const isDevServer = command === 'serve' && !isPreview;
 
   return {
     build: {
@@ -18,7 +19,7 @@ export default defineConfig(({ command, mode }) => {
     },
     plugins: [react(), tailwindcss()],
     root: rootDir,
-    ...(command === 'serve' ? { server: createDevServerOptions(env) } : {}),
+    ...(isDevServer ? { server: createDevServerOptions(env) } : {}),
   };
 });
 
@@ -36,6 +37,8 @@ function loadLocalHttpsServerOptions(
 
 function createDevServerOptions(env: Record<string, string>): ServerOptions {
   const host = env.HOST ?? '127.0.0.1';
+  const apiOrigin = resolveDevApiOrigin(env);
+  const apiOriginUrl = new URL(apiOrigin);
 
   return {
     host,
@@ -44,8 +47,8 @@ function createDevServerOptions(env: Record<string, string>): ServerOptions {
     proxy: {
       '/api': {
         changeOrigin: true,
-        secure: false,
-        target: resolveDevApiOrigin(env),
+        secure: !isLocalTlsOrigin(apiOriginUrl),
+        target: apiOrigin,
       },
     },
   };
@@ -68,6 +71,15 @@ function formatHostForUrl(host: string): string {
   const normalizedHost = host.replaceAll(/^\[|\]$/g, '');
 
   return normalizedHost.includes(':') ? `[${normalizedHost}]` : normalizedHost;
+}
+
+function isLocalTlsOrigin(url: URL): boolean {
+  const normalizedHostname = url.hostname.replaceAll(/^\[|\]$/g, '').toLowerCase();
+
+  return (
+    url.protocol === 'https:' &&
+    ['0:0:0:0:0:0:0:1', '127.0.0.1', '::1', 'localhost'].includes(normalizedHostname)
+  );
 }
 
 function normalizeOptionalEnvironmentValue(value: string | undefined): string | undefined {
