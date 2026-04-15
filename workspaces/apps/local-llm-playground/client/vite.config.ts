@@ -61,10 +61,24 @@ function resolveDevApiOrigin(env: Record<string, string>): string {
     return configuredDevApiOrigin;
   }
 
-  const host = normalizeOptionalEnvironmentValue(env.HOST) ?? '127.0.0.1';
+  const host = resolveClientHost(normalizeOptionalEnvironmentValue(env.HOST) ?? '127.0.0.1');
   const port = normalizeOptionalEnvironmentValue(env.PORT) ?? '4000';
 
   return `https://${formatHostForUrl(host)}:${port}`;
+}
+
+function resolveClientHost(host: string): string {
+  const normalizedHost = host.replaceAll(/^\[|\]$/g, '').toLowerCase();
+
+  if (normalizedHost === '0.0.0.0') {
+    return '127.0.0.1';
+  }
+
+  if (normalizedHost === '::' || normalizedHost === '0:0:0:0:0:0:0:0') {
+    return '::1';
+  }
+
+  return host;
 }
 
 function formatHostForUrl(host: string): string {

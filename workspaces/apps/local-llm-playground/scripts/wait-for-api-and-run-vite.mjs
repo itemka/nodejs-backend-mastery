@@ -89,10 +89,26 @@ function resolveDevelopmentApiOrigin(environment) {
     return configuredDevelopmentApiOrigin;
   }
 
-  const host = normalizeOptionalEnvironmentValue(environment.HOST) ?? '127.0.0.1';
+  const host = resolveClientHost(
+    normalizeOptionalEnvironmentValue(environment.HOST) ?? '127.0.0.1',
+  );
   const port = normalizeOptionalEnvironmentValue(environment.PORT) ?? '4000';
 
   return `https://${formatHostForUrl(host)}:${port}`;
+}
+
+function resolveClientHost(host) {
+  const normalizedHost = host.replaceAll(/^\[|\]$/g, '').toLowerCase();
+
+  if (normalizedHost === '0.0.0.0') {
+    return '127.0.0.1';
+  }
+
+  if (normalizedHost === '::' || normalizedHost === '0:0:0:0:0:0:0:0') {
+    return '::1';
+  }
+
+  return host;
 }
 
 function formatHostForUrl(host) {
