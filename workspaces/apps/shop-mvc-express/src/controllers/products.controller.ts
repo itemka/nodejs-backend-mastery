@@ -1,3 +1,4 @@
+import escapeHtml from 'escape-html';
 import type { Request, Response, NextFunction } from 'express';
 import { z } from 'zod';
 
@@ -5,7 +6,8 @@ import type { Product } from '@/models/product';
 import { generateId } from '@/utils/id';
 import { createProductFormPage } from '@/views/products/createProductFormPage';
 import { createProductValidationErrorPage } from '@/views/products/createProductValidationErrorPage';
-import { productsPage } from '@/views/products/productsPage';
+import { productsPage, type ProductListItemViewModel } from '@/views/products/productsPage';
+import type { SafeHtml } from '@/views/safeHtml';
 
 // TODO: In-memory store for products (replace with DB later)
 const products: Product[] = [];
@@ -24,8 +26,9 @@ export function createProduct(req: Request, res: Response, next: NextFunction) {
 
     if (!result.success) {
       const errorMessages = result.error.issues.map((issue) => issue.message).join(', ');
+      const safeErrorMessagesHtml = escapeHtml(errorMessages) as SafeHtml;
 
-      return res.status(400).send(createProductValidationErrorPage(errorMessages));
+      return res.status(400).send(createProductValidationErrorPage(safeErrorMessagesHtml));
     }
 
     const product: Product = {
@@ -47,7 +50,14 @@ export function createProduct(req: Request, res: Response, next: NextFunction) {
 export function getProducts(_req: Request, res: Response) {
   res.send(
     productsPage({
-      products,
+      products: products.map((product) => toProductListItemViewModel(product)),
     }),
   );
+}
+
+function toProductListItemViewModel(product: Product): ProductListItemViewModel {
+  return {
+    id: product.id,
+    titleHtml: escapeHtml(product.title) as SafeHtml,
+  };
 }

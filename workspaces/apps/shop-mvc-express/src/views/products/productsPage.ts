@@ -1,9 +1,12 @@
-import escapeHtml from 'escape-html';
-
-import type { Product } from '@/models/product';
+import type { SafeHtml } from '../safeHtml';
 
 interface ProductsPageOptions {
-  products: Product[];
+  products: ProductListItemViewModel[];
+}
+
+export interface ProductListItemViewModel {
+  id: string;
+  titleHtml: SafeHtml;
 }
 
 export function productsPage(options: ProductsPageOptions): string {
@@ -81,7 +84,7 @@ export function productsPage(options: ProductsPageOptions): string {
                   .map(
                     (p) => `
                   <li class="product-item">
-                    <strong>${escapeHtml(p.title)}</strong>
+                    <strong>${p.titleHtml}</strong>
                   </li>
                 `,
                   )

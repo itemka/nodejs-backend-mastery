@@ -1,10 +1,11 @@
 import 'dotenv/config';
 import { spawn } from 'node:child_process';
+import http from 'node:http';
+import https from 'node:https';
 import process from 'node:process';
 
 const configuredApiBaseUrl = normalizeOptionalEnvironmentValue(process.env.VITE_API_BASE_URL);
-const developmentApiOrigin =
-  normalizeOptionalEnvironmentValue(process.env.VITE_DEV_API_ORIGIN) ?? 'http://localhost:4000';
+const developmentApiOrigin = resolveDevelopmentApiOrigin(process.env);
 const pollIntervalMs = 150;
 const readinessTimeoutMs = 15_000;
 
@@ -54,14 +55,14 @@ async function waitForApiReadiness(readinessUrl, timeoutMs, intervalMs) {
 
 async function isApiReady(readinessUrl, timeoutMs) {
   try {
-    const response = await fetch(readinessUrl, {
-      headers: {
-        accept: 'application/json',
-      },
-      signal: AbortSignal.timeout(timeoutMs),
-    });
+    const response = await requestReadinessResponse(readinessUrl, timeoutMs);
 
-    return response.ok || response.status === 503;
+    response.resume();
+
+    return (
+      typeof response.statusCode === 'number' &&
+      ((response.statusCode >= 200 && response.statusCode < 300) || response.statusCode === 503)
+    );
   } catch {
     return false;
   }
@@ -77,4 +78,74 @@ function normalizeOptionalEnvironmentValue(value) {
   const normalizedValue = value?.trim();
 
   return normalizedValue || undefined;
+}
+
+function resolveDevelopmentApiOrigin(environment) {
+  const configuredDevelopmentApiOrigin = normalizeOptionalEnvironmentValue(
+    environment.VITE_DEV_API_ORIGIN,
+  );
+
+  if (configuredDevelopmentApiOrigin) {
+    return configuredDevelopmentApiOrigin;
+  }
+
+  const host = resolveClientHost(
+    normalizeOptionalEnvironmentValue(environment.HOST) ?? '127.0.0.1',
+  );
+  const port = normalizeOptionalEnvironmentValue(environment.PORT) ?? '4000';
+
+  return `https://${formatHostForUrl(host)}:${port}`;
+}
+
+function resolveClientHost(host) {
+  const normalizedHost = host.replaceAll(/^\[|\]$/g, '').toLowerCase();
+
+  if (normalizedHost === '0.0.0.0') {
+    return '127.0.0.1';
+  }
+
+  if (normalizedHost === '::' || normalizedHost === '0:0:0:0:0:0:0:0') {
+    return '::1';
+  }
+
+  return host;
+}
+
+function formatHostForUrl(host) {
+  const normalizedHost = host.replaceAll(/^\[|\]$/g, '');
+
+  return normalizedHost.includes(':') ? `[${normalizedHost}]` : normalizedHost;
+}
+
+function isLocalTlsOrigin(url) {
+  const normalizedHostname = url.hostname.replaceAll(/^\[|\]$/g, '').toLowerCase();
+
+  return (
+    url.protocol === 'https:' &&
+    ['0:0:0:0:0:0:0:1', '127.0.0.1', '::1', 'localhost'].includes(normalizedHostname)
+  );
+}
+
+function requestReadinessResponse(readinessUrl, timeoutMs) {
+  return new Promise((resolve, reject) => {
+    const client = readinessUrl.protocol === 'https:' ? https : http;
+    const request = client.request(
+      readinessUrl,
+      {
+        headers: {
+          accept: 'application/json',
+        },
+        method: 'GET',
+        rejectUnauthorized: !isLocalTlsOrigin(readinessUrl),
+        signal: AbortSignal.timeout(timeoutMs),
+      },
+      (response) => {
+        resolve(response);
+      },
+    );
+
+    request.on('error', reject);
+
+    request.end();
+  });
 }

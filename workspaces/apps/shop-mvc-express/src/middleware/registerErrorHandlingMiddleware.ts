@@ -7,8 +7,9 @@ import escapeHtml from 'escape-html';
 import { Router, type NextFunction, type Request, type Response } from 'express';
 
 import { config } from '../config';
-import { type SafeHtml, errorPage } from '../views/errorPage';
+import { errorPage } from '../views/errorPage';
 import { notFoundPage } from '../views/notFoundPage';
+import type { SafeHtml } from '../views/safeHtml';
 
 const DEFAULT_NOT_FOUND_MESSAGE = 'The page you are looking for could not be found.';
 

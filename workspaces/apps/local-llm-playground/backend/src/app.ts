@@ -1,4 +1,5 @@
 import express from 'express';
+import { rateLimit } from 'express-rate-limit';
 import { existsSync } from 'node:fs';
 import path from 'node:path';
 
@@ -11,6 +12,9 @@ import { createApiRouter } from './routes/api-router.js';
 import { LlmCheckerService } from './services/llm-checker-service.js';
 import { ModelService } from './services/model-service.js';
 import { OllamaClient } from './services/ollama-client.js';
+
+export const spaFallbackRateLimitLimit = 60;
+export const spaFallbackRoutePattern = /^(?!\/api).*/;
 
 export function createApp(): {
   app: express.Express;
@@ -42,9 +46,11 @@ export function createApp(): {
   const clientIndexPath = path.join(clientDistDir, 'index.html');
 
   if (existsSync(clientIndexPath)) {
+    const spaFallbackRateLimit = createSpaFallbackRateLimit();
+
     app.use(express.static(clientDistDir));
 
-    app.get(/^(?!\/api).*/, (request, response, next) => {
+    app.get(spaFallbackRoutePattern, spaFallbackRateLimit, (request, response, next) => {
       if (!isHtmlNavigationRequest(request)) {
         next();
 
@@ -62,6 +68,16 @@ export function createApp(): {
     app,
     context,
   };
+}
+
+export function createSpaFallbackRateLimit() {
+  return rateLimit({
+    legacyHeaders: false,
+    limit: spaFallbackRateLimitLimit,
+    skip: (request) => !isHtmlNavigationRequest(request),
+    standardHeaders: true,
+    windowMs: 60_000,
+  });
 }
 
 function isHtmlNavigationRequest(request: express.Request): boolean {

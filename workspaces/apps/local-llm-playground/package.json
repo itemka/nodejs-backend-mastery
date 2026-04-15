@@ -24,6 +24,7 @@
   "dependencies": {
     "dotenv": "^17.2.3",
     "express": "^5.2.1",
+    "express-rate-limit": "^8.3.2",
     "llm-checker": "^3.5.12",
     "react": "^19.2.5",
     "react-dom": "^19.2.5",
