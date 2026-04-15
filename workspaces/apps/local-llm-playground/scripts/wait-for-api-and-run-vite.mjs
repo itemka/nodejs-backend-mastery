@@ -82,7 +82,12 @@ function normalizeOptionalEnvironmentValue(value) {
 }
 
 function isLocalTlsOrigin(url) {
-  return url.protocol === 'https:' && ['127.0.0.1', '::1', 'localhost'].includes(url.hostname);
+  const normalizedHostname = url.hostname.replaceAll(/^\[|\]$/g, '').toLowerCase();
+
+  return (
+    url.protocol === 'https:' &&
+    ['0:0:0:0:0:0:0:1', '127.0.0.1', '::1', 'localhost'].includes(normalizedHostname)
+  );
 }
 
 function requestReadinessResponse(readinessUrl, timeoutMs) {
