@@ -45,8 +45,33 @@ function createDevServerOptions(env: Record<string, string>): ServerOptions {
       '/api': {
         changeOrigin: true,
         secure: false,
-        target: env.VITE_DEV_API_ORIGIN ?? 'https://127.0.0.1:4000',
+        target: resolveDevApiOrigin(env),
       },
     },
   };
+}
+
+function resolveDevApiOrigin(env: Record<string, string>): string {
+  const configuredDevApiOrigin = normalizeOptionalEnvironmentValue(env.VITE_DEV_API_ORIGIN);
+
+  if (configuredDevApiOrigin) {
+    return configuredDevApiOrigin;
+  }
+
+  const host = normalizeOptionalEnvironmentValue(env.HOST) ?? '127.0.0.1';
+  const port = normalizeOptionalEnvironmentValue(env.PORT) ?? '4000';
+
+  return `https://${formatHostForUrl(host)}:${port}`;
+}
+
+function formatHostForUrl(host: string): string {
+  const normalizedHost = host.replaceAll(/^\[|\]$/g, '');
+
+  return normalizedHost.includes(':') ? `[${normalizedHost}]` : normalizedHost;
+}
+
+function normalizeOptionalEnvironmentValue(value: string | undefined): string | undefined {
+  const normalizedValue = value?.trim();
+
+  return normalizedValue === '' ? undefined : normalizedValue;
 }

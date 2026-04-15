@@ -5,8 +5,7 @@ import https from 'node:https';
 import process from 'node:process';
 
 const configuredApiBaseUrl = normalizeOptionalEnvironmentValue(process.env.VITE_API_BASE_URL);
-const developmentApiOrigin =
-  normalizeOptionalEnvironmentValue(process.env.VITE_DEV_API_ORIGIN) ?? 'https://127.0.0.1:4000';
+const developmentApiOrigin = resolveDevelopmentApiOrigin(process.env);
 const pollIntervalMs = 150;
 const readinessTimeoutMs = 15_000;
 
@@ -79,6 +78,27 @@ function normalizeOptionalEnvironmentValue(value) {
   const normalizedValue = value?.trim();
 
   return normalizedValue || undefined;
+}
+
+function resolveDevelopmentApiOrigin(environment) {
+  const configuredDevelopmentApiOrigin = normalizeOptionalEnvironmentValue(
+    environment.VITE_DEV_API_ORIGIN,
+  );
+
+  if (configuredDevelopmentApiOrigin) {
+    return configuredDevelopmentApiOrigin;
+  }
+
+  const host = normalizeOptionalEnvironmentValue(environment.HOST) ?? '127.0.0.1';
+  const port = normalizeOptionalEnvironmentValue(environment.PORT) ?? '4000';
+
+  return `https://${formatHostForUrl(host)}:${port}`;
+}
+
+function formatHostForUrl(host) {
+  const normalizedHost = host.replaceAll(/^\[|\]$/g, '');
+
+  return normalizedHost.includes(':') ? `[${normalizedHost}]` : normalizedHost;
 }
 
 function isLocalTlsOrigin(url) {

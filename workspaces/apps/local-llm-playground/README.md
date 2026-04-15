@@ -108,7 +108,7 @@ Development mode starts the Express API and Vite client together:
 pnpm --filter local-llm-playground dev
 ```
 
-The `dev` script runs the API and the Vite dev server in parallel. The `client:dev` step polls `GET /api/health` on the dev API origin (see `VITE_DEV_API_ORIGIN` in `.env.example`) until the backend responds or a timeout elapses, then starts Vite so the UI does not load against a cold API. The default dev origin is `https://127.0.0.1:4000`, which matches the default backend bind host, and the Vite proxy is configured to work with a local self-signed certificate. The Vite dev server also uses the same certificate pair, so the browser origin is HTTPS during development. If you need Vite immediately without that wait (for example when debugging the client against a remote API), use `pnpm --filter local-llm-playground client:dev:vite` instead.
+The `dev` script runs the API and the Vite dev server in parallel. The `client:dev` step polls `GET /api/health` on the dev API origin (see `VITE_DEV_API_ORIGIN` in `.env.example`) until the backend responds or a timeout elapses, then starts Vite so the UI does not load against a cold API. If `VITE_DEV_API_ORIGIN` is unset, the dev API origin is derived from `HOST` and `PORT` and defaults to `https://127.0.0.1:4000`. The Vite proxy is configured to work with a local self-signed certificate, and the Vite dev server also uses the same certificate pair, so the browser origin is HTTPS during development. If you need Vite immediately without that wait (for example when debugging the client against a remote API), use `pnpm --filter local-llm-playground client:dev:vite` instead.
 
 Open:
 
