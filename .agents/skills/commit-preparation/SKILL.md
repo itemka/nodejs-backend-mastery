@@ -27,17 +27,21 @@ Turn a current diff into logical commit guidance and PR-ready summary text.
 - Issue or task context.
 - Any migration or risk notes.
 - Requested scope, especially whether the user wants staged-only commit text.
+- PR context such as target branch, screenshots, examples, rollback notes, or release constraints when preparing PR text.
 
 ## Workflow
 
 1. Inspect git status.
 2. If the user asks for staged changes, use only `git diff --cached`; otherwise compare staged and unstaged changes explicitly.
 3. Group changes logically and call out unrelated groups.
-4. Suggest one or more Conventional Commit messages.
-5. Suggest a PR summary and validation section when useful.
-6. Mention tests run, or say validation was not provided.
-7. Mention risks, migrations, rollback notes, and follow-ups.
-8. Do not stage, commit, or push unless explicitly requested.
+4. Use [conventional-commits](../../commits/conventional-commits.md) for commit type and scope guidance.
+5. Suggest one or more Conventional Commit messages.
+6. For PR text, use [pr-description-template](../../commits/pr-description-template.md) and [pr-readiness checklist](../../checklists/pr-readiness.md).
+7. Include motivation, user-visible changes, internal changes, validation, risks, rollback, screenshots, examples, and migration notes when relevant.
+8. Call out breaking changes explicitly.
+9. Mention tests run, or say validation was not provided.
+10. Mention risks, migrations, rollback notes, and follow-ups.
+11. Do not stage, commit, push, open a PR, tag, or publish unless explicitly requested.
 
 ## Output Format
 
@@ -45,6 +49,7 @@ Turn a current diff into logical commit guidance and PR-ready summary text.
 - Optional commit grouping.
 - PR summary.
 - Validation.
+- Breaking changes.
 - Risks and follow-ups.
 
 ## Safety Rules

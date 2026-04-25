@@ -15,6 +15,14 @@ Always-on rules for AI agents working in this repository.
 - Run the smallest relevant validation first, then broader checks when safe.
 - Report what changed, how it was validated, and anything that remains unverified.
 
+## AI-Agent Guidance Rule
+
+Treat `.agents/skills/` as the canonical home for reusable workflows. Keep `.agents/commands/`, `.agents/agents/`, `.claude/`, `.cursor/`, `.codex/`, `.github/`, and other tool-specific adapters thin; they should route to skills or rules instead of duplicating full workflows.
+
+When useful guidance appears in a command, prompt, README-only folder, or tool adapter, move the durable workflow content into the related skill first, then make the adapter point to it. Do not keep reference-only folders such as `.agents/hooks/` or `.agents/mcp/`; create them only for concrete scripts, configs, or adapter files.
+
+When adding or renaming a skill, keep the folder name equal to frontmatter `name`, update `.agents/README.md`, and add or update any required tool-specific thin adapters, such as `.claude/skills/<name>/SKILL.md`.
+
 ## Current Task Context Rule
 
 `docs/CURRENT_TASK_CONTEXT.md` is a **session-only file** — it is intentionally not committed to the repository. Create it if it does not exist; do not treat a missing file as an error or skip updating it because it is absent.

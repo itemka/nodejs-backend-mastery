@@ -30,13 +30,14 @@ Root files stay thin:
 - [rules/repo-map.md](./rules/repo-map.md): project-specific orientation; edit this first when reusing the folder.
 - [skills/](./skills/): reusable workflows with clear triggers and output formats.
 - [agents/](./agents/): portable role definitions for focused review or implementation support.
-- [commands/](./commands/): copy-paste prompt bodies for repeated user-facing workflows.
+- [commands/](./commands/): thin runnable prompts that route user-facing commands to canonical skills.
 - [prompts/](./prompts/): fillable prompt templates for tasks, debugging, code review, refactors, and architecture decisions.
 - [checklists/](./checklists/): concise review and readiness criteria.
 - [commits/](./commits/): commit and PR helper templates.
 
 ## Skills
 
+- [skills/implement/](./skills/implement/): implement focused code, documentation, or configuration changes using the relevant specialized skills.
 - [skills/designing-hooks/](./skills/designing-hooks/): design or review safe deterministic hook automation before adding tool-specific files.
 - [skills/configuring-mcp/](./skills/configuring-mcp/): plan or review MCP usage, config scope, secret handling, and access boundaries.
 
@@ -49,13 +50,13 @@ Hooks and MCP guidance live as skills until real tool-specific implementation fi
 - GitHub Copilot: `AGENTS.md` is supported as repo instructions; Copilot-specific prompts, agents, hooks, and instructions belong under `.github/` when needed.
 - Cursor: `AGENTS.md` is supported as simple instructions; scoped rules, commands, and MCP config live under `.cursor/` when needed.
 
-Treat [skills/](./skills/) as the portable source for reusable workflows. Treat [agents/](./agents/), [commands/](./commands/), and [prompts/](./prompts/) as portable source material that can be adapted into tool-native files later.
+Treat [skills/](./skills/) as the portable source for reusable workflows. Treat [commands/](./commands/) as short command prompts that load skills, and keep [agents/](./agents/) and [prompts/](./prompts/) as portable source material for tool-native adapters only when they add value.
 
 ## Lifecycle Coverage
 
 - Understand a task: [agents/task-analyst.md](./agents/task-analyst.md), [skills/plan/](./skills/plan/), [prompts/task-template.md](./prompts/task-template.md).
 - Plan implementation: [agents/plan.md](./agents/plan.md), [commands/plan.md](./commands/plan.md).
-- Code: [agents/implement.md](./agents/implement.md), [commands/implement.md](./commands/implement.md), backend/data/refactor skills.
+- Code: [agents/implement.md](./agents/implement.md), [skills/implement/](./skills/implement/), [commands/implement.md](./commands/implement.md), backend/data/refactor skills.
 - Test: [agents/tests.md](./agents/tests.md), [skills/validate/](./skills/validate/), [checklists/tests.md](./checklists/tests.md).
 - Review: [agents/code-review.md](./agents/code-review.md), [agents/security-reviewer.md](./agents/security-reviewer.md), [skills/code-review/](./skills/code-review/), review checklists.
 - Document: [agents/update-docs.md](./agents/update-docs.md), [skills/update-docs/](./skills/update-docs/), [commands/update-docs.md](./commands/update-docs.md), [checklists/documentation.md](./checklists/documentation.md).

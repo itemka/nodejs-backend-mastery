@@ -1,34 +1,22 @@
-# Implement
+# Implement Command
 
-## Goal
+Use this as a runnable prompt for focused implementation work in this repo.
 
-Implement the requested change safely with focused tests and validation.
+## Run
 
-## Context To Provide
+1. Read `AGENTS.md` and the rules under `.agents/rules/`.
+2. Read and follow [.agents/skills/implement/SKILL.md](../skills/implement/SKILL.md).
+3. Load any focused skills named by the implement skill that match the task.
+4. Use [.agents/skills/validate/SKILL.md](../skills/validate/SKILL.md) before finishing.
+5. Update `docs/CURRENT_TASK_CONTEXT.md` with [.agents/skills/current-task-context/SKILL.md](../skills/current-task-context/SKILL.md) after meaningful changes.
 
-- Task brief or plan.
-- Files or modules involved.
-- Expected behavior and acceptance criteria.
-- Constraints and commands that should or should not be run.
+## User Input
 
-## Required Steps
+Use the command arguments or latest user message as the implementation brief. Preserve stated non-goals, constraints, acceptance criteria, and validation requirements.
 
-1. Inspect existing code and tests before editing.
-2. Make the smallest practical change.
-3. Follow existing architecture, style, typing, and error handling.
-4. Add or update tests for meaningful behavior changes.
-5. Update docs or examples when user-facing behavior changes.
-6. Run relevant validation.
-7. Update `docs/CURRENT_TASK_CONTEXT.md` for meaningful implementation handoffs.
-8. Summarize changes, validation, and remaining risks.
+## Output
 
-## Output Format
-
-- Summary.
 - Files changed.
 - Tests and validation.
+- Behavior changed.
 - Risks or follow-ups.
-
-## Safety Notes
-
-Do not perform unrelated refactors, dependency upgrades, destructive commands, or broad rewrites without explicit approval.

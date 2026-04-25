@@ -1,25 +1,20 @@
-# Prepare PR
+# Prepare PR Command
 
-## Goal
+Use this as a runnable prompt for preparing PR text from the current diff and validation context.
 
-Prepare a PR description from the current diff and validation results.
+## Run
 
-## Context To Provide
+1. Read `AGENTS.md` and the rules under `.agents/rules/`.
+2. Read and follow [.agents/skills/commit-preparation/SKILL.md](../skills/commit-preparation/SKILL.md).
+3. Use [.agents/commits/pr-description-template.md](../commits/pr-description-template.md) for the PR shape.
+4. Use [.agents/checklists/pr-readiness.md](../checklists/pr-readiness.md) for readiness checks.
+5. Do not push, open a PR, or mutate remote state unless the user explicitly asks.
 
-- Task goal or issue link.
-- Target branch and release constraints.
-- Tests run, screenshots, examples, migration notes, and known risks.
+## User Input
 
-## Required Steps
+Use the command arguments or latest user message as PR-preparation context. Include issue links, target branch, validation, screenshots, migration notes, release notes, and known risks when provided.
 
-1. Inspect git status and diff.
-2. Summarize user-visible and internal changes.
-3. Explain motivation and scope.
-4. List validation commands and results.
-5. Document risks, rollback, migrations, and follow-ups.
-6. Include screenshots or examples only when relevant.
-
-## Output Format
+## Output
 
 - Summary.
 - Motivation.
@@ -29,7 +24,3 @@ Prepare a PR description from the current diff and validation results.
 - Rollback.
 - Screenshots/examples if relevant.
 - Checklist.
-
-## Safety Notes
-
-Do not claim coverage that was not run. Do not include secrets or private environment details.

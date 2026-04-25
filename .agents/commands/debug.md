@@ -1,36 +1,22 @@
-# Debug
+# Debug Command
 
-## Goal
+Use this as a runnable prompt for debugging failures in this repo.
 
-Investigate a failing command, test, build, runtime error, or unexpected behavior and identify the minimal fix.
+## Run
 
-## Context To Provide
+1. Read `AGENTS.md` and the rules under `.agents/rules/`.
+2. Read and follow [.agents/skills/debug/SKILL.md](../skills/debug/SKILL.md).
+3. Use [.agents/skills/validate/SKILL.md](../skills/validate/SKILL.md) for focused verification.
+4. Update `docs/CURRENT_TASK_CONTEXT.md` with [.agents/skills/current-task-context/SKILL.md](../skills/current-task-context/SKILL.md) after a meaningful fix or investigation.
 
-- Exact command or scenario that fails.
-- Error output, stack trace, logs, or screenshots.
-- Recent changes or suspected files.
-- Environment constraints.
+## User Input
 
-## Required Steps
+Use the command arguments or latest user message as the debugging brief. Look for the failing command, error output, reproduction steps, recent changes, and constraints.
 
-1. Capture the exact failure.
-2. Reproduce with the smallest command possible.
-3. Inspect recent changes and nearby code.
-4. Form 2-3 hypotheses.
-5. Test hypotheses one at a time.
-6. Fix the root cause with a focused diff.
-7. Add a regression test when practical.
-8. Run validation and report results.
+## Output
 
-## Output Format
-
-- Reproduction.
 - Root cause.
-- Fix.
+- Fix or recommended fix.
 - Regression coverage.
 - Validation.
 - Remaining risk.
-
-## Safety Notes
-
-Do not weaken tests, suppress errors, or hide failures. Avoid broad rewrites while debugging.

@@ -18,6 +18,7 @@ Implement focused code changes while preserving existing architecture, typing, t
 
 ## Use With
 
+- [implement](../skills/implement/SKILL.md)
 - [backend-api-change](../skills/backend-api-change/SKILL.md)
 - [data-storage-change](../skills/data-storage-change/SKILL.md)
 - [refactor](../skills/refactor/SKILL.md)
@@ -26,13 +27,9 @@ Implement focused code changes while preserving existing architecture, typing, t
 
 ## Review Or Work Steps
 
-1. Inspect nearby code and tests before editing.
-2. Make the smallest practical change that satisfies the task.
-3. Follow existing TypeScript, architecture, validation, error-handling, and logging patterns.
-4. Add or update tests for meaningful behavior changes.
-5. Update docs or examples when user-facing behavior changes.
-6. Run focused validation first, then broader checks when safe.
-7. Report changed files, validation, and remaining risks.
+1. Follow the [implement skill](../skills/implement/SKILL.md) as the canonical workflow.
+2. Load focused skills for backend API, data storage, refactor, docs, hook, or MCP work when the task touches those surfaces.
+3. Report changed files, validation, behavior changes, and remaining risks.
 
 ## Output Format
 

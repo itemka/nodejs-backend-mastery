@@ -1,33 +1,22 @@
-# Review Current Diff
+# Review Current Diff Command
 
-## Goal
+Use this as a runnable prompt for a read-only review of the current git diff.
 
-Review the current git diff for bugs, regressions, security issues, test gaps, and maintainability concerns.
+## Run
 
-## Context To Provide
+1. Read `AGENTS.md` and the rules under `.agents/rules/`.
+2. Read and follow [.agents/skills/code-review/SKILL.md](../skills/code-review/SKILL.md).
+3. Load only relevant checklists from [.agents/checklists/](../checklists/).
+4. Stay read-only unless the user explicitly asks for edits.
 
-- Review focus, if any.
-- Base branch or comparison target, if relevant.
-- Known risks or areas of concern.
+## User Input
 
-## Required Steps
+Use the command arguments or latest user message as the review focus. Respect staged, unstaged, base branch, file scope, severity, or risk-area instructions.
 
-1. Inspect git status and current diff.
-2. Confirm whether the review target is unstaged, staged, last commit, or all current changes.
-3. Review correctness and API/data contracts.
-4. Review architecture boundaries and TypeScript typing.
-5. Review tests and validation evidence.
-6. Review security and sensitive-data handling.
-7. Separate blocking issues from suggestions.
-
-## Output Format
+## Output
 
 - Must fix.
 - Should fix.
 - Nice to have.
 - Test gaps.
 - Open questions.
-
-## Safety Notes
-
-Do not edit files during review unless explicitly asked. Do not print secrets if found.

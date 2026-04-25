@@ -1,33 +1,22 @@
-# Prepare Commit
+# Prepare Commit Command
 
-## Goal
+Use this as a runnable prompt for preparing commit messages from the current diff.
 
-Inspect the current diff and prepare clean commit message options.
+## Run
 
-## Context To Provide
+1. Read `AGENTS.md` and the rules under `.agents/rules/`.
+2. Read and follow [.agents/skills/commit-preparation/SKILL.md](../skills/commit-preparation/SKILL.md).
+3. Use [.agents/commits/conventional-commits.md](../commits/conventional-commits.md) for type and scope guidance.
+4. Do not stage, commit, or push unless the user explicitly asks.
 
-- Current task or issue.
-- Preferred commit granularity.
-- Tests run and known failures.
+## User Input
 
-## Required Steps
+Use the command arguments or latest user message as commit-preparation context. Respect staged-only, current-diff, scope, or split-commit instructions.
 
-1. Inspect git status and diff.
-2. If the request says staged changes, use only the staged diff.
-3. Group changes logically and call out unrelated staged groups.
-4. Suggest Conventional Commit message(s).
-5. Include why, what changed, validation, and breaking changes if any.
-6. Do not stage or commit unless explicitly asked.
+## Output
 
-## Output Format
-
-- Suggested commit message.
 - Optional split plan.
 - Why.
 - What changed.
 - Validation.
 - Breaking changes.
-
-## Safety Notes
-
-Do not include secrets, local paths, or unverifiable claims in commit text.

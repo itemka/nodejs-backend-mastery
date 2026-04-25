@@ -46,6 +46,7 @@ Find a reproducible root cause and apply the smallest credible fix.
 - Fix.
 - Regression coverage.
 - Validation.
+- Remaining risk.
 
 ## Safety Rules
 

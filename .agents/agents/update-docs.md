@@ -23,7 +23,6 @@ Document real behavior, workflows, APIs, migrations, and decisions with concise,
 - [update-docs skill](../skills/update-docs/SKILL.md)
 - [update-docs command](../commands/update-docs.md)
 - [documentation checklist](../checklists/documentation.md)
-- [architecture-decision template](../prompts/architecture-decision-template.md)
 
 ## Review Or Work Steps
 

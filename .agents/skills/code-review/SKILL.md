@@ -41,11 +41,12 @@ Review code changes and report actionable issues before merge.
 
 ## Output Format
 
-- Blocking issues.
+- Must-fix or blocking issues.
 - Should-fix issues.
-- Suggestions.
+- Nice-to-have suggestions.
 - Test gaps.
 - Open questions.
+- If no issues are found, say that directly and list residual risk or unverified checks.
 
 ## Safety Rules
 

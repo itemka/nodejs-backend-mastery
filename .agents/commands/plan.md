@@ -1,36 +1,23 @@
-# Plan
+# Plan Command
 
-## Goal
+Use this as a runnable prompt for explicit planning requests.
 
-Inspect the repo and create or update a concise implementation plan file before coding.
+## Run
 
-## Context To Provide
+1. Read `AGENTS.md` and the rules under `.agents/rules/`.
+2. Read and follow [.agents/skills/plan/SKILL.md](../skills/plan/SKILL.md).
+3. Because this command is explicit planning, create or update `docs/plan-<short-task-goal>.md` unless the user explicitly says not to create a file.
+4. Do not edit implementation files unless the user explicitly asks for implementation.
 
-- Task goal.
-- Relevant files, errors, issue links, or acceptance criteria.
-- Constraints such as compatibility, migration risk, or deadline.
+## User Input
 
-## Required Steps
+Use the command arguments or latest user message as the planning brief. Include relevant files, errors, issue links, acceptance criteria, constraints, and risk notes.
 
-1. Restate the goal.
-2. Read the relevant repo rules and nearby files.
-3. Identify existing patterns and affected boundaries.
-4. List assumptions and risks.
-5. Propose small implementation steps.
-6. Define validation commands.
-7. Create or update `docs/plan-<short-task-goal>.md` per [agents/plan.md](../agents/plan.md), because this command is an explicit plan request.
-8. Do not edit implementation files unless explicitly asked.
+## Output
 
-## Output Format
-
-- Plan file path.
 - Goal.
 - Context found.
 - Assumptions.
 - Plan.
 - Validation.
 - Risks.
-
-## Safety Notes
-
-Keep the plan scoped. Call out risky migrations, destructive actions, dependency changes, and public API changes before implementation.
