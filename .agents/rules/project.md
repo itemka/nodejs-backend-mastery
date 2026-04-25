@@ -17,7 +17,9 @@ Always-on rules for AI agents working in this repository.
 
 ## Current Task Context Rule
 
-After every meaningful codebase change, investigation, debugging session, review, or implementation step, update [docs/CURRENT_TASK_CONTEXT.md](../../docs/CURRENT_TASK_CONTEXT.md).
+`docs/CURRENT_TASK_CONTEXT.md` is a **session-only file** — it is intentionally not committed to the repository. Create it if it does not exist; do not treat a missing file as an error or skip updating it because it is absent.
+
+After every meaningful codebase change, investigation, debugging session, review, or implementation step, create or update [docs/CURRENT_TASK_CONTEXT.md](../../docs/CURRENT_TASK_CONTEXT.md)
 
 Keep the live `Current Focus` concise. Append meaningful implementation, decision, validation, blocker, rollback, and handoff events to the timestamped logs using local ISO 8601 minute precision with timezone offset, for example `2026-04-25T14:32+02:00`.
 
