@@ -10,12 +10,7 @@ Project-specific orientation for AI agents. Keep this file easy to edit when cop
 - Apps live under `workspaces/apps/*`.
 - Shared packages live under `workspaces/packages/*`.
 - Docs live under `docs/*`.
-- Shared AI-agent material lives under `.agents/*`.
-- Reusable AI workflows live under `.agents/skills/*/SKILL.md`.
-- `.agents/commands/*` are thin runnable prompts that load skills.
-- `.agents/agents/*` are optional portable role definitions that should point to skills and checklists instead of restating workflows.
-- Skills should link useful `.agents/agents/*` files in a short `Related Role Specs` section so role guidance is discoverable on demand.
-- Tool-specific adapters live under `.claude/`, `.codex/`, `.cursor/`, or `.github/` when needed and should stay thin.
+- Shared AI-agent material lives under `.agents/*`. Tool-specific adapters live under `.claude/`, `.codex/`, `.cursor/`, or `.github/` and should stay thin (see [.agents/README.md](../README.md) for design rules).
 
 ## Apps
 
@@ -44,5 +39,4 @@ Project-specific orientation for AI agents. Keep this file easy to edit when cop
 - ESLint config: `eslint.config.mjs`.
 - CI workflow: `.github/workflows/ci.yml`.
 - CI runs lint, format check, typecheck, tests, app builds for changed apps, audit, secret scanning, and SonarCloud when available.
-- Root files such as `AGENTS.md` and `CLAUDE.md` should stay thin and point into `.agents/`.
-- When `.agents/skills/` changes, keep `.agents/README.md` and tool-specific skill adapters in sync.
+- When `.agents/skills/` changes, keep [.agents/README.md](../README.md) and tool-specific skill adapters in sync.

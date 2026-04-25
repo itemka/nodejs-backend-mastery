@@ -10,5 +10,4 @@
 - The update is scoped to the change and avoids broad unrelated rewrites.
 - Root AI instruction files stay thin; detailed workflows live in skills, while commands and tool adapters stay short and route to the shared source.
 - Tool-specific adapters link back to shared guidance instead of duplicating it.
-- AI-agent docs were checked against current official sources and recent official changelogs or release notes during the run, or the lack of docs access is stated.
-- The recency window is stated for AI-agent guidance updates: search the last 30 days first, then broaden to 90 days only if no useful dated updates are found.
+- For AI-agent guidance, the Freshness Window in [skills/update-docs/SKILL.md](../skills/update-docs/SKILL.md) was followed and the recency window used was reported (or lack of docs access was stated).

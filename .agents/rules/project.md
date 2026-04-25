@@ -15,22 +15,12 @@ Always-on rules for AI agents working in this repository.
 - Run the smallest relevant validation first, then broader checks when safe.
 - Report what changed, how it was validated, and anything that remains unverified.
 
-## AI-Agent Guidance Rule
-
-Treat `.agents/skills/` as the canonical home for reusable workflows. Keep `.agents/commands/`, `.agents/agents/`, `.claude/`, `.cursor/`, `.codex/`, `.github/`, and other tool-specific adapters thin; they should route to skills or rules instead of duplicating full workflows.
-
-When useful guidance appears in a command, prompt template, README-only folder, or tool adapter, move the durable workflow content into the related skill first, then make the adapter point to it. Do not keep reference-only folders such as `.agents/hooks/`, `.agents/mcp/`, `.agents/prompts/`, or `.agents/commits/`; create them only for concrete reusable assets that cannot live cleanly in skills, commands, agents, or checklists.
-
-When adding or renaming a skill, keep the folder name equal to frontmatter `name`, update `.agents/README.md`, and add or update any required tool-specific thin adapters, such as `.claude/skills/<name>/SKILL.md`.
-
-When adding or changing a portable role under `.agents/agents/`, link it from the relevant skill's `Related Role Specs` section only when the role is useful for that workflow. Do not make role specs always-loaded context and do not duplicate the role workflow inside the skill.
+For AI-agent docs design rules (skills are canonical, adapters are thin, role specs link from skills), see [.agents/README.md](../README.md).
 
 ## Current Task Context Rule
 
 `docs/CURRENT_TASK_CONTEXT.md` is a **session-only file** — it is intentionally not committed to the repository. Create it if it does not exist; do not treat a missing file as an error or skip updating it because it is absent.
 
-After every meaningful codebase change, investigation, debugging session, review, or implementation step, create or update [docs/CURRENT_TASK_CONTEXT.md](../../docs/CURRENT_TASK_CONTEXT.md)
+After every meaningful codebase change, investigation, debugging session, review, or implementation step, create or update [docs/CURRENT_TASK_CONTEXT.md](../../docs/CURRENT_TASK_CONTEXT.md) using [skills/current-task-context/SKILL.md](../skills/current-task-context/SKILL.md).
 
-Keep the live `Current Focus` concise. Append meaningful implementation, decision, validation, blocker, rollback, and handoff events to the timestamped logs using local ISO 8601 minute precision with timezone offset, for example `2026-04-25T14:32+02:00`.
-
-Do not delete or rewrite historical log entries just because newer work supersedes them; append a correction or follow-up entry instead. Record what changed, why, files touched, validation run, risks, and next steps. Do not include secrets, long logs, or full source code.
+Keep `Current Focus` concise. Append timestamped entries to `Implementation Log`, `Decision Log`, and `Validation Log` using local ISO 8601 minute precision with timezone offset (for example `2026-04-25T14:32+02:00`). Do not delete or rewrite historical log entries; append a correction or follow-up entry instead. Record what changed, why, files touched, validation run, risks, and next steps. Do not include secrets, long logs, or full source code.

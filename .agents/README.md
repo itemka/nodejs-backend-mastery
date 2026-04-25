@@ -1,92 +1,116 @@
 # AI Agents
 
-This folder is the shared AI-agent toolkit for the repo. Keep reusable material here first, then add tool-specific adapters only when a tool needs its own format.
+Shared AI-agent toolkit for Codex, Claude Code, Cursor, and any other tool that
+honors `AGENTS.md`. Keep portable material here. Add tool-specific adapters
+under `.codex/`, `.claude/`, `.cursor/`, or `.github/` only when a tool needs
+its own file format.
 
-Root files stay thin:
+Root entry points stay thin:
 
-- [../AGENTS.md](../AGENTS.md) points agents here.
+- [../AGENTS.md](../AGENTS.md) points agents into this folder.
 - [../CLAUDE.md](../CLAUDE.md) imports `AGENTS.md` for Claude Code.
-- Tool-specific config belongs in `.codex/`, `.claude/`, `.cursor/`, `.github/`, user-level config, or ignored local files.
 
 ## What Belongs Here
 
-- Cross-tool rules for safe software work.
-- Reusable workflows for planning, coding, testing, review, documenting, debugging, refactoring, commits, and PRs.
-- Portable role specs for specialist review or worker agents.
-- Review checklists and focused skills for commits, hooks, and MCP design.
+- Cross-tool always-on rules.
+- Reusable workflows for planning, coding, testing, review, docs, debugging,
+  refactoring, commits, and PRs.
+- Portable role specs used by specialist or worker agents.
+- Compact review checklists.
 
 ## What Does Not Belong Here
 
-- Secrets, tokens, API keys, credentials, private URLs, or machine-specific absolute paths.
-- Normal product docs or learning-roadmap notes. Use [../docs/](../docs/) for docs.
-- Large duplicated tool configs. Keep adapters short and link back here.
+- Secrets, tokens, API keys, credentials, private URLs, or machine-specific paths.
+- Product or learning docs — use [../docs/](../docs/).
+- Long duplicated tool configs — keep adapters short and link back here.
 - Temporary scratch plans that should live in an issue, PR, or local note.
 
-## Folder Roles
+## Folder Map
 
-- [rules/project.md](./rules/project.md): small always-on rules every agent should follow.
-- [rules/change-discipline.md](./rules/change-discipline.md): rules for keeping diffs safe and focused.
-- [rules/repo-map.md](./rules/repo-map.md): project-specific orientation; edit this first when reusing the folder.
-- [skills/](./skills/): reusable workflows with clear triggers and output formats.
-- [agents/](./agents/): optional portable role definitions for focused review or implementation support.
-- [commands/](./commands/): thin runnable prompts that route user-facing commands to canonical skills.
-- [checklists/](./checklists/): concise review and readiness criteria.
+- [rules/](./rules/) — Small always-on instructions that every AI tool should
+  follow before editing the repo. Keep these concise because they are likely
+  to be loaded often.
+- [skills/](./skills/) — Canonical reusable workflows for development tasks
+  such as planning, implementation, debugging, validation, review, docs,
+  commits, hooks, and MCP decisions. Put durable step-by-step guidance here
+  first.
+- [agents/](./agents/) — Optional specialist role specs used for focused
+  review or thinking, such as backend architecture, security, testing,
+  delivery, or documentation. Keep agents thin and link them from relevant
+  skills instead of duplicating workflows.
+- [commands/](./commands/) — Short runnable prompts that start common
+  workflows and route to the right skills. Commands should not contain full
+  procedures; they are entry points, not sources of truth.
+- [checklists/](./checklists/) — Compact verification criteria used by
+  skills and reviewers. Keep checklists practical, scannable, and free from
+  long explanations.
 
-## Skills
+## AI-Agent Guidance Rule
 
-- [skills/implement/](./skills/implement/): implement focused code, documentation, or configuration changes using the relevant specialized skills.
-- [skills/designing-hooks/](./skills/designing-hooks/): design or review safe deterministic hook automation before adding tool-specific files.
-- [skills/configuring-mcp/](./skills/configuring-mcp/): plan or review MCP usage, config scope, secret handling, and access boundaries.
+`.agents/skills/` is the canonical home for reusable workflows. `.agents/commands/`
+and `.agents/agents/` are routing layers — they should point into skills and
+checklists rather than duplicate workflow content. The same principle applies to
+tool-specific adapters under `.claude/`, `.codex/`, `.cursor/`, and `.github/`:
+keep adapters thin and link back to the portable source.
 
-Hooks and MCP guidance live as skills until real tool-specific implementation files are needed. Create `.agents/hooks/` or `.agents/mcp/` only when there are concrete hook scripts, MCP configs, or adapter files to store.
+When a workflow lives inside a command, role spec, or tool adapter, move the
+durable content into the matching skill first and make the adapter point to it.
+
+When a role spec under [agents/](./agents/) is useful for a workflow, link it
+from the related skill in a short `Related Role Specs` section. Role specs are
+not always-loaded context.
+
+When adding or renaming a skill, keep the folder name equal to the frontmatter
+`name`, update this index, and add or update any required tool-specific thin
+adapters such as `.claude/skills/<name>/SKILL.md`.
+
+Hooks and MCP guidance live in [skills/designing-hooks/](./skills/designing-hooks/)
+and [skills/configuring-mcp/](./skills/configuring-mcp/). Create
+`.agents/hooks/` or `.agents/mcp/` only when there are concrete reusable
+scripts, configs, or adapter files to store.
 
 ## Tool Adapter Map
 
-- Codex: `AGENTS.md` at repo root for project instructions; repo skills live in `.agents/skills/`; Codex hooks, MCP, plugins, and project-scoped custom agents live in Codex config such as `.codex/config.toml` or `.codex/agents/` when needed.
-- Claude Code: `CLAUDE.md` imports `AGENTS.md`; `.claude/skills/<name>/SKILL.md`, `.claude/agents/*.md`, `.claude/commands/*.md`, settings, hooks, and MCP approval live under `.claude/`. Claude Code treats skills as the primary format; legacy `.claude/commands/` files still work and a skill takes precedence when names collide.
-- GitHub Copilot: `AGENTS.md` is supported as repo instructions; Copilot-specific prompts, agents, hooks, and instructions belong under `.github/` when needed.
-- Cursor: `AGENTS.md` is supported as simple instructions; scoped rules, commands, and MCP config live under `.cursor/` when needed.
+- **Codex** — root `AGENTS.md` is the project instruction surface; project-
+  scoped Codex config (hooks, MCP, custom agents) lives under `.codex/`.
+- **Claude Code** — `CLAUDE.md` imports `AGENTS.md`; thin adapters live under
+  `.claude/skills/<name>/SKILL.md`, `.claude/agents/*.md`, and
+  `.claude/commands/*.md`. Skills take precedence when names collide with
+  legacy command files.
+- **GitHub Copilot** — `AGENTS.md` is supported as repo instructions; Copilot-
+  specific prompts and agents belong under `.github/`.
+- **Cursor** — `AGENTS.md` is supported as plain instructions; scoped rules,
+  commands, and MCP config belong under `.cursor/`.
 
-Treat [skills/](./skills/) as the portable source for reusable workflows. Treat [commands/](./commands/) as short command prompts that load skills, and keep [agents/](./agents/) as optional role specs for tool-native adapters or focused subagent work only when it adds value.
-
-Role specs are not always-loaded context. When a role is useful for a workflow, the relevant skill should include a short `Related Role Specs` section that links to the role file and explains when to load it.
-
-## Lifecycle Coverage
-
-- Understand a task: [agents/task-analyst.md](./agents/task-analyst.md), [skills/plan/](./skills/plan/).
-- Plan implementation: [agents/plan.md](./agents/plan.md), [commands/plan.md](./commands/plan.md).
-- Code: [agents/implement.md](./agents/implement.md), [skills/implement/](./skills/implement/), [commands/implement.md](./commands/implement.md), backend/data/refactor skills.
-- Test: [agents/tests.md](./agents/tests.md), [skills/validate/](./skills/validate/), [checklists/tests.md](./checklists/tests.md).
-- Review: [agents/code-review.md](./agents/code-review.md), [agents/security-reviewer.md](./agents/security-reviewer.md), [skills/code-review/](./skills/code-review/), review checklists.
-- Document: [agents/update-docs.md](./agents/update-docs.md), [skills/update-docs/](./skills/update-docs/), [commands/update-docs.md](./commands/update-docs.md), [checklists/documentation.md](./checklists/documentation.md).
-- Prepare commits and PRs: [agents/delivery.md](./agents/delivery.md), [skills/commit-preparation/](./skills/commit-preparation/).
-- Debug: [agents/debug.md](./agents/debug.md), [skills/debug/](./skills/debug/), [commands/debug.md](./commands/debug.md).
-- Current task context: [skills/current-task-context/](./skills/current-task-context/).
-- Design hooks: [skills/designing-hooks/](./skills/designing-hooks/).
-- Configure MCP: [skills/configuring-mcp/](./skills/configuring-mcp/).
-- Improve backend/frontend quality: [agents/code-review.md](./agents/code-review.md), [agents/backend-architect.md](./agents/backend-architect.md), backend/API/security/review checklists.
+Treat tool-specific adapters as thin pointers into `.agents/`. Do not copy
+skill bodies into adapter files.
 
 ## Source Priority
 
-Use official product docs as the source of truth for tool-specific file locations and behavior:
+Use official product docs as the source of truth for tool-specific file
+locations and behavior:
 
-- Agent Skills open standard: <https://agentskills.io/specification> (SKILL.md frontmatter, required `name` and `description`, folder-name-must-match-skill-name rule, progressive disclosure).
-- Agent Skills best practices: <https://agentskills.io/skill-creation/best-practices> (focused skills, concise descriptions, progressive disclosure, validation loops).
-- Claude Code: <https://code.claude.com/docs> (memory, skills, subagents, hooks, permissions, MCP).
-- OpenAI Codex: <https://developers.openai.com/codex> (AGENTS.md, skills, subagents, hooks, MCP).
-- Cursor: <https://cursor.com/docs> (rules, commands, MCP).
-- AGENTS.md standard: <https://agents.md> (cross-tool root instructions file).
+- Agent Skills open standard: <https://agentskills.io/specification>
+- Agent Skills best practices: <https://agentskills.io/skill-creation/best-practices>
+- Claude Code: <https://code.claude.com/docs>
+- OpenAI Codex: <https://developers.openai.com/codex>
+- Cursor: <https://cursor.com/docs>
+- AGENTS.md standard: <https://agents.md>
 
-Use curated or community catalogs only as inspiration after checking scope, quality, and license.
-
-When refreshing AI-agent guidance, check the current official docs above and also scan official changelogs, release notes, and dated best-practice pages for recent changes. Search the last 30 days first; if that finds no useful dated updates, broaden to the last 90 days and say that the search window was expanded. Use community posts only as clearly labeled secondary context when official sources are silent.
+When refreshing AI-agent guidance, also scan official changelogs, release
+notes, and dated best-practice pages. The recency-window rule for that
+refresh is owned by [skills/update-docs/SKILL.md](./skills/update-docs/SKILL.md);
+do not duplicate it elsewhere.
 
 ## Reuse In Another Project
 
 1. Copy `.agents/` into the target repo.
-2. Rewrite [rules/repo-map.md](./rules/repo-map.md) for that repo's layout, commands, and production boundaries.
-3. Keep [rules/project.md](./rules/project.md), skills, agents, commands, and checklists mostly generic.
-4. Add a thin root `AGENTS.md` that links to this folder and the three rule files.
-5. Add tool-specific adapters only when needed, for example `.cursor/rules/*.mdc`, `.cursor/commands/*.md`, `.claude/skills/*`, `.claude/agents/*.md`, `.github/prompts/*.prompt.md`, `.github/agents/*.md`, or Codex config.
+2. Rewrite [rules/repo-map.md](./rules/repo-map.md) for that repo's layout,
+   commands, and production boundaries.
+3. Keep [rules/project.md](./rules/project.md), skills, agents, commands, and
+   checklists mostly generic.
+4. Add a thin root `AGENTS.md` that links to this folder and the rule files.
+5. Add tool-specific adapters only when needed.
 
-Keep project-specific details in `rules/repo-map.md`. Keep reusable workflows generic.
+Keep project-specific details in `rules/repo-map.md`. Keep reusable workflows
+generic.

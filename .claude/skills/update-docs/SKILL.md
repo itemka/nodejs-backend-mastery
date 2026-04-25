@@ -13,6 +13,5 @@ When this skill is selected:
 1. Read `AGENTS.md`.
 2. Read `.agents/README.md` and the rules under `.agents/rules/`.
 3. Read `.agents/skills/update-docs/SKILL.md`.
-4. Follow the `.agents` skill as the source of truth.
+4. Follow the `.agents` skill as the source of truth, including its `Freshness Window` section for AI-agent docs.
 5. Document only behavior that was implemented or verified.
-6. For AI-agent docs, run the canonical current-official-docs and recent-change refresh before editing unless the user explicitly says not to browse; search the last 30 days first, then broaden to 90 days only if no useful dated updates are found.

@@ -1,6 +1,11 @@
 ---
 name: configuring-mcp
 description: Plan, review, or document safe MCP server usage and configuration boundaries for AI coding tools.
+metadata:
+  created: '2026-04-25'
+  status: 'baseline'
+  portability: 'cross-tool'
+  last-reviewed: '2026-04-25'
 ---
 
 # Configuring MCP
@@ -41,14 +46,6 @@ Plan, review, or document Model Context Protocol usage so AI tools can access ex
 8. Document approval, reload, restart, or reconnect notes for the target client when they affect discovery.
 9. Do not create MCP config files unless the user explicitly requests implementation.
 
-## Safety Rules
-
-- Do not commit secrets, tokens, API keys, credentials, private URLs, personal database strings, or machine-specific paths.
-- Treat project-level MCP config as reviewable infrastructure because it can grant tool access.
-- Keep credential-bearing or personal MCP setup out of reusable `.agents` content.
-- Prefer read-only access until a concrete write workflow is approved.
-- Make production access exceptional, explicit, bounded, and reversible.
-
 ## Output Format
 
 - MCP goal.
@@ -59,6 +56,14 @@ Plan, review, or document Model Context Protocol usage so AI tools can access ex
 - Read/write boundaries.
 - Approval, reload, or restart notes.
 - Risks and validation plan.
+
+## Safety Rules
+
+- Do not commit secrets, tokens, API keys, credentials, private URLs, personal database strings, or machine-specific paths.
+- Treat project-level MCP config as reviewable infrastructure because it can grant tool access.
+- Keep credential-bearing or personal MCP setup out of reusable `.agents` content.
+- Prefer read-only access until a concrete write workflow is approved.
+- Make production access exceptional, explicit, bounded, and reversible.
 
 ## When Not To Use
 

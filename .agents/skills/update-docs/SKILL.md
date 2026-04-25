@@ -43,44 +43,37 @@ Keep documentation accurate, concise, and tied to real code behavior.
 - Product, setup, API, and learning docs belong under `docs/` or the nearest package/app README.
 - Use commands as short invocable prompts that route to skills; keep procedural source of truth in skills.
 
+## Freshness Window
+
+This is the single source for the AI-agent docs recency rule. Other files in this repo reference this section instead of restating it.
+
+Use this rule for AI tools, libraries, framework versions, CLIs, cloud APIs, security-sensitive guidance, or user-flagged stale docs:
+
+1. Note the file or subject being refreshed and the tools or APIs it references.
+2. Fetch current official docs for those tools (Codex, Claude Code, Cursor, Agent Skills, MCP, etc.).
+3. Fetch recent official changelogs, release notes, or dated best-practice pages:
+   - First window: last 30 days.
+   - Fallback window: last 90 days, only when the 30-day scan finds no useful dated updates.
+   - State whether 30 days was enough or the search broadened to 90.
+4. Use vendor docs and official changelogs as primary sources. Use community posts only as clearly secondary context when official sources are silent.
+5. If web access or docs lookup is unavailable, say so and do not claim the update is freshness-verified.
+6. In the final response, list sources checked, the recency window used, and any meaningful old-to-new guidance changes.
+
 ## Workflow
 
 1. Inspect the changed code and nearby docs before editing.
 2. Identify the audience: user, contributor, operator, reviewer, or future maintainer.
 3. Identify the documentation surface and read the index that lists it, such as `.agents/README.md` or a docs index.
-4. Check whether the file or subject is stale. If the file is old for its topic, the user flags it as stale, or the topic changes frequently, run a freshness pass before editing.
-5. If the surface is AI-agent guidance, run an AI-agent docs refresh before editing:
-   - Fetch current official docs at execution time for the referenced tools. Prefer OpenAI Codex docs, Claude Code docs, Cursor docs, and the Agent Skills specification over blog posts or templates.
-   - Scan recent official changelogs, release notes, and dated best-practice pages for the referenced tools. Search the last 30 days first; if that finds no useful dated updates, broaden to the last 90 days and say that the window was expanded.
-   - Use vendor docs and official changelogs as primary sources. Use community posts or catalogs only when official sources are silent and the user asked for a broader scan; mark them as secondary and do not treat them as authoritative.
-   - Compare current guidance against repo files for AGENTS.md, skills, subagents, commands, prompts, hooks, MCP, memory/rules, and tool adapters.
-   - Look for naming drift, frontmatter changes, obsolete locations, duplicated instructions, bloated always-loaded context, and unsafe hook or MCP examples.
-   - Look for recent behavior changes that should update repo guidance, such as new config locations, deprecations, permission changes, lifecycle hooks, MCP capabilities, subagent behavior, or skill-loading behavior.
-   - Apply useful cross-tool updates to `.agents/` first; keep root files and tool adapters thin.
-   - If web access or docs lookup is unavailable, say so and do not claim the update is freshness-verified or recent-practice verified.
-6. For other drift-prone tooling or APIs, verify current official docs before changing guidance.
-7. Prefer editing an existing file. Create a new file only when no existing file fits.
-8. Update the smallest relevant doc surface and keep headings, tone, and length consistent.
-9. Keep indexes and relative links in sync.
-10. Prefer concrete examples over generic explanation.
-11. Include setup, validation, migration, rollback, or API examples when they are part of the change.
-12. Preserve existing docs shapes, such as the `docs/_todo/` topic README structure, unless the user asked to restructure them.
-13. Remove or correct stale statements that conflict with the new behavior.
-14. Report changed docs, sources checked, and any docs intentionally left untouched.
-
-## Freshness And Recent-Practices Pass
-
-Use this for AI tools, libraries, framework versions, CLIs, cloud APIs, security-sensitive guidance, or user-flagged stale docs:
-
-1. Note the file or subject being refreshed and the tools or APIs it references.
-2. Fetch current official docs for those tools.
-3. Fetch recent official changelogs, release notes, or dated best-practice pages:
-   - First window: last 30 days.
-   - Fallback window: last 90 days, only when the 30-day scan finds no useful dated updates.
-   - Say whether the 30-day window was enough or whether the search broadened to 90 days.
-4. Compare current guidance and recent changes with the repo file.
-5. Update only what is useful for this repo.
-6. In the final response, list sources checked, the recency window used, and any meaningful old-to-new guidance changes.
+4. Check whether the file or subject is stale; if it touches drift-prone tools or AI-agent guidance, run the Freshness Window above before editing.
+5. For AI-agent guidance specifically, also compare current guidance against repo files for AGENTS.md, skills, subagents, commands, prompts, hooks, MCP, memory/rules, and tool adapters. Look for naming drift, frontmatter changes, obsolete locations, duplicated instructions, bloated always-loaded context, and unsafe hook or MCP examples. Apply useful cross-tool updates to `.agents/` first; keep root files and tool adapters thin.
+6. Prefer editing an existing file. Create a new file only when no existing file fits.
+7. Update the smallest relevant doc surface and keep headings, tone, and length consistent.
+8. Keep indexes and relative links in sync.
+9. Prefer concrete examples over generic explanation.
+10. Include setup, validation, migration, rollback, or API examples when they are part of the change.
+11. Preserve existing docs shapes (for example, the `docs/_todo/` topic README structure) unless the user asked to restructure them.
+12. Remove or correct stale statements that conflict with the new behavior.
+13. Report changed docs, sources checked, recency window used, and any docs intentionally left untouched.
 
 ## Output Format
 

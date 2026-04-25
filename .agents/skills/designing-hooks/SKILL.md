@@ -1,6 +1,11 @@
 ---
 name: designing-hooks
 description: Design, review, or adapt safe deterministic hooks for AI coding tools without adding risky or destructive automation.
+metadata:
+  created: '2026-04-25'
+  status: 'baseline'
+  portability: 'cross-tool'
+  last-reviewed: '2026-04-25'
 ---
 
 # Designing Hooks
@@ -41,14 +46,6 @@ Design safe hook automation for AI coding tools while keeping shared guidance po
 8. Document the tool-specific adapter location only when implementation is needed; keep shared guidance in skills until concrete hook files exist.
 9. Do not create scripts, settings, or hook config unless the user explicitly requests implementation.
 
-## Safety Rules
-
-- Hooks must be safe, predictable, fast, and easy to debug.
-- Do not add real hook scripts or config during design-only work.
-- Do not auto-approve broad permissions or bypass safety prompts.
-- Do not print secrets, tokens, private URLs, or machine-specific paths.
-- Treat hook config as reviewable automation because it can affect every agent run.
-
 ## Output Format
 
 - Hook goal.
@@ -58,6 +55,14 @@ Design safe hook automation for AI coding tools while keeping shared guidance po
 - Tool-specific adapter location, if implementation is requested.
 - Safety risks and mitigations.
 - Validation plan.
+
+## Safety Rules
+
+- Hooks must be safe, predictable, fast, and easy to debug.
+- Do not add real hook scripts or config during design-only work.
+- Do not auto-approve broad permissions or bypass safety prompts.
+- Do not print secrets, tokens, private URLs, or machine-specific paths.
+- Treat hook config as reviewable automation because it can affect every agent run.
 
 ## When Not To Use
 

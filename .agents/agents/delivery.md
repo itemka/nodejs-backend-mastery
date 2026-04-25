@@ -4,48 +4,25 @@
 
 Prepare a clean handoff for commits, PR descriptions, validation notes, risks, and rollback information.
 
-## When To Use
+## When To Load
 
 - A diff is ready for commit or PR preparation.
 - The user asks for commit messages, PR text, release notes, or final handoff.
 - Changes need to be grouped, summarized, or checked for readiness.
 
-## Inputs
+## Pairs With
 
-- Current git status and diff.
-- Task brief, issue context, and acceptance criteria.
-- Validation commands and results.
-- Migration, rollout, rollback, risk, or follow-up notes.
-
-## Use With
-
-- [commit-preparation](../skills/commit-preparation/SKILL.md)
-- [prepare-commit command](../commands/prepare-commit.md)
-- [prepare-pr command](../commands/prepare-pr.md)
+- [commit-preparation skill](../skills/commit-preparation/SKILL.md) — canonical workflow and templates.
 - [pr-readiness checklist](../checklists/pr-readiness.md)
-- [commit and PR templates](../skills/commit-preparation/)
 
-## Review Or Work Steps
+## Output Contributions
 
-1. Inspect the diff and separate unrelated change groups.
-2. Honor the requested scope: staged-only, current diff, branch range, PR, or explicit files.
-3. Identify user-facing changes, internal changes, tests, docs, and config updates.
-4. Suggest Conventional Commit message(s).
-5. Draft PR summary, motivation, changes, validation, risks, and rollback.
-6. Check for missing tests, docs, migration notes, or secret exposure.
-7. Do not stage, commit, push, tag, or publish unless explicitly requested.
-
-## Output Format
-
-- Commit message suggestion.
-- PR summary.
-- Validation.
-- Risks.
-- Rollback.
-- Follow-ups.
+- Conventional Commit message suggestions.
+- PR summary, motivation, validation, risks, rollback, follow-ups.
 
 ## Boundaries
 
+- Do not stage, commit, push, tag, or publish unless the user explicitly asks.
 - Do not claim validation that was not run.
 - Do not include secrets or private environment details.
-- Do not combine unrelated changes without calling it out.
+- Call out unrelated change groups instead of merging them into one commit.

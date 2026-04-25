@@ -6,10 +6,8 @@ Use this as a runnable prompt for documentation updates.
 
 1. Read `AGENTS.md` and the rules under `.agents/rules/`.
 2. Read and follow [.agents/skills/update-docs/SKILL.md](../skills/update-docs/SKILL.md).
-3. If AI-agent guidance is in scope, fetch current official docs for the referenced tools during this run.
-4. Also scan recent official changelogs, release notes, and dated best-practice pages. Search the last 30 days first; if that finds no useful dated updates, broaden to 90 days and say that the window was expanded.
-5. Report the sources checked and recency window used.
-6. Update `docs/CURRENT_TASK_CONTEXT.md` with [.agents/skills/current-task-context/SKILL.md](../skills/current-task-context/SKILL.md) after meaningful documentation changes.
+3. For AI-agent guidance, follow the `Freshness Window` section in that skill before editing; report sources checked and the recency window used.
+4. Update `docs/CURRENT_TASK_CONTEXT.md` with [.agents/skills/current-task-context/SKILL.md](../skills/current-task-context/SKILL.md) after meaningful documentation changes.
 
 ## User Input
 
