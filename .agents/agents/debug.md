@@ -15,12 +15,12 @@ Investigate failures, find the root cause, and recommend or apply the smallest s
 - Exact failing command, logs, stack trace, or observed symptom.
 - Reproduction steps and expected vs actual behavior.
 - Current diff, recent changes, related tests, and runtime constraints.
+- Commands not to run, external services to avoid, data safety limits, and suspected files or packages when provided.
 
 ## Use With
 
 - [debug skill](../skills/debug/SKILL.md)
 - [debug command](../commands/debug.md)
-- [debug template](../prompts/debug-template.md)
 - [validate](../skills/validate/SKILL.md)
 
 ## Review Or Work Steps

@@ -24,9 +24,10 @@ Clarify a task, inspect the repo, and produce a small implementation plan.
 ## Inputs
 
 - User goal.
-- Relevant constraints, files, errors, issues, or acceptance criteria.
+- Relevant constraints, non-goals, files, errors, issues, or acceptance criteria.
 - Current repo state and available scripts.
 - Whether the request is direct planning or implicit planning before implementation.
+- Architecture decision context when relevant: current architecture, options considered, rejected ideas, constraints, migration or rollback risks, and proof points needed.
 
 ## Workflow
 
@@ -36,11 +37,12 @@ Clarify a task, inspect the repo, and produce a small implementation plan.
    - Implicit planning: keep the plan in-chat unless [agents/plan.md](../../agents/plan.md) says a handoff file is useful.
 3. Inspect relevant files before proposing changes.
 4. Identify assumptions and open questions.
-5. Identify risks, affected contracts, and likely test scope.
-6. Propose small implementation steps.
-7. Define validation commands and expected evidence.
-8. Do not edit code unless the user asks for implementation.
-9. For file-backed plans, follow `docs/plan-<short-task-goal>.md` naming and status guidance in [agents/plan.md](../../agents/plan.md).
+5. Identify non-goals, constraints, risks, affected contracts, and likely test scope.
+6. For architecture decisions, compare options, trade-offs, affected boundaries, implementation implications, rollback concerns, and validation proof points.
+7. Propose small implementation steps.
+8. Define validation commands and expected evidence.
+9. Do not edit code unless the user asks for implementation.
+10. For file-backed plans, follow `docs/plan-<short-task-goal>.md` naming and status guidance in [agents/plan.md](../../agents/plan.md).
 
 ## Output Format
 
@@ -51,6 +53,7 @@ Clarify a task, inspect the repo, and produce a small implementation plan.
 - Plan.
 - Validation.
 - Risks.
+- Trade-offs or decision rationale when relevant.
 
 ## Safety Rules
 

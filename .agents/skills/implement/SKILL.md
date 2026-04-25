@@ -26,6 +26,8 @@ Implement requested changes with the smallest practical diff while preserving ex
 - Relevant files, tests, docs, and package scripts.
 - Constraints, non-goals, public contracts, and validation expectations.
 - Commands that should or should not be run.
+- Risks such as migrations, public API changes, data loss, performance, security, or unknowns.
+- Expected final response shape, if the user asks for specific reporting.
 
 ## Workflow
 
@@ -51,6 +53,7 @@ Implement requested changes with the smallest practical diff while preserving ex
 - Files changed.
 - Behavior changed.
 - Tests and validation.
+- Assumptions or open questions, when relevant.
 - Risks or follow-ups.
 
 ## Safety Rules

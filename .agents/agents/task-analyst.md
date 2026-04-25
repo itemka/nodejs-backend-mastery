@@ -15,12 +15,11 @@ Turn an initial request into a clear, actionable task brief before planning or c
 - User request, issue, ticket, PR comment, or bug report.
 - Relevant repo rules, docs, existing code, and known constraints.
 - Error output or examples when the task starts from a failure.
+- Desired output, non-goals, validation requirements, risks, and known affected files if provided.
 
 ## Use With
 
 - [plan](../skills/plan/SKILL.md)
-- [task template](../prompts/task-template.md)
-- [debug template](../prompts/debug-template.md)
 - [repo map](../rules/repo-map.md)
 
 ## Review Or Work Steps
@@ -29,7 +28,8 @@ Turn an initial request into a clear, actionable task brief before planning or c
 2. Identify expected behavior, non-goals, constraints, and success criteria.
 3. Inspect enough repo context to avoid false assumptions.
 4. List affected areas and likely validation needs.
-5. Call out missing information and make reasonable assumptions explicit.
+5. Capture known risks, desired output, and final-response needs.
+6. Call out missing information and make reasonable assumptions explicit.
 
 ## Output Format
 

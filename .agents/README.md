@@ -13,7 +13,6 @@ Root files stay thin:
 - Cross-tool rules for safe software work.
 - Reusable workflows for planning, coding, testing, review, documenting, debugging, refactoring, commits, and PRs.
 - Portable role specs for specialist review or worker agents.
-- Prompt bodies and templates that can be copied into Codex, Claude Code, Cursor, or another agent.
 - Review checklists, commit guidance, and focused skills for hook and MCP design.
 
 ## What Does Not Belong Here
@@ -31,7 +30,6 @@ Root files stay thin:
 - [skills/](./skills/): reusable workflows with clear triggers and output formats.
 - [agents/](./agents/): portable role definitions for focused review or implementation support.
 - [commands/](./commands/): thin runnable prompts that route user-facing commands to canonical skills.
-- [prompts/](./prompts/): fillable prompt templates for tasks, debugging, code review, refactors, and architecture decisions.
 - [checklists/](./checklists/): concise review and readiness criteria.
 - [commits/](./commits/): commit and PR helper templates.
 
@@ -50,11 +48,11 @@ Hooks and MCP guidance live as skills until real tool-specific implementation fi
 - GitHub Copilot: `AGENTS.md` is supported as repo instructions; Copilot-specific prompts, agents, hooks, and instructions belong under `.github/` when needed.
 - Cursor: `AGENTS.md` is supported as simple instructions; scoped rules, commands, and MCP config live under `.cursor/` when needed.
 
-Treat [skills/](./skills/) as the portable source for reusable workflows. Treat [commands/](./commands/) as short command prompts that load skills, and keep [agents/](./agents/) and [prompts/](./prompts/) as portable source material for tool-native adapters only when they add value.
+Treat [skills/](./skills/) as the portable source for reusable workflows. Treat [commands/](./commands/) as short command prompts that load skills, and keep [agents/](./agents/) as portable source material for tool-native adapters only when it adds value.
 
 ## Lifecycle Coverage
 
-- Understand a task: [agents/task-analyst.md](./agents/task-analyst.md), [skills/plan/](./skills/plan/), [prompts/task-template.md](./prompts/task-template.md).
+- Understand a task: [agents/task-analyst.md](./agents/task-analyst.md), [skills/plan/](./skills/plan/).
 - Plan implementation: [agents/plan.md](./agents/plan.md), [commands/plan.md](./commands/plan.md).
 - Code: [agents/implement.md](./agents/implement.md), [skills/implement/](./skills/implement/), [commands/implement.md](./commands/implement.md), backend/data/refactor skills.
 - Test: [agents/tests.md](./agents/tests.md), [skills/validate/](./skills/validate/), [checklists/tests.md](./checklists/tests.md).
@@ -84,7 +82,7 @@ Use curated or community catalogs only as inspiration after checking scope, qual
 
 1. Copy `.agents/` into the target repo.
 2. Rewrite [rules/repo-map.md](./rules/repo-map.md) for that repo's layout, commands, and production boundaries.
-3. Keep [rules/project.md](./rules/project.md), skills, agents, commands, prompts, checklists, and commits guidance mostly generic.
+3. Keep [rules/project.md](./rules/project.md), skills, agents, commands, checklists, and commits guidance mostly generic.
 4. Add a thin root `AGENTS.md` that links to this folder and the three rule files.
 5. Add tool-specific adapters only when needed, for example `.cursor/rules/*.mdc`, `.cursor/commands/*.md`, `.claude/skills/*`, `.claude/agents/*.md`, `.github/prompts/*.prompt.md`, `.github/agents/*.md`, or Codex config.
 

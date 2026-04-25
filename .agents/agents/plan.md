@@ -17,13 +17,12 @@ Convert a task brief into an evidence-backed implementation plan. Direct plan re
 - Relevant code, tests, docs, scripts, and constraints.
 - Known risks, dependencies, or migration requirements.
 - Existing plan file under `docs/` if this task is already in progress or the request should be file-backed.
+- Architecture decision inputs when relevant: current architecture, business need, non-goals, options considered, rejected ideas, constraints, affected files, validation proof points, and rollback concerns.
 
 ## Use With
 
 - [plan skill](../skills/plan/SKILL.md)
 - [plan command](../commands/plan.md)
-- [task template](../prompts/task-template.md)
-- [architecture-decision template](../prompts/architecture-decision-template.md)
 
 ## Plan Artifact Policy
 
@@ -94,11 +93,12 @@ Use this structure:
 3. Inspect the affected code, tests, docs, scripts, and existing patterns before writing implementation steps.
 4. Create or update the plan file when the policy above requires it; otherwise state why no plan file was created.
 5. Identify architecture boundaries, public contracts, data boundaries, and tool-specific constraints.
-6. Break the work into small implementation steps with checkboxes.
-7. Identify validation commands and expected evidence for each meaningful change.
-8. Capture assumptions, open questions, risks, rollback notes, and migration notes.
-9. Stop and ask before planning destructive actions, broad rewrites, dependency upgrades, or risky migrations.
-10. Do not edit implementation files unless explicitly asked to continue from planning into implementation.
+6. For architecture decisions, compare options with rationale, trade-offs, implementation implications, validation proof points, and rollback notes.
+7. Break the work into small implementation steps with checkboxes.
+8. Identify validation commands and expected evidence for each meaningful change.
+9. Capture assumptions, open questions, risks, rollback notes, and migration notes.
+10. Stop and ask before planning destructive actions, broad rewrites, dependency upgrades, or risky migrations.
+11. Do not edit implementation files unless explicitly asked to continue from planning into implementation.
 
 ## Output Format
 

@@ -26,6 +26,9 @@ Review code changes and report actionable issues before merge.
 - Related tests, docs, and contracts.
 - Relevant checklists from `.agents/checklists/`.
 - Review scope: current diff, staged diff, last commit, branch range, PR, or explicit files.
+- Scope or non-goals, if parts of the diff should stay out of review.
+- Review focus areas such as correctness, security, API contracts, data migration, typing, tests, or frontend UX.
+- Validation already run and known weak spots, shortcuts, or areas that need extra scrutiny.
 
 ## Workflow
 
@@ -47,6 +50,7 @@ Review code changes and report actionable issues before merge.
 - Test gaps.
 - Open questions.
 - If no issues are found, say that directly and list residual risk or unverified checks.
+- Include concrete file and line references where possible.
 
 ## Safety Rules
 

@@ -24,17 +24,20 @@ Improve structure while preserving behavior.
 
 - Target files or module.
 - Current tests or behavior examples.
-- Public APIs and contracts that must be preserved.
+- Behavior to preserve, including public APIs, response shapes, tests, fixtures, and user-visible behavior.
+- Constraints such as module boundaries, dependency limits, compatibility requirements, timeline, or rollout concerns.
+- Known weak tests, shared modules, or regression-prone paths.
 
 ## Workflow
 
 1. Identify current behavior and public contracts.
 2. Find existing tests or add characterization tests when useful.
-3. Make small mechanical changes.
-4. Preserve public APIs unless explicitly requested.
-5. Avoid mixing refactor with feature work.
-6. Run validation after meaningful steps.
-7. Report before/after structure.
+3. Confirm non-goals and behavior that must not change.
+4. Make small mechanical changes.
+5. Preserve public APIs unless explicitly requested.
+6. Avoid mixing refactor with feature work.
+7. Run validation after meaningful steps.
+8. Report before/after structure and behavior-preservation evidence.
 
 ## Output Format
 
@@ -43,6 +46,7 @@ Improve structure while preserving behavior.
 - Files changed.
 - Before/after structure.
 - Validation.
+- Behavior-preservation evidence.
 - Risks.
 
 ## Safety Rules

@@ -22,10 +22,11 @@ Find a reproducible root cause and apply the smallest credible fix.
 
 ## Inputs
 
-- Exact error output or symptom.
-- Reproduction steps.
-- Relevant recent diff and affected files.
+- Exact failing command, error output, stack trace, log excerpt, or observed symptom.
+- Reproduction steps, input data, environment, and expected vs actual result.
+- Relevant recent diff, suspected files, packages, services, configs, and affected users.
 - Test and runtime commands.
+- Constraints such as commands not to run, external services to avoid, data safety limits, or environment limits.
 
 ## Workflow
 
