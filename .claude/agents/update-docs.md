@@ -20,6 +20,8 @@ Follow `.agents/agents/update-docs.md` as the source of truth. Keep docs tied
 to verified behavior and avoid broad rewrites.
 
 For AI-agent guidance, follow the canonical AI-agent docs refresh workflow:
-check current official docs for Codex, Claude Code, Cursor, Agent Skills, MCP,
-and any referenced tool before editing. Keep portable guidance in `.agents/`
-and keep Claude-specific files as thin adapters.
+check current official docs plus recent official changelogs, release notes, and
+dated best-practice pages for Codex, Claude Code, Cursor, Agent Skills, MCP,
+and any referenced tool before editing. Search the last 30 days first; broaden
+to 90 days only if no useful dated updates are found. Keep portable guidance in
+`.agents/` and keep Claude-specific files as thin adapters.

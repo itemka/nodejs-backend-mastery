@@ -79,6 +79,8 @@ Use official product docs as the source of truth for tool-specific file location
 
 Use curated or community catalogs only as inspiration after checking scope, quality, and license.
 
+When refreshing AI-agent guidance, check the current official docs above and also scan official changelogs, release notes, and dated best-practice pages for recent changes. Search the last 30 days first; if that finds no useful dated updates, broaden to the last 90 days and say that the search window was expanded. Use community posts only as clearly labeled secondary context when official sources are silent.
+
 ## Reuse In Another Project
 
 1. Copy `.agents/` into the target repo.
