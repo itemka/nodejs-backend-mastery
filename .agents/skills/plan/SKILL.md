@@ -29,6 +29,12 @@ Clarify a task, inspect the repo, and produce a small implementation plan.
 - Whether the request is direct planning or implicit planning before implementation.
 - Architecture decision context when relevant: current architecture, options considered, rejected ideas, constraints, migration or rollback risks, and proof points needed.
 
+## Related Role Specs
+
+- [task-analyst](../../agents/task-analyst.md): load when the request is vague, broad, or missing acceptance criteria before planning.
+- [plan](../../agents/plan.md): load for direct plan requests, file-backed plan policy, or tool-native planner adapter behavior.
+- [backend-architect](../../agents/backend-architect.md): load for backend architecture decisions, service boundaries, repository patterns, or cross-module trade-offs.
+
 ## Workflow
 
 1. Restate the goal in concrete terms.

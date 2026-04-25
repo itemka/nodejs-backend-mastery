@@ -30,6 +30,13 @@ Review code changes and report actionable issues before merge.
 - Review focus areas such as correctness, security, API contracts, data migration, typing, tests, or frontend UX.
 - Validation already run and known weak spots, shortcuts, or areas that need extra scrutiny.
 
+## Related Role Specs
+
+- [code-review](../../agents/code-review.md): load for a role-shaped review pass or tool-native reviewer adapter behavior.
+- [security-reviewer](../../agents/security-reviewer.md): load for security-sensitive diffs or dedicated security review.
+- [backend-architect](../../agents/backend-architect.md): load for backend architecture, service boundary, data flow, or cross-module design review.
+- [tests](../../agents/tests.md): load when test quality, missing coverage, or flaky validation is a major review concern.
+
 ## Workflow
 
 1. Confirm the review target and inspect `git status`.

@@ -29,6 +29,12 @@ Keep documentation accurate, concise, and tied to real code behavior.
 - Current official docs when documenting AI tools, CLIs, cloud services, libraries, or other drift-prone behavior.
 - For AI-agent docs: relevant `.agents/`, `AGENTS.md`, `CLAUDE.md`, `.claude/`, `.cursor/`, `.codex/`, or `.github/` files.
 
+## Related Role Specs
+
+- [update-docs](../../agents/update-docs.md): load for role-shaped documentation review or tool-native docs adapter behavior.
+- [task-analyst](../../agents/task-analyst.md): load when the documentation request is broad or missing audience, scope, or acceptance criteria.
+- [code-review](../../agents/code-review.md): load when docs are part of a broader diff review.
+
 ## Surface Routing
 
 - Portable AI-agent guidance belongs in `.agents/`.

@@ -29,6 +29,12 @@ Implement requested changes with the smallest practical diff while preserving ex
 - Risks such as migrations, public API changes, data loss, performance, security, or unknowns.
 - Expected final response shape, if the user asks for specific reporting.
 
+## Related Role Specs
+
+- [implement](../../agents/implement.md): load for role-shaped implementation support or tool-native worker adapter behavior.
+- [backend-architect](../../agents/backend-architect.md): load before coding when backend boundaries, data flow, or architecture trade-offs are unclear.
+- [tests](../../agents/tests.md): load when test design or validation scope is a meaningful part of the implementation.
+
 ## Workflow
 
 1. Read the repo rules and inspect nearby code, tests, docs, scripts, and existing patterns before editing.

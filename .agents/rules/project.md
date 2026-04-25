@@ -23,6 +23,8 @@ When useful guidance appears in a command, prompt template, README-only folder, 
 
 When adding or renaming a skill, keep the folder name equal to frontmatter `name`, update `.agents/README.md`, and add or update any required tool-specific thin adapters, such as `.claude/skills/<name>/SKILL.md`.
 
+When adding or changing a portable role under `.agents/agents/`, link it from the relevant skill's `Related Role Specs` section only when the role is useful for that workflow. Do not make role specs always-loaded context and do not duplicate the role workflow inside the skill.
+
 ## Current Task Context Rule
 
 `docs/CURRENT_TASK_CONTEXT.md` is a **session-only file** — it is intentionally not committed to the repository. Create it if it does not exist; do not treat a missing file as an error or skip updating it because it is absent.

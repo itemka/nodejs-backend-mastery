@@ -28,6 +28,11 @@ Improve structure while preserving behavior.
 - Constraints such as module boundaries, dependency limits, compatibility requirements, timeline, or rollout concerns.
 - Known weak tests, shared modules, or regression-prone paths.
 
+## Related Role Specs
+
+- [backend-architect](../../agents/backend-architect.md): load for boundary-level refactors, service/repository restructuring, or architectural trade-offs.
+- [tests](../../agents/tests.md): load when behavior-preservation evidence or characterization coverage is unclear.
+
 ## Workflow
 
 1. Identify current behavior and public contracts.

@@ -35,6 +35,10 @@ Turn a current diff into logical commit guidance and PR-ready summary text.
 - [commit-message-template](commit-message-template.md): subject and body shape for detailed commit messages.
 - [pr-description-template](pr-description-template.md): PR summary, motivation, validation, risk, rollback, and checklist shape.
 
+## Related Role Specs
+
+- [delivery](../../agents/delivery.md): load for full handoff work that includes commit grouping, PR text, validation notes, risks, rollback, and follow-ups.
+
 ## Workflow
 
 1. Inspect git status.

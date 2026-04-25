@@ -28,7 +28,7 @@ Root files stay thin:
 - [rules/change-discipline.md](./rules/change-discipline.md): rules for keeping diffs safe and focused.
 - [rules/repo-map.md](./rules/repo-map.md): project-specific orientation; edit this first when reusing the folder.
 - [skills/](./skills/): reusable workflows with clear triggers and output formats.
-- [agents/](./agents/): portable role definitions for focused review or implementation support.
+- [agents/](./agents/): optional portable role definitions for focused review or implementation support.
 - [commands/](./commands/): thin runnable prompts that route user-facing commands to canonical skills.
 - [checklists/](./checklists/): concise review and readiness criteria.
 
@@ -47,7 +47,9 @@ Hooks and MCP guidance live as skills until real tool-specific implementation fi
 - GitHub Copilot: `AGENTS.md` is supported as repo instructions; Copilot-specific prompts, agents, hooks, and instructions belong under `.github/` when needed.
 - Cursor: `AGENTS.md` is supported as simple instructions; scoped rules, commands, and MCP config live under `.cursor/` when needed.
 
-Treat [skills/](./skills/) as the portable source for reusable workflows. Treat [commands/](./commands/) as short command prompts that load skills, and keep [agents/](./agents/) as portable source material for tool-native adapters only when it adds value.
+Treat [skills/](./skills/) as the portable source for reusable workflows. Treat [commands/](./commands/) as short command prompts that load skills, and keep [agents/](./agents/) as optional role specs for tool-native adapters or focused subagent work only when it adds value.
+
+Role specs are not always-loaded context. When a role is useful for a workflow, the relevant skill should include a short `Related Role Specs` section that links to the role file and explains when to load it.
 
 ## Lifecycle Coverage
 

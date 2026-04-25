@@ -28,6 +28,11 @@ Find a reproducible root cause and apply the smallest credible fix.
 - Test and runtime commands.
 - Constraints such as commands not to run, external services to avoid, data safety limits, or environment limits.
 
+## Related Role Specs
+
+- [debug](../../agents/debug.md): load for a role-shaped debugging pass, especially when isolating a failure before implementation.
+- [tests](../../agents/tests.md): load when the failure involves flaky tests, missing regression coverage, or unclear validation scope.
+
 ## Workflow
 
 1. Capture the exact error and failing command.

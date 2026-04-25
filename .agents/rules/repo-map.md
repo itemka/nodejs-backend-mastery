@@ -13,7 +13,8 @@ Project-specific orientation for AI agents. Keep this file easy to edit when cop
 - Shared AI-agent material lives under `.agents/*`.
 - Reusable AI workflows live under `.agents/skills/*/SKILL.md`.
 - `.agents/commands/*` are thin runnable prompts that load skills.
-- `.agents/agents/*` are portable role definitions that should point to skills and checklists instead of restating workflows.
+- `.agents/agents/*` are optional portable role definitions that should point to skills and checklists instead of restating workflows.
+- Skills should link useful `.agents/agents/*` files in a short `Related Role Specs` section so role guidance is discoverable on demand.
 - Tool-specific adapters live under `.claude/`, `.codex/`, `.cursor/`, or `.github/` when needed and should stay thin.
 
 ## Apps

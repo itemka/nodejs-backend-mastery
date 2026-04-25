@@ -27,6 +27,12 @@ Change data storage safely while accounting for correctness, consistency, perfor
 - Migration or compatibility constraints.
 - Tests and production rollout constraints.
 
+## Related Role Specs
+
+- [backend-architect](../../agents/backend-architect.md): load for repository boundaries, data flow, consistency, scalability, or migration trade-offs.
+- [security-reviewer](../../agents/security-reviewer.md): load when storage changes affect data exposure, access control, secrets, logs, or production data risk.
+- [tests](../../agents/tests.md): load when migration, repository, transaction, or cache behavior needs a focused test strategy.
+
 ## Workflow
 
 1. Identify access patterns and consistency needs.

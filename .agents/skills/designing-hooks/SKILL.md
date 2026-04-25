@@ -24,6 +24,11 @@ Design safe hook automation for AI coding tools while keeping shared guidance po
 - Expected lifecycle point and failure behavior.
 - Security, performance, and developer-experience constraints.
 
+## Related Role Specs
+
+- [security-reviewer](../../agents/security-reviewer.md): load when hook automation can affect approvals, secrets, filesystem access, external services, or destructive commands.
+- [code-review](../../agents/code-review.md): load when reviewing hook-related repo changes as part of a broader diff.
+
 ## Workflow
 
 1. Define the automation goal in one sentence.

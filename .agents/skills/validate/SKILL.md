@@ -27,6 +27,10 @@ Validate changes with the smallest useful checks first, then broader checks when
 - Changed files and affected workspaces.
 - Known failing commands or environmental limits.
 
+## Related Role Specs
+
+- [tests](../../agents/tests.md): load when choosing test level, reviewing missing cases, or diagnosing flaky or brittle validation.
+
 ## Workflow
 
 1. Inspect package scripts and affected workspace boundaries.

@@ -24,6 +24,11 @@ Plan, review, or document Model Context Protocol usage so AI tools can access ex
 - Required permissions, authentication, transport, and read/write behavior.
 - Approval, restart, reload, or discovery notes for the target client.
 
+## Related Role Specs
+
+- [security-reviewer](../../agents/security-reviewer.md): load when MCP access could expose secrets, private data, broad filesystem access, production systems, or unsafe write actions.
+- [code-review](../../agents/code-review.md): load when reviewing MCP-related repo changes as part of a broader diff.
+
 ## Workflow
 
 1. Identify the external tool or data source the agent needs.

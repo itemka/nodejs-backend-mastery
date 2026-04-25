@@ -27,6 +27,12 @@ Implement backend API changes while preserving contracts, validation, layering, 
 - Request and response examples, if available.
 - Test expectations and docs to update.
 
+## Related Role Specs
+
+- [backend-architect](../../agents/backend-architect.md): load for API boundary, service boundary, repository pattern, or cross-module design review.
+- [security-reviewer](../../agents/security-reviewer.md): load when auth, authorization, validation, data exposure, rate limits, uploads, webhooks, logs, or dependencies are in scope.
+- [tests](../../agents/tests.md): load when test strategy or coverage level is unclear.
+
 ## Workflow
 
 1. Find route, controller, service, and repository boundaries.
