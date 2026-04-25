@@ -19,4 +19,6 @@ Always-on rules for AI agents working in this repository.
 
 After every meaningful codebase change, investigation, debugging session, review, or implementation step, update [docs/CURRENT_TASK_CONTEXT.md](../../docs/CURRENT_TASK_CONTEXT.md).
 
-Keep it concise. Record what changed, why, files touched, validation run, risks, and next steps. Do not include secrets, long logs, or full source code.
+Keep the live `Current Focus` concise. Append meaningful implementation, decision, validation, blocker, rollback, and handoff events to the timestamped logs using local ISO 8601 minute precision with timezone offset, for example `2026-04-25T14:32+02:00`.
+
+Do not delete or rewrite historical log entries just because newer work supersedes them; append a correction or follow-up entry instead. Record what changed, why, files touched, validation run, risks, and next steps. Do not include secrets, long logs, or full source code.

@@ -1,6 +1,7 @@
 ---
 name: refactor
-description: Use to improve internal code structure without changing external behavior, public contracts, or user-facing outputs.
+description: Use to improve internal code structure without changing external behavior, public contracts, or user-facing outputs. Triggered by "refactor", "clean up", "extract", or "simplify".
+argument-hint: '[target file or module]'
 ---
 
 # Refactor

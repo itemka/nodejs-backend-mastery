@@ -1,6 +1,7 @@
 ---
 name: update-docs
-description: Use when updating README files, API examples, changelogs, migration notes, setup docs, or developer workflow docs.
+description: Use when updating README files, API examples, changelogs, migration notes, setup docs, or developer workflow docs after a code or behavior change.
+argument-hint: '[doc surface or change description]'
 ---
 
 # Update Docs

@@ -1,6 +1,6 @@
 ---
 name: debug
-description: Use to investigate failing tests, runtime errors, build errors, or unexpected behavior and fix the minimal root cause.
+description: Use to investigate failing tests, runtime errors, build errors, flaky behavior, or unclear regressions and fix the minimal root cause. Triggered by stack traces, failing CI, or "this isn't working".
 metadata:
   created: '2026-04-25'
   status: 'baseline'

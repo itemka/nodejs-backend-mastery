@@ -1,6 +1,6 @@
 ---
 name: commit-preparation
-description: Use to inspect the current diff and prepare clean Conventional Commit messages and PR-ready summaries.
+description: Use to inspect the current diff and prepare clean Conventional Commit messages, scopes, and PR-ready change summaries. Triggered by requests like "prepare a commit message", "draft a commit", or "summarize this diff for a PR".
 metadata:
   created: '2026-04-25'
   status: 'baseline'

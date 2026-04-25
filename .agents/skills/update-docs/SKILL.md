@@ -1,6 +1,6 @@
 ---
 name: update-docs
-description: Use when updating README files, API examples, changelogs, migration notes, or developer docs after a code or behavior change.
+description: Use when updating README files, API examples, changelogs, migration notes, setup docs, or developer workflow docs after a code or behavior change.
 metadata:
   created: '2026-04-25'
   status: 'baseline'

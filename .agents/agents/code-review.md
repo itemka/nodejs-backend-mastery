@@ -44,27 +44,25 @@ Review a diff across backend, frontend, data, tests, docs, CI/CD, config, securi
 
 1. Confirm the review target and base: current diff, staged diff, branch range, PR, or files.
 2. Inspect status and diff summary before reading file contents.
-3. Classify touched areas: backend API, data storage, frontend, tests, docs, CI/CD, config, dependencies, security, release packaging, or agent/tooling.
-4. Load only the relevant skills, checklists, prompts, or command bodies for the touched areas.
-5. Read the changed files and the nearest tests, schemas, routes, services, config, docs, or workflow files needed to verify behavior.
-6. Start with correctness, regressions, public contracts, data loss, security, and CI/release risks.
-7. Review backend boundaries, API behavior, validation, error handling, persistence, transactions, migrations, and observability when touched.
-8. Review frontend component boundaries, state, data fetching, accessibility basics, loading/error states, and client/API contract fit when touched.
-9. Review CI/CD, scripts, hooks, build config, dependency changes, permissions, caching, and release readiness when touched.
-10. Review tests for meaningful coverage, determinism, negative paths, and whether validation evidence matches the changed behavior.
-11. Review docs for accuracy, stale instructions, examples, migration notes, rollback notes, and public API changes.
-12. Keep blocking issues separate from suggestions.
-13. If a suspected issue cannot be proven from available context, list it as an open question or test gap, not a finding.
+3. Classify touched areas (backend API, data, frontend, tests, docs, CI/CD, config, dependencies, security, agent/tooling) and load only the relevant checklists.
+4. Read the changed files and the nearest supporting files needed to verify behavior.
+5. Start with correctness, regressions, public contracts, data loss, security, and CI/release risks.
+6. Match each touched area to its checklist — see Area Routing.
+7. Review tests for meaningful coverage, determinism, negative paths, and whether validation evidence matches the changed behavior.
+8. Keep blocking issues separate from suggestions.
+9. If an issue cannot be proven from available context, list it as an open question or test gap, not a finding.
 
 ## Area Routing
 
-- Backend API: use backend/API and security checklists.
-- Data or storage: use code-review and backend/API checklists, and call out migration/rollback needs.
-- Frontend: use the code-review and tests checklists; check accessibility and client/API contracts.
-- CI/CD or scripts: check permissions, secrets, cache behavior, changed commands, install/build/test impact, and failure modes.
-- Dependencies: check whether the dependency is necessary, scoped, maintained, and covered by validation.
-- Docs-only: check accuracy, links, examples, and whether code behavior actually supports the docs.
-- Agent/tooling: check portability, secret handling, tool-specific boundaries, and whether instructions are too broad or duplicated.
+Match each touched area to its checklist. Avoid duplicating checklist content here:
+
+- Backend API → [backend-api](../checklists/backend-api.md) + [security-review](../checklists/security-review.md).
+- Data/storage → [backend-api](../checklists/backend-api.md) + flag migration/rollback risks.
+- Frontend → [code-review](../checklists/code-review.md) + [tests](../checklists/tests.md); check accessibility and client/API contract fit.
+- CI/CD or scripts → check permissions, secrets, cache behavior, install/build/test impact, and failure modes.
+- Dependencies → check necessity, scope, maintenance status, and validation coverage.
+- Docs-only → [documentation](../checklists/documentation.md); confirm code supports the docs.
+- Agent/tooling → check portability, secret handling, tool boundaries, and duplication.
 
 ## Output Format
 

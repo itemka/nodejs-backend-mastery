@@ -1,6 +1,7 @@
 ---
 name: plan
-description: Use to turn a vague or multi-step software task into a clear implementation plan with scope, files, risks, and validation.
+description: Use to turn a vague or multi-step software task into a clear implementation plan with scope, files, risks, and validation before coding. Triggered by "plan this", "how should I approach", or any cross-cutting task that needs sequencing.
+argument-hint: '[task brief]'
 ---
 
 # Plan

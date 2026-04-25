@@ -1,6 +1,7 @@
 ---
 name: debug
-description: Use to investigate failing tests, runtime errors, build errors, flaky behavior, or unclear regressions.
+description: Use to investigate failing tests, runtime errors, build errors, flaky behavior, or unclear regressions and fix the minimal root cause. Triggered by stack traces, failing CI, or "this isn't working".
+argument-hint: '[failing command or symptom]'
 ---
 
 # Debug

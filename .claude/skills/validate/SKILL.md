@@ -1,6 +1,6 @@
 ---
 name: validate
-description: Use before finishing work to choose and run relevant tests, typechecks, linting, formatting, builds, or focused verification.
+description: Use before finishing work to choose and run relevant tests, typechecks, linting, formatting, builds, or focused verification commands. Triggered by "validate", "run the tests", "check this works", or finalizing a change.
 ---
 
 # Validate

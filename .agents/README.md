@@ -39,10 +39,10 @@ Root files stay thin:
 
 ## Tool Adapter Map
 
-- Codex: `AGENTS.md`, Codex config, Codex skills, hooks, plugins, MCP, and custom agent wiring.
-- Claude Code: `CLAUDE.md`, `.claude/skills/*`, `.claude/agents/*`, settings, hooks, and MCP approval.
-- GitHub Copilot: `.agents/skills/*` works for project skills; Copilot-specific prompts, custom agents, hooks, and instructions belong under `.github/` when needed.
-- Cursor: `AGENTS.md` works as simple instructions; Cursor-specific rules, commands, and MCP config belong under `.cursor/` when needed.
+- Codex: `AGENTS.md` at repo root; tool-specific skills, hooks, plugins, MCP, and custom agent wiring live in Codex config.
+- Claude Code: `CLAUDE.md` imports `AGENTS.md`; `.claude/skills/<name>/SKILL.md`, `.claude/agents/*.md`, `.claude/commands/*.md`, settings, hooks, and MCP approval live under `.claude/`. Claude Code treats skills as the primary format; legacy `.claude/commands/` files still work and a skill takes precedence when names collide.
+- GitHub Copilot: `AGENTS.md` is supported as repo instructions; Copilot-specific prompts, agents, hooks, and instructions belong under `.github/` when needed.
+- Cursor: `AGENTS.md` is supported as simple instructions; scoped rules, commands, and MCP config live under `.cursor/` when needed.
 
 Treat [skills/](./skills/) as the portable source for reusable workflows. Treat [agents/](./agents/), [commands/](./commands/), and [prompts/](./prompts/) as portable source material that can be adapted into tool-native files later.
 
@@ -61,7 +61,15 @@ Treat [skills/](./skills/) as the portable source for reusable workflows. Treat 
 
 ## Source Priority
 
-Use official product docs as the source of truth for tool-specific file locations and behavior. Use the Agent Skills standard for portable skill shape. Use curated or community catalogs, including Awesome Copilot and public skill repositories, only as inspiration after checking scope, quality, and license.
+Use official product docs as the source of truth for tool-specific file locations and behavior:
+
+- Agent Skills open standard: <https://agentskills.io> (SKILL.md frontmatter, required `name` and `description`, folder-name-must-match-skill-name rule, progressive disclosure).
+- Claude Code: <https://code.claude.com/docs> (skills, subagents, memory, hooks, permissions, MCP).
+- OpenAI Codex: <https://developers.openai.com/codex> (AGENTS.md, skills, MCP).
+- Cursor: <https://cursor.com/docs> (rules, commands, MCP).
+- AGENTS.md standard: <https://agents.md> (cross-tool root instructions file).
+
+Use curated or community catalogs only as inspiration after checking scope, quality, and license.
 
 ## Reuse In Another Project
 

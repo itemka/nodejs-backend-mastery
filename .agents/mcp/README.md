@@ -14,8 +14,11 @@ Model Context Protocol (MCP) lets AI tools connect to external tools and data so
 
 - User-level config is best for personal tools, credentials, and local services.
 - Project-level config is best for shared, low-risk tooling that every contributor can safely approve.
-- Actual MCP config may be tool-specific and should usually stay gitignored.
-- GitHub Copilot, Codex, Claude Code, and Cursor each have their own MCP config locations and approval behavior.
+- Actual MCP config is tool-specific and usually stays gitignored.
+- Each tool has its own MCP config location and approval behavior:
+  - Claude Code: project-level `.mcp.json` (often gitignored), per-server approval, and an `enabledMcpjsonServers` list in `.claude/settings*.json`. Subagents can scope MCP via the `mcpServers:` frontmatter field.
+  - Codex: Codex config (often `.codex/config.toml`, gitignored).
+  - Cursor and GitHub Copilot: see their own docs for current locations.
 - Restart or relaunch the client when it only reads MCP config at startup.
 
 ## Good Candidates

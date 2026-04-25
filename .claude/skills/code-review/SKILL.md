@@ -1,6 +1,7 @@
 ---
 name: code-review
-description: Use to review current code or a git diff for correctness, architecture, security, tests, docs, maintainability, and release risk.
+description: Use to review current code or a git diff for correctness, architecture, typing, security, tests, docs, maintainability, and release risk. Triggered by requests like "review this", "audit this diff", or "check for issues".
+argument-hint: '[diff|branch|PR#|files]'
 ---
 
 # Code Review

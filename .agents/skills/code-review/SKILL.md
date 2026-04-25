@@ -1,6 +1,6 @@
 ---
 name: code-review
-description: Use to review current code or a git diff for correctness, architecture, typing, tests, security, and maintainability.
+description: Use to review current code or a git diff for correctness, architecture, typing, security, tests, docs, maintainability, and release risk. Triggered by requests like "review this", "audit this diff", or "check for issues".
 metadata:
   created: '2026-04-25'
   status: 'baseline'

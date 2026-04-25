@@ -1,6 +1,6 @@
 ---
 name: data-storage-change
-description: Use when changing persistence, schema, migrations, queries, caching, repositories, or data access patterns.
+description: Use when changing persistence, schema, migrations, indexes, queries, caching, repositories, transactions, or data-access behavior.
 metadata:
   created: '2026-04-25'
   status: 'baseline'

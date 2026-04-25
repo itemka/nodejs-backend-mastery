@@ -1,6 +1,6 @@
 ---
 name: refactor
-description: Use to improve internal code structure without changing external behavior or public contracts.
+description: Use to improve internal code structure without changing external behavior, public contracts, or user-facing outputs. Triggered by "refactor", "clean up", "extract", or "simplify".
 metadata:
   created: '2026-04-25'
   status: 'baseline'
