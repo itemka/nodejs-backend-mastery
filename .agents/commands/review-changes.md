@@ -1,6 +1,6 @@
-# Review Current Diff Command
+# Review Changes Command
 
-Use this as a runnable prompt for a read-only review of the current git diff.
+Use this as a runnable prompt for a read-only review of current changes, staged changes, a branch range, a commit, or explicit files.
 
 ## Run
 
@@ -11,7 +11,7 @@ Use this as a runnable prompt for a read-only review of the current git diff.
 
 ## User Input
 
-Use the command arguments or latest user message as the review focus. Respect staged, unstaged, base branch, file scope, severity, or risk-area instructions.
+Use the command arguments or latest user message as the review focus. Respect staged, unstaged, base branch, commit range, file scope, severity, or risk-area instructions.
 
 ## Output
 

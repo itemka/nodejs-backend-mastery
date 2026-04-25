@@ -21,7 +21,7 @@ Review a diff across backend, frontend, data, tests, docs, CI/CD, config, securi
 ## Use With
 
 - [code-review](../skills/code-review/SKILL.md)
-- [review-current-diff command](../commands/review-current-diff.md)
+- [review-changes command](../commands/review-changes.md)
 - [code-review checklist](../checklists/code-review.md)
 - [backend-api checklist](../checklists/backend-api.md)
 - [security-review checklist](../checklists/security-review.md)

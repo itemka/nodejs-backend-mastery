@@ -1,10 +1,10 @@
 ---
-description: Review the current git diff for bugs, regressions, security issues, test gaps, and maintainability risks.
+description: Review current changes, staged changes, branch ranges, commits, or files for bugs, regressions, security issues, test gaps, and maintainability risks.
 argument-hint: '[focus area or scope]'
 ---
 
-Read and execute `.agents/commands/review-current-diff.md` as the canonical
-command body.
+Read and execute `.agents/commands/review-changes.md` as the canonical command
+body.
 
 Also follow:
 
