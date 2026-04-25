@@ -23,7 +23,7 @@ Prepare a clean handoff for commits, PR descriptions, validation notes, risks, a
 - [prepare-commit command](../commands/prepare-commit.md)
 - [prepare-pr command](../commands/prepare-pr.md)
 - [pr-readiness checklist](../checklists/pr-readiness.md)
-- [commit and PR templates](../commits/)
+- [commit and PR templates](../skills/commit-preparation/)
 
 ## Review Or Work Steps
 

@@ -13,7 +13,7 @@ Root files stay thin:
 - Cross-tool rules for safe software work.
 - Reusable workflows for planning, coding, testing, review, documenting, debugging, refactoring, commits, and PRs.
 - Portable role specs for specialist review or worker agents.
-- Review checklists, commit guidance, and focused skills for hook and MCP design.
+- Review checklists and focused skills for commits, hooks, and MCP design.
 
 ## What Does Not Belong Here
 
@@ -31,7 +31,6 @@ Root files stay thin:
 - [agents/](./agents/): portable role definitions for focused review or implementation support.
 - [commands/](./commands/): thin runnable prompts that route user-facing commands to canonical skills.
 - [checklists/](./checklists/): concise review and readiness criteria.
-- [commits/](./commits/): commit and PR helper templates.
 
 ## Skills
 
@@ -58,7 +57,7 @@ Treat [skills/](./skills/) as the portable source for reusable workflows. Treat 
 - Test: [agents/tests.md](./agents/tests.md), [skills/validate/](./skills/validate/), [checklists/tests.md](./checklists/tests.md).
 - Review: [agents/code-review.md](./agents/code-review.md), [agents/security-reviewer.md](./agents/security-reviewer.md), [skills/code-review/](./skills/code-review/), review checklists.
 - Document: [agents/update-docs.md](./agents/update-docs.md), [skills/update-docs/](./skills/update-docs/), [commands/update-docs.md](./commands/update-docs.md), [checklists/documentation.md](./checklists/documentation.md).
-- Prepare commits and PRs: [agents/delivery.md](./agents/delivery.md), [skills/commit-preparation/](./skills/commit-preparation/), [commits/](./commits/).
+- Prepare commits and PRs: [agents/delivery.md](./agents/delivery.md), [skills/commit-preparation/](./skills/commit-preparation/).
 - Debug: [agents/debug.md](./agents/debug.md), [skills/debug/](./skills/debug/), [commands/debug.md](./commands/debug.md).
 - Current task context: [skills/current-task-context/](./skills/current-task-context/).
 - Design hooks: [skills/designing-hooks/](./skills/designing-hooks/).
@@ -82,7 +81,7 @@ Use curated or community catalogs only as inspiration after checking scope, qual
 
 1. Copy `.agents/` into the target repo.
 2. Rewrite [rules/repo-map.md](./rules/repo-map.md) for that repo's layout, commands, and production boundaries.
-3. Keep [rules/project.md](./rules/project.md), skills, agents, commands, checklists, and commits guidance mostly generic.
+3. Keep [rules/project.md](./rules/project.md), skills, agents, commands, and checklists mostly generic.
 4. Add a thin root `AGENTS.md` that links to this folder and the three rule files.
 5. Add tool-specific adapters only when needed, for example `.cursor/rules/*.mdc`, `.cursor/commands/*.md`, `.claude/skills/*`, `.claude/agents/*.md`, `.github/prompts/*.prompt.md`, `.github/agents/*.md`, or Codex config.
 
