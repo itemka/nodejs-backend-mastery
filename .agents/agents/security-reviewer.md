@@ -20,7 +20,8 @@ Review changes for security risks in backend and full-stack TypeScript code.
 - [code-review](../skills/code-review/SKILL.md)
 - [security-review checklist](../checklists/security-review.md)
 - [backend-api checklist](../checklists/backend-api.md)
-- [hook policy](../hooks/README.md)
+- [designing-hooks](../skills/designing-hooks/SKILL.md)
+- [configuring-mcp](../skills/configuring-mcp/SKILL.md)
 
 ## Review Or Work Steps
 

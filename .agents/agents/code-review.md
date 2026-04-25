@@ -28,7 +28,8 @@ Review a diff across backend, frontend, data, tests, docs, CI/CD, config, securi
 - [tests checklist](../checklists/tests.md)
 - [documentation checklist](../checklists/documentation.md)
 - [pr-readiness checklist](../checklists/pr-readiness.md)
-- [hook policy](../hooks/README.md)
+- [designing-hooks](../skills/designing-hooks/SKILL.md)
+- [configuring-mcp](../skills/configuring-mcp/SKILL.md)
 
 ## Review Policy
 

@@ -14,7 +14,7 @@ Root files stay thin:
 - Reusable workflows for planning, coding, testing, review, documenting, debugging, refactoring, commits, and PRs.
 - Portable role specs for specialist review or worker agents.
 - Prompt bodies and templates that can be copied into Codex, Claude Code, Cursor, or another agent.
-- Review checklists, hook policy, commit guidance, and MCP setup notes.
+- Review checklists, commit guidance, and focused skills for hook and MCP design.
 
 ## What Does Not Belong Here
 
@@ -33,9 +33,14 @@ Root files stay thin:
 - [commands/](./commands/): copy-paste prompt bodies for repeated user-facing workflows.
 - [prompts/](./prompts/): fillable prompt templates for tasks, debugging, code review, refactors, and architecture decisions.
 - [checklists/](./checklists/): concise review and readiness criteria.
-- [hooks/](./hooks/): deterministic automation policy and hook candidates.
 - [commits/](./commits/): commit and PR helper templates.
-- [mcp/](./mcp/): MCP guidance, safe candidates, and config boundaries.
+
+## Skills
+
+- [skills/designing-hooks/](./skills/designing-hooks/): design or review safe deterministic hook automation before adding tool-specific files.
+- [skills/configuring-mcp/](./skills/configuring-mcp/): plan or review MCP usage, config scope, secret handling, and access boundaries.
+
+Hooks and MCP guidance live as skills until real tool-specific implementation files are needed. Create `.agents/hooks/` or `.agents/mcp/` only when there are concrete hook scripts, MCP configs, or adapter files to store.
 
 ## Tool Adapter Map
 
@@ -57,6 +62,8 @@ Treat [skills/](./skills/) as the portable source for reusable workflows. Treat 
 - Prepare commits and PRs: [agents/delivery.md](./agents/delivery.md), [skills/commit-preparation/](./skills/commit-preparation/), [commits/](./commits/).
 - Debug: [agents/debug.md](./agents/debug.md), [skills/debug/](./skills/debug/), [commands/debug.md](./commands/debug.md).
 - Current task context: [skills/current-task-context/](./skills/current-task-context/).
+- Design hooks: [skills/designing-hooks/](./skills/designing-hooks/).
+- Configure MCP: [skills/configuring-mcp/](./skills/configuring-mcp/).
 - Improve backend/frontend quality: [agents/code-review.md](./agents/code-review.md), [agents/backend-architect.md](./agents/backend-architect.md), backend/API/security/review checklists.
 
 ## Source Priority
@@ -76,7 +83,7 @@ Use curated or community catalogs only as inspiration after checking scope, qual
 
 1. Copy `.agents/` into the target repo.
 2. Rewrite [rules/repo-map.md](./rules/repo-map.md) for that repo's layout, commands, and production boundaries.
-3. Keep [rules/project.md](./rules/project.md), skills, agents, commands, prompts, checklists, hooks, commits, and MCP guidance mostly generic.
+3. Keep [rules/project.md](./rules/project.md), skills, agents, commands, prompts, checklists, and commits guidance mostly generic.
 4. Add a thin root `AGENTS.md` that links to this folder and the three rule files.
 5. Add tool-specific adapters only when needed, for example `.cursor/rules/*.mdc`, `.cursor/commands/*.md`, `.claude/skills/*`, `.claude/agents/*.md`, `.github/prompts/*.prompt.md`, `.github/agents/*.md`, or Codex config.
 
