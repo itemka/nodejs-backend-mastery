@@ -18,3 +18,8 @@ Before editing docs, read the canonical project instructions:
 
 Follow `.agents/agents/update-docs.md` as the source of truth. Keep docs tied
 to verified behavior and avoid broad rewrites.
+
+For AI-agent guidance, follow the canonical AI-agent docs refresh workflow:
+check current official docs for Codex, Claude Code, Cursor, Agent Skills, MCP,
+and any referenced tool before editing. Keep portable guidance in `.agents/`
+and keep Claude-specific files as thin adapters.

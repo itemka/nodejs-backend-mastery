@@ -1,6 +1,7 @@
 ---
 name: data-storage-change
 description: Use when changing persistence, schema, migrations, indexes, queries, caching, repositories, transactions, or data-access behavior.
+argument-hint: '[schema, query, migration, or repository change]'
 ---
 
 # Data Storage Change

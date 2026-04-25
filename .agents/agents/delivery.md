@@ -28,11 +28,12 @@ Prepare a clean handoff for commits, PR descriptions, validation notes, risks, a
 ## Review Or Work Steps
 
 1. Inspect the diff and separate unrelated change groups.
-2. Identify user-facing changes, internal changes, tests, docs, and config updates.
-3. Suggest Conventional Commit message(s).
-4. Draft PR summary, motivation, changes, validation, risks, and rollback.
-5. Check for missing tests, docs, migration notes, or secret exposure.
-6. Do not commit or push unless explicitly requested.
+2. Honor the requested scope: staged-only, current diff, branch range, PR, or explicit files.
+3. Identify user-facing changes, internal changes, tests, docs, and config updates.
+4. Suggest Conventional Commit message(s).
+5. Draft PR summary, motivation, changes, validation, risks, and rollback.
+6. Check for missing tests, docs, migration notes, or secret exposure.
+7. Do not stage, commit, push, tag, or publish unless explicitly requested.
 
 ## Output Format
 

@@ -1,5 +1,6 @@
 ---
 description: Review the current git diff for bugs, regressions, security issues, test gaps, and maintainability risks.
+argument-hint: '[focus area or scope]'
 ---
 
 Read and execute `.agents/commands/review-current-diff.md` as the canonical

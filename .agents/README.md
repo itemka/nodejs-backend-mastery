@@ -39,7 +39,7 @@ Root files stay thin:
 
 ## Tool Adapter Map
 
-- Codex: `AGENTS.md` at repo root; tool-specific skills, hooks, plugins, MCP, and custom agent wiring live in Codex config.
+- Codex: `AGENTS.md` at repo root for project instructions; repo skills live in `.agents/skills/`; Codex hooks, MCP, plugins, and project-scoped custom agents live in Codex config such as `.codex/config.toml` or `.codex/agents/` when needed.
 - Claude Code: `CLAUDE.md` imports `AGENTS.md`; `.claude/skills/<name>/SKILL.md`, `.claude/agents/*.md`, `.claude/commands/*.md`, settings, hooks, and MCP approval live under `.claude/`. Claude Code treats skills as the primary format; legacy `.claude/commands/` files still work and a skill takes precedence when names collide.
 - GitHub Copilot: `AGENTS.md` is supported as repo instructions; Copilot-specific prompts, agents, hooks, and instructions belong under `.github/` when needed.
 - Cursor: `AGENTS.md` is supported as simple instructions; scoped rules, commands, and MCP config live under `.cursor/` when needed.
@@ -63,9 +63,10 @@ Treat [skills/](./skills/) as the portable source for reusable workflows. Treat 
 
 Use official product docs as the source of truth for tool-specific file locations and behavior:
 
-- Agent Skills open standard: <https://agentskills.io> (SKILL.md frontmatter, required `name` and `description`, folder-name-must-match-skill-name rule, progressive disclosure).
-- Claude Code: <https://code.claude.com/docs> (skills, subagents, memory, hooks, permissions, MCP).
-- OpenAI Codex: <https://developers.openai.com/codex> (AGENTS.md, skills, MCP).
+- Agent Skills open standard: <https://agentskills.io/specification> (SKILL.md frontmatter, required `name` and `description`, folder-name-must-match-skill-name rule, progressive disclosure).
+- Agent Skills best practices: <https://agentskills.io/skill-creation/best-practices> (focused skills, concise descriptions, progressive disclosure, validation loops).
+- Claude Code: <https://code.claude.com/docs> (memory, skills, subagents, hooks, permissions, MCP).
+- OpenAI Codex: <https://developers.openai.com/codex> (AGENTS.md, skills, subagents, hooks, MCP).
 - Cursor: <https://cursor.com/docs> (rules, commands, MCP).
 - AGENTS.md standard: <https://agents.md> (cross-tool root instructions file).
 
@@ -77,6 +78,6 @@ Use curated or community catalogs only as inspiration after checking scope, qual
 2. Rewrite [rules/repo-map.md](./rules/repo-map.md) for that repo's layout, commands, and production boundaries.
 3. Keep [rules/project.md](./rules/project.md), skills, agents, commands, prompts, checklists, hooks, commits, and MCP guidance mostly generic.
 4. Add a thin root `AGENTS.md` that links to this folder and the three rule files.
-5. Add tool-specific adapters only when needed, for example `.cursor/rules/*.mdc`, `.claude/skills/*`, `.github/prompts/*.prompt.md`, `.github/agents/*.md`, `.github/hooks/*.json`, or Codex config.
+5. Add tool-specific adapters only when needed, for example `.cursor/rules/*.mdc`, `.cursor/commands/*.md`, `.claude/skills/*`, `.claude/agents/*.md`, `.github/prompts/*.prompt.md`, `.github/agents/*.md`, or Codex config.
 
 Keep project-specific details in `rules/repo-map.md`. Keep reusable workflows generic.

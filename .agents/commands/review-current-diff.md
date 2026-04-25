@@ -13,11 +13,12 @@ Review the current git diff for bugs, regressions, security issues, test gaps, a
 ## Required Steps
 
 1. Inspect git status and current diff.
-2. Review correctness and API/data contracts.
-3. Review architecture boundaries and TypeScript typing.
-4. Review tests and validation evidence.
-5. Review security and sensitive-data handling.
-6. Separate blocking issues from suggestions.
+2. Confirm whether the review target is unstaged, staged, last commit, or all current changes.
+3. Review correctness and API/data contracts.
+4. Review architecture boundaries and TypeScript typing.
+5. Review tests and validation evidence.
+6. Review security and sensitive-data handling.
+7. Separate blocking issues from suggestions.
 
 ## Output Format
 

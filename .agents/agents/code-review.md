@@ -47,7 +47,7 @@ Review a diff across backend, frontend, data, tests, docs, CI/CD, config, securi
 3. Classify touched areas (backend API, data, frontend, tests, docs, CI/CD, config, dependencies, security, agent/tooling) and load only the relevant checklists.
 4. Read the changed files and the nearest supporting files needed to verify behavior.
 5. Start with correctness, regressions, public contracts, data loss, security, and CI/release risks.
-6. Match each touched area to its checklist — see Area Routing.
+6. Match each touched area to its checklist - see Area Routing.
 7. Review tests for meaningful coverage, determinism, negative paths, and whether validation evidence matches the changed behavior.
 8. Keep blocking issues separate from suggestions.
 9. If an issue cannot be proven from available context, list it as an open question or test gap, not a finding.
@@ -56,13 +56,13 @@ Review a diff across backend, frontend, data, tests, docs, CI/CD, config, securi
 
 Match each touched area to its checklist. Avoid duplicating checklist content here:
 
-- Backend API → [backend-api](../checklists/backend-api.md) + [security-review](../checklists/security-review.md).
-- Data/storage → [backend-api](../checklists/backend-api.md) + flag migration/rollback risks.
-- Frontend → [code-review](../checklists/code-review.md) + [tests](../checklists/tests.md); check accessibility and client/API contract fit.
-- CI/CD or scripts → check permissions, secrets, cache behavior, install/build/test impact, and failure modes.
-- Dependencies → check necessity, scope, maintenance status, and validation coverage.
-- Docs-only → [documentation](../checklists/documentation.md); confirm code supports the docs.
-- Agent/tooling → check portability, secret handling, tool boundaries, and duplication.
+- Backend API -> [backend-api](../checklists/backend-api.md) + [security-review](../checklists/security-review.md).
+- Data/storage -> [backend-api](../checklists/backend-api.md) + flag migration/rollback risks.
+- Frontend -> [code-review](../checklists/code-review.md) + [tests](../checklists/tests.md); check accessibility and client/API contract fit.
+- CI/CD or scripts -> check permissions, secrets, cache behavior, install/build/test impact, and failure modes.
+- Dependencies -> check necessity, scope, maintenance status, and validation coverage.
+- Docs-only -> [documentation](../checklists/documentation.md); confirm code supports the docs.
+- Agent/tooling -> [code-review](../checklists/code-review.md) + [documentation](../checklists/documentation.md) + [security-review](../checklists/security-review.md); check portability, secret handling, tool boundaries, hook/MCP safety, and duplicated instructions.
 
 ## Output Format
 

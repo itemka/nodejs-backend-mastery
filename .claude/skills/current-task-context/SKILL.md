@@ -1,6 +1,7 @@
 ---
 name: current-task-context
 description: Update docs/CURRENT_TASK_CONTEXT.md after meaningful codebase changes, debugging, reviews, investigations, or handoffs.
+argument-hint: '[change, validation, or handoff summary]'
 ---
 
 # Current Task Context

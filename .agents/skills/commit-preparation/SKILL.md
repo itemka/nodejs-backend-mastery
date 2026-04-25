@@ -26,16 +26,18 @@ Turn a current diff into logical commit guidance and PR-ready summary text.
 - Tests run and results.
 - Issue or task context.
 - Any migration or risk notes.
+- Requested scope, especially whether the user wants staged-only commit text.
 
 ## Workflow
 
-1. Inspect git status and diff.
-2. Group changes logically.
-3. Suggest one or more Conventional Commit messages.
-4. Suggest a PR summary and validation section.
-5. Mention tests run.
-6. Mention risks, migrations, rollback notes, and follow-ups.
-7. Do not commit automatically unless explicitly requested.
+1. Inspect git status.
+2. If the user asks for staged changes, use only `git diff --cached`; otherwise compare staged and unstaged changes explicitly.
+3. Group changes logically and call out unrelated groups.
+4. Suggest one or more Conventional Commit messages.
+5. Suggest a PR summary and validation section when useful.
+6. Mention tests run, or say validation was not provided.
+7. Mention risks, migrations, rollback notes, and follow-ups.
+8. Do not stage, commit, or push unless explicitly requested.
 
 ## Output Format
 
@@ -50,6 +52,7 @@ Turn a current diff into logical commit guidance and PR-ready summary text.
 - Do not include secrets or internal-only values in commit text.
 - Do not claim tests passed if they were not run.
 - Keep commit scope accurate and narrow.
+- Do not describe unstaged or untracked files as part of a staged-only commit.
 
 ## When Not To Use
 

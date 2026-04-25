@@ -2,6 +2,7 @@
 name: repo-tests
 description: Use to choose, run, interpret, or improve focused tests and validation for changes in this repo.
 tools: Read, Glob, Grep, Bash
+disallowedTools: Edit, MultiEdit, Write
 model: inherit
 ---
 
@@ -17,4 +18,5 @@ Before choosing validation, read the canonical project instructions:
 - `.agents/agents/tests.md`
 
 Follow `.agents/agents/tests.md` as the source of truth. Prefer focused
-validation first, then broader checks when safe.
+validation first, then broader checks when safe. Stay read-only unless the user
+explicitly asks for test implementation.

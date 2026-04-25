@@ -8,6 +8,10 @@ Describe the architecture decision needed.
 
 Explain current architecture, business need, and why a decision is needed now.
 
+## Non-Goals
+
+List what should not change as part of this decision.
+
 ## Options Considered
 
 List known options and any rejected ideas.
@@ -31,3 +35,7 @@ List tests, benchmarks, rollout checks, or proof points needed.
 ## Risks
 
 List migration risks, lock-in, failure modes, unknowns, and rollback concerns.
+
+## Final Response Needs
+
+Ask for recommendation, rationale, trade-offs, affected files, and next validation step.

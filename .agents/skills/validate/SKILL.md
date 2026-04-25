@@ -30,11 +30,12 @@ Validate changes with the smallest useful checks first, then broader checks when
 ## Workflow
 
 1. Inspect package scripts and affected workspace boundaries.
-2. Run the smallest relevant test or typecheck first.
-3. Run lint, format check, build, and broader tests when available and safe.
-4. Capture exact commands and high-level results.
-5. If a command cannot run, explain why and what remains unverified.
-6. Do not hide failures. Report the first actionable failure with context.
+2. Map changed files to the smallest meaningful checks before running broad commands.
+3. Run the smallest relevant test, parser, or typecheck first.
+4. Run lint, format check, build, and broader tests when available and safe.
+5. Capture exact commands and high-level results.
+6. If a command cannot run, explain why and what remains unverified.
+7. Do not hide failures. Report the first actionable failure with context.
 
 ## Output Format
 

@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Convert a task brief into an evidence-backed implementation plan and keep a temporary plan file under `docs/` updated while planning.
+Convert a task brief into an evidence-backed implementation plan. Direct plan requests create or update a temporary plan file under `docs/`; implicit planning can stay in-chat unless a file is useful for handoff.
 
 ## When To Use
 
@@ -16,7 +16,7 @@ Convert a task brief into an evidence-backed implementation plan and keep a temp
 - Task brief and acceptance criteria.
 - Relevant code, tests, docs, scripts, and constraints.
 - Known risks, dependencies, or migration requirements.
-- Existing plan file under `docs/` if this task is already in progress.
+- Existing plan file under `docs/` if this task is already in progress or the request should be file-backed.
 
 ## Use With
 
@@ -25,9 +25,22 @@ Convert a task brief into an evidence-backed implementation plan and keep a temp
 - [task template](../prompts/task-template.md)
 - [architecture-decision template](../prompts/architecture-decision-template.md)
 
-## Planning Artifact
+## Plan Artifact Policy
 
-Create or update one temporary plan file in `docs/`:
+Create or update one temporary plan file in `docs/` when:
+
+- The user explicitly asks for a plan, planning document, `/plan`, or the plan skill, command, or agent.
+- The user asks to plan before coding or requests a written implementation breakdown.
+- An existing `docs/plan-*.md` file already covers the same task.
+- The task is broad, risky, long-running, cross-cutting, or likely to need handoff between sessions or tools.
+
+Keep the plan in-chat only when:
+
+- Planning is internal/implicit before a small implementation.
+- The user asks for quick advice rather than a durable plan.
+- The change is obvious, low-risk, and the user directly asked to implement.
+
+Use this path for file-backed plans:
 
 ```text
 docs/plan-<short-task-goal>.md
@@ -40,6 +53,7 @@ Filename rules:
 - Prefer the user-visible outcome, for example `docs/plan-add-refresh-token-rotation.md`.
 - Reuse the existing task plan file when one already exists.
 - Do not stage or commit the temporary plan file unless the user explicitly asks.
+- Use local ISO 8601 minute precision with timezone offset for plan timestamps, for example `2026-04-25T15:36+02:00`.
 
 Use this structure:
 
@@ -67,23 +81,28 @@ Use this structure:
 ## Rollback Or Migration Notes
 
 ## Status
+
+- State: draft
+- Created: YYYY-MM-DDTHH:mm+HH:MM
+- Last updated: YYYY-MM-DDTHH:mm+HH:MM
 ```
 
 ## Review Or Work Steps
 
-1. Restate the goal and define the short task goal for the plan filename under `docs/`.
-2. Inspect the affected code, tests, docs, scripts, and existing patterns before writing implementation steps.
-3. Create or update `docs/plan-<short-task-goal>.md`.
-4. Identify architecture boundaries, public contracts, data boundaries, and tool-specific constraints.
-5. Break the work into small implementation steps with checkboxes.
-6. Identify validation commands and expected evidence for each meaningful change.
-7. Capture assumptions, open questions, risks, rollback notes, and migration notes.
-8. Stop and ask before planning destructive actions, broad rewrites, dependency upgrades, or risky migrations.
-9. Do not edit implementation files unless explicitly asked to continue from planning into implementation.
+1. Restate the goal and classify the request as direct planning or implicit planning.
+2. If the plan is file-backed, choose or reuse `docs/plan-<short-task-goal>.md` and get a current local timestamp.
+3. Inspect the affected code, tests, docs, scripts, and existing patterns before writing implementation steps.
+4. Create or update the plan file when the policy above requires it; otherwise state why no plan file was created.
+5. Identify architecture boundaries, public contracts, data boundaries, and tool-specific constraints.
+6. Break the work into small implementation steps with checkboxes.
+7. Identify validation commands and expected evidence for each meaningful change.
+8. Capture assumptions, open questions, risks, rollback notes, and migration notes.
+9. Stop and ask before planning destructive actions, broad rewrites, dependency upgrades, or risky migrations.
+10. Do not edit implementation files unless explicitly asked to continue from planning into implementation.
 
 ## Output Format
 
-- Plan file path.
+- Plan artifact: `docs/plan-<short-task-goal>.md`, or `Not created: <reason>`.
 - Goal.
 - Key context checked.
 - Implementation steps summary.
@@ -96,5 +115,5 @@ Use this structure:
 - Do not edit implementation files unless explicitly asked.
 - Do not propose broad rewrites when a smaller change works.
 - Keep the plan executable in one focused change set.
-- Keep the plan file in `docs/` temporary unless the user asks to keep it as project documentation.
+- Keep any plan file in `docs/` temporary unless the user asks to keep it as project documentation.
 - Remove or mark the plan complete when the task is finished if the user asks for cleanup.

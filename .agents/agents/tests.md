@@ -26,11 +26,12 @@ Design and review tests that prove behavior without making the suite slow or bri
 ## Review Or Work Steps
 
 1. Identify the behavior that must be protected.
-2. Choose the right level: unit, integration, contract, or end-to-end.
-3. Cover edge cases and negative paths.
-4. Keep fixtures realistic but minimal.
-5. Avoid network, time, order, and environment flakiness.
-6. Recommend focused validation commands.
+2. Map changed files to affected packages, scripts, and existing test style.
+3. Choose the right level: unit, integration, contract, or end-to-end.
+4. Cover edge cases and negative paths.
+5. Keep fixtures realistic but minimal.
+6. Avoid network, time, order, and environment flakiness.
+7. Recommend focused validation commands before broader checks.
 
 ## Output Format
 

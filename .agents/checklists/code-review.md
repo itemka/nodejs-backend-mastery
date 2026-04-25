@@ -46,3 +46,10 @@ Use for diff-focused reviews. Lead with blocking issues and keep suggestions sma
 ## Docs
 
 - Are README, API examples, migration notes, or comments updated when behavior changes?
+
+## Agent / Tooling
+
+- Are AI instructions, skills, agents, commands, hooks, and MCP notes scoped to the right file type?
+- Do skills have focused triggers and valid frontmatter?
+- Are tool adapters thin and linked to the portable source of truth?
+- Are hook or MCP changes deterministic, least-privilege, and free of secrets?

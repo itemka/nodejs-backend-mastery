@@ -2,6 +2,7 @@
 name: repo-debug
 description: Use to investigate failing tests, runtime errors, build errors, flaky behavior, or unclear regressions in this repo.
 tools: Read, Glob, Grep, Bash
+disallowedTools: Edit, MultiEdit, Write
 model: inherit
 ---
 
@@ -17,5 +18,5 @@ Before investigating, read the canonical project instructions:
 - `.agents/agents/debug.md`
 
 Follow `.agents/agents/debug.md` as the source of truth. Prefer focused
-reproduction, small validation commands, and clear evidence. Do not edit files
-unless the user explicitly asks for a fix.
+reproduction, small validation commands, and clear evidence. Return the minimal
+fix direction; leave edits to an implementation agent unless explicitly assigned.

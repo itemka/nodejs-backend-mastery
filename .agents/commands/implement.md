@@ -19,7 +19,8 @@ Implement the requested change safely with focused tests and validation.
 4. Add or update tests for meaningful behavior changes.
 5. Update docs or examples when user-facing behavior changes.
 6. Run relevant validation.
-7. Summarize changes, validation, and remaining risks.
+7. Update `docs/CURRENT_TASK_CONTEXT.md` for meaningful implementation handoffs.
+8. Summarize changes, validation, and remaining risks.
 
 ## Output Format
 

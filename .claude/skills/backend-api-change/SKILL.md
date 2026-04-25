@@ -1,6 +1,7 @@
 ---
 name: backend-api-change
 description: Use when adding or changing backend HTTP routes, handlers, controllers, services, middleware, request/response schemas, validation, status codes, or API error contracts.
+argument-hint: '[route, endpoint, or API behavior]'
 ---
 
 # Backend API Change

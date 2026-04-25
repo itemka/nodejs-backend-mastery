@@ -31,3 +31,7 @@ List characterization tests, existing tests, typecheck, lint, or manual checks.
 ## Risks
 
 List regression-prone paths, shared modules, or areas with weak tests.
+
+## Final Response Needs
+
+Ask for before/after structure, files changed, validation, and behavior-preservation evidence.

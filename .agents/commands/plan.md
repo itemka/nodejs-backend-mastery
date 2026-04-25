@@ -2,7 +2,7 @@
 
 ## Goal
 
-Inspect the repo and create a concise implementation plan before coding.
+Inspect the repo and create or update a concise implementation plan file before coding.
 
 ## Context To Provide
 
@@ -18,11 +18,12 @@ Inspect the repo and create a concise implementation plan before coding.
 4. List assumptions and risks.
 5. Propose small implementation steps.
 6. Define validation commands.
-7. If you create a written plan file, use `docs/plan-<short-task-goal>.md` per [agents/plan.md](../agents/plan.md).
-8. Do not edit files unless explicitly asked.
+7. Create or update `docs/plan-<short-task-goal>.md` per [agents/plan.md](../agents/plan.md), because this command is an explicit plan request.
+8. Do not edit implementation files unless explicitly asked.
 
 ## Output Format
 
+- Plan file path.
 - Goal.
 - Context found.
 - Assumptions.

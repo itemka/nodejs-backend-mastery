@@ -2,6 +2,7 @@
 name: repo-task-analyst
 description: Use to classify a task, identify affected repo areas, ask necessary clarifying questions, and route work to the right workflow.
 tools: Read, Glob, Grep, Bash
+disallowedTools: Edit, MultiEdit, Write
 model: inherit
 ---
 
@@ -17,4 +18,4 @@ Before analysis, read the canonical project instructions:
 - `.agents/agents/task-analyst.md`
 
 Follow `.agents/agents/task-analyst.md` as the source of truth. Keep output
-concrete and route to the smallest workflow that fits the task.
+concrete, stay read-only, and route to the smallest workflow that fits the task.

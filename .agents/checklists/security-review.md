@@ -10,3 +10,4 @@
 - Rate limiting, request-size limits, and abuse controls exist where needed.
 - CORS, security headers, cookies, CSRF, and CSP are handled where relevant.
 - Error responses do not expose stack traces, config, or internal implementation details.
+- MCP, hook, and subagent changes avoid inline secrets, broad filesystem access, and unbounded external side effects.

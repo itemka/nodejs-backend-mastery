@@ -14,11 +14,12 @@ Model Context Protocol (MCP) lets AI tools connect to external tools and data so
 
 - User-level config is best for personal tools, credentials, and local services.
 - Project-level config is best for shared, low-risk tooling that every contributor can safely approve.
-- Actual MCP config is tool-specific and usually stays gitignored.
+- Commit only shared MCP config that is credential-free or uses environment references. Keep credential-bearing or machine-specific MCP config gitignored.
 - Each tool has its own MCP config location and approval behavior:
-  - Claude Code: project-level `.mcp.json` (often gitignored), per-server approval, and an `enabledMcpjsonServers` list in `.claude/settings*.json`. Subagents can scope MCP via the `mcpServers:` frontmatter field.
-  - Codex: Codex config (often `.codex/config.toml`, gitignored).
-  - Cursor and GitHub Copilot: see their own docs for current locations.
+  - Claude Code: `claude mcp add --scope local|project|user`; project scope writes `.mcp.json` in the project root and prompts for approval before use. `.mcp.json` supports environment expansion such as `${VAR}` and `${VAR:-default}`. Subagents can scope MCP with `mcpServers:` frontmatter.
+  - Codex: MCP servers live in Codex `config.toml`; use `codex mcp` or `[mcp_servers.<name>]` tables in user config or trusted project `.codex/config.toml`.
+  - Cursor: project MCP config lives in `.cursor/mcp.json`; global config lives in `~/.cursor/mcp.json`; the editor and CLI share configured servers.
+  - GitHub Copilot: see its own docs for current MCP support and config locations.
 - Restart or relaunch the client when it only reads MCP config at startup.
 
 ## Good Candidates

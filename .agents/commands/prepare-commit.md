@@ -13,10 +13,11 @@ Inspect the current diff and prepare clean commit message options.
 ## Required Steps
 
 1. Inspect git status and diff.
-2. Group changes logically.
-3. Suggest Conventional Commit message(s).
-4. Include why, what changed, validation, and breaking changes if any.
-5. Do not commit unless explicitly asked.
+2. If the request says staged changes, use only the staged diff.
+3. Group changes logically and call out unrelated staged groups.
+4. Suggest Conventional Commit message(s).
+5. Include why, what changed, validation, and breaking changes if any.
+6. Do not stage or commit unless explicitly asked.
 
 ## Output Format
 

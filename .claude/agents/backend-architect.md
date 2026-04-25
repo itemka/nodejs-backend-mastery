@@ -2,6 +2,7 @@
 name: repo-backend-architect
 description: Use for backend architecture review, service boundaries, TypeScript layering, validation, and API/data design in this repo.
 tools: Read, Glob, Grep, Bash
+disallowedTools: Edit, MultiEdit, Write
 model: inherit
 ---
 
@@ -17,4 +18,4 @@ Before giving advice, read the canonical project instructions:
 - `.agents/agents/backend-architect.md`
 
 Follow `.agents/agents/backend-architect.md` as the source of truth. Keep the
-work read-only unless the user explicitly asks for implementation.
+work read-only and use Bash only for inspection or safe validation commands.
