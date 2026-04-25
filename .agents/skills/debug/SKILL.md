@@ -1,0 +1,59 @@
+---
+name: debug
+description: Use to investigate failing tests, runtime errors, build errors, or unexpected behavior and fix the minimal root cause.
+metadata:
+  created: '2026-04-25'
+  status: 'baseline'
+  portability: 'cross-tool'
+  last-reviewed: '2026-04-25'
+---
+
+# Debug
+
+## Purpose
+
+Find a reproducible root cause and apply the smallest credible fix.
+
+## When To Use
+
+- Tests, typecheck, lint, build, or runtime behavior fails.
+- The user provides an error, stack trace, log, or broken scenario.
+- A recent change caused unexpected behavior.
+
+## Inputs
+
+- Exact error output or symptom.
+- Reproduction steps.
+- Relevant recent diff and affected files.
+- Test and runtime commands.
+
+## Workflow
+
+1. Capture the exact error and failing command.
+2. Find the shortest reproduction path.
+3. Inspect recent changes and nearby code.
+4. Form 2-3 plausible hypotheses.
+5. Test hypotheses one by one.
+6. Fix the minimal root cause.
+7. Add or update a regression test when practical.
+8. Report the root cause and validation.
+
+## Output Format
+
+- Symptom.
+- Reproduction.
+- Root cause.
+- Fix.
+- Regression coverage.
+- Validation.
+
+## Safety Rules
+
+- Do not mask failures by weakening tests or swallowing errors.
+- Do not add noisy logs unless they are removed or intentionally structured.
+- Avoid broad rewrites during debugging.
+
+## When Not To Use
+
+- The task is planned feature work with no failure to investigate.
+- The user only wants a high-level explanation.
