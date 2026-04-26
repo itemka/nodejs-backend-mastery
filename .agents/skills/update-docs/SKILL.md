@@ -38,10 +38,20 @@ Keep documentation accurate, concise, and tied to real code behavior.
 
 ## Surface Routing
 
-- Portable AI-agent guidance belongs in `.agents/`.
-- Tool-specific adapters belong in `AGENTS.md`, `CLAUDE.md`, `.claude/`, `.cursor/`, `.codex/`, or `.github/` and should point back to `.agents/` instead of duplicating it.
+- Portable AI-agent guidance belongs in `.agents/`. See `AI-Agent Docs Layout` below for the canonical surface rules.
 - Product, setup, API, and learning docs belong under `docs/` or the nearest package/app README.
-- Use commands as short invocable prompts that route to skills; keep procedural source of truth in skills.
+
+## AI-Agent Docs Layout
+
+Single source of truth for the AI-agent docs structure. Other files reference this section instead of restating it.
+
+- `.agents/skills/` is the canonical home for reusable workflows. Put durable step-by-step procedures here first.
+- `.agents/commands/` are short runnable prompts that route to skills. Commands must not duplicate skill bodies.
+- `.agents/agents/` are thin role specs (`Purpose`, `When To Load`, `Pairs With`, `Output Contributions`, `Boundaries`). Roles do not restate skill workflows.
+- `.agents/checklists/` are compact, scannable verification criteria. Checklists list checks, not procedures.
+- `.agents/rules/` are short because every agent loads them on every session. Keep wording tight.
+- `.claude/`, `.codex/`, `.cursor/`, `.github/` adapters are thin pointers into `.agents/`. They never copy skill bodies.
+- `AGENTS.md` and `CLAUDE.md` are thin entry points; they import or link `.agents/` and do not contain workflows.
 
 ## Freshness Window
 
@@ -59,13 +69,27 @@ Use this rule for AI tools, libraries, framework versions, CLIs, cloud APIs, sec
 5. If web access or docs lookup is unavailable, say so and do not claim the update is freshness-verified.
 6. In the final response, list sources checked, the recency window used, and any meaningful old-to-new guidance changes.
 
+## AI-Agent Docs Review
+
+Run this when the change touches AI-agent guidance (`.agents/`, `.claude/`, `.codex/`, `.cursor/`, `.github/`, `AGENTS.md`, `CLAUDE.md`, related context files, or any skill/agent/command/checklist/rule).
+
+1. Inspect the in-scope files plus their neighbors: `.agents/**`, `.claude/**`, `.codex/**`, `.cursor/**`, `.github/**`, `AGENTS.md`, `CLAUDE.md`.
+2. Run the `Freshness Window` above first. Check current official best practices before editing.
+3. Compare the current layout against `AI-Agent Docs Layout` and the latest official guidance:
+   - If official docs or recent best practices suggest a materially better folder or file structure, point it out explicitly, describe the trade-off, and recommend whether to keep or change the current structure. Do not silently restructure.
+4. Look for duplicated guidance across skills, commands, agents, checklists, rules, and tool adapters. Move durable content into the matching skill and leave other surfaces as thin pointers.
+5. Look for stale links, stale references to removed or renamed folders/skills/commands, broken relative paths, and dead anchors.
+6. Look for overgrown files: rules longer than they need to be (always-loaded cost), commands restating workflows, role specs restating procedures, checklists that explain instead of check, or `.claude/`/other adapters copying skill bodies. Trim them.
+7. Apply cross-tool updates to `.agents/` first; update tool adapters as thin pointers afterward.
+8. Preserve frontmatter contracts: skill `name` matches its folder name; required adapter fields stay valid.
+
 ## Workflow
 
 1. Inspect the changed code and nearby docs before editing.
 2. Identify the audience: user, contributor, operator, reviewer, or future maintainer.
 3. Identify the documentation surface and read the index that lists it, such as `.agents/README.md` or a docs index.
-4. Check whether the file or subject is stale; if it touches drift-prone tools or AI-agent guidance, run the Freshness Window above before editing.
-5. For AI-agent guidance specifically, also compare current guidance against repo files for AGENTS.md, skills, subagents, commands, prompts, hooks, MCP, memory/rules, and tool adapters. Look for naming drift, frontmatter changes, obsolete locations, duplicated instructions, bloated always-loaded context, and unsafe hook or MCP examples. Apply useful cross-tool updates to `.agents/` first; keep root files and tool adapters thin.
+4. Check whether the file or subject is stale; if it touches drift-prone tools or AI-agent guidance, run the `Freshness Window` above before editing.
+5. For AI-agent guidance, also run the `AI-Agent Docs Review` above before editing.
 6. Prefer editing an existing file. Create a new file only when no existing file fits.
 7. Update the smallest relevant doc surface and keep headings, tone, and length consistent.
 8. Keep indexes and relative links in sync.
@@ -82,6 +106,8 @@ Use this rule for AI tools, libraries, framework versions, CLIs, cloud APIs, sec
 - Examples or migration notes added.
 - Validation or source checked.
 - AI-agent best-practice and recent-change sources checked, when applicable.
+- AI-agent structural review findings: duplicates removed, stale links/references fixed, overgrown files trimmed, when applicable.
+- Structure recommendation (keep current vs. change), with trade-off, when official docs suggest a materially better layout.
 - Remaining documentation gaps.
 
 ## Safety Rules
@@ -93,6 +119,7 @@ Use this rule for AI tools, libraries, framework versions, CLIs, cloud APIs, sec
 - Do not present old community examples, marketplace listings, or blog posts as current best practice unless they are clearly secondary and still match official docs.
 - Do not duplicate shared `.agents/` guidance in tool-specific adapters.
 - Do not keep README-only folders when their useful content belongs in a skill.
+- Do not silently restructure AI-agent folders. Surface the trade-off and recommend keep-or-change first.
 
 ## When Not To Use
 

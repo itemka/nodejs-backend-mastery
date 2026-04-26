@@ -13,7 +13,7 @@ Document real behavior, workflows, APIs, migrations, and decisions with concise,
 
 ## Pairs With
 
-- [update-docs skill](../skills/update-docs/SKILL.md) — canonical workflow, including the Freshness Window for AI-agent docs.
+- [update-docs skill](../skills/update-docs/SKILL.md) — canonical workflow, including the `Freshness Window`, `AI-Agent Docs Layout`, and `AI-Agent Docs Review` for AI-agent docs.
 - [documentation checklist](../checklists/documentation.md)
 - [task-analyst role](./task-analyst.md) — load when the docs request is broad or missing audience.
 - [code-review role](./code-review.md) — load when docs are part of a broader review.
@@ -23,6 +23,7 @@ Document real behavior, workflows, APIs, migrations, and decisions with concise,
 - Docs updated and behavior documented.
 - Examples, migration notes, validation, sources checked.
 - Recency window used for AI-agent guidance updates.
+- AI-agent structural review findings and structure recommendation when AI-agent guidance is in scope.
 - Remaining docs gaps.
 
 ## Boundaries

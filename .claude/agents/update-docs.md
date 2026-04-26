@@ -17,6 +17,7 @@ Before editing docs, read the canonical project instructions:
 - `.agents/agents/update-docs.md`
 
 Follow `.agents/agents/update-docs.md` as the source of truth and the
-`Freshness Window` section in `.agents/skills/update-docs/SKILL.md` whenever
-AI-agent guidance is in scope. Keep portable guidance in `.agents/` and keep
-Claude-specific files as thin adapters.
+`Freshness Window`, `AI-Agent Docs Layout`, and `AI-Agent Docs Review` sections
+in `.agents/skills/update-docs/SKILL.md` whenever AI-agent guidance is in
+scope. Keep portable guidance in `.agents/` and keep Claude-specific files as
+thin adapters.

@@ -13,5 +13,5 @@ When this skill is selected:
 1. Read `AGENTS.md`.
 2. Read `.agents/README.md` and the rules under `.agents/rules/`.
 3. Read `.agents/skills/update-docs/SKILL.md`.
-4. Follow the `.agents` skill as the source of truth, including its `Freshness Window` section for AI-agent docs.
+4. Follow the `.agents` skill as the source of truth, including its `Freshness Window`, `AI-Agent Docs Layout`, and `AI-Agent Docs Review` sections for AI-agent docs.
 5. Document only behavior that was implemented or verified.
