@@ -1,31 +1,52 @@
 # Node.js Backend Mastery
 
-<!-- TODO: review and adjust it -->
-
-A practical and well-structured knowledge base for building scalable, secure, and maintainable backend systems with Node.js.
+A practical, structured workspace for building scalable, secure, and maintainable backend systems with Node.js. The repo pairs a topic-by-topic learning roadmap with real apps that exercise the patterns end to end.
 
 ## Purpose
 
-This repository is designed as a professional reference for developers looking to deepen their expertise in Node.js backend engineering. It covers core concepts, architecture patterns, and hands-on examples reflecting real-world practices.
+A personal reference for senior-level Node.js backend engineering: real apps over slides, production patterns over toy snippets, and notes that grow alongside the code rather than after it.
 
-## Topics Covered
+## Topics In Scope
 
-- API design (REST & GraphQL)
-- Authentication & Authorization
-- SQL & NoSQL database integrations
-- Clean architecture & DDD principles
-- Error handling, logging, and monitoring
-- Caching, queues, and event-driven patterns
-- Testing (unit & integration)
-- Docker, CI/CD, and deployment workflows
-- Performance tuning and scalability strategies
-- Cloud integration (AWS), environment management
-- Security best practices and data protection
-- Input validation and middleware patterns
+The full topic tree, status, and per-topic notes live in [docs/README.md](docs/README.md). Areas covered include:
 
-## Structure
+- Core Node.js: event loop, streams, child processes
+- Frameworks: Express, Fastify, NestJS
+- API design: REST, WebSockets, GraphQL, gRPC
+- Architecture: MVC, feature-based, hexagonal, clean, DDD, CQRS
+- Auth & security: sessions, JWT, OAuth/OIDC, RBAC/ABAC, rate limiting, secrets
+- Data storage: PostgreSQL, Redis, DynamoDB, MongoDB
+- Async processing: event-driven, BullMQ, scheduled jobs
+- Microservices: API gateway, Kafka, idempotency, sagas
+- Cloud: AWS (ECS, Lambda, S3/CloudFront), GCP, Azure
+- DevOps: Docker, GitHub Actions, Terraform, Kubernetes
+- Observability: Pino logging, Prometheus, OpenTelemetry, Grafana
+- Testing & quality: Vitest/Jest units, integration, contract, mutation, static analysis
 
-Each module includes:
+Most topics are still `todo` or `partial`; flip status in the same PR as the code.
 
-- Concise theory and implementation notes
-- Realistic code examples
+## Repository Layout
+
+- [docs/](docs/) — learning roadmap and per-topic notes; start at [docs/README.md](docs/README.md).
+- [workspaces/apps/](workspaces/apps/) — runnable apps that exercise the patterns. Active: [shop-mvc-express](workspaces/apps/shop-mvc-express/), [local-llm-playground](workspaces/apps/local-llm-playground/). Other folders (and anything under `_todo/`) are scaffolds.
+- [workspaces/packages/](workspaces/packages/) — shared libraries: [config](workspaces/packages/config/), [errors](workspaces/packages/errors/).
+- [.agents/](.agents/) — AI-agent toolkit (rules, skills, agents, commands, checklists) shared by Codex, Claude Code, and Cursor. Entry point: [AGENTS.md](AGENTS.md).
+
+## Tooling
+
+- Package manager: `pnpm@10.33.0`
+- Runtime: Node.js `>=22` (see [.nvmrc](.nvmrc))
+- Workspaces: declared in [pnpm-workspace.yaml](pnpm-workspace.yaml)
+
+Common root scripts:
+
+```bash
+pnpm install
+pnpm run lint
+pnpm run format:check
+pnpm run typecheck
+pnpm run test
+pnpm run build
+```
+
+Use pnpm filters for app-specific work, for example `pnpm --filter local-llm-playground dev`.
