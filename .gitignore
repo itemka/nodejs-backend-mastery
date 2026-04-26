@@ -23,3 +23,8 @@ pnpm-debug.log*
 
 # OS files
 .DS_Store
+
+# MCP config (may contain secrets)
+.mcp.json
+.codex/config.toml
+.playwright-mcp
