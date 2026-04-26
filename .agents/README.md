@@ -64,10 +64,9 @@ When adding or renaming a skill, keep the folder name equal to the frontmatter
 `name`, update this index, and add or update any required tool-specific thin
 adapters such as `.claude/skills/<name>/SKILL.md`.
 
-Hooks and MCP guidance live in [skills/designing-hooks/](./skills/designing-hooks/)
-and [skills/configuring-mcp/](./skills/configuring-mcp/). Create
-`.agents/hooks/` or `.agents/mcp/` only when there are concrete reusable
-scripts, configs, or adapter files to store.
+Hooks and MCP guidance belong in [skills/designing-hooks/](./skills/designing-hooks/)
+and [skills/configuring-mcp/](./skills/configuring-mcp/). Create `.agents/hooks/`
+only when concrete reusable hook scripts or adapters need a portable home.
 
 ## Tool Adapter Map
 
@@ -91,8 +90,10 @@ Use official product docs as the source of truth for tool-specific file
 locations and behavior:
 
 - Agent Skills open standard: <https://agentskills.io/specification>
-- Agent Skills best practices: <https://agentskills.io/skill-creation/best-practices>
+- Agent Skills best practices (open spec): <https://agentskills.io/skill-creation/best-practices>
 - Claude Code: <https://code.claude.com/docs>
+- Claude Code subagents: <https://code.claude.com/docs/en/sub-agents>
+- Claude Skill authoring best practices (vendor): <https://platform.claude.com/docs/en/agents-and-tools/agent-skills/best-practices>
 - OpenAI Codex: <https://developers.openai.com/codex>
 - Cursor: <https://cursor.com/docs>
 - AGENTS.md standard: <https://agents.md>
