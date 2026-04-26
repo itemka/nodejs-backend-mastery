@@ -12,7 +12,8 @@
     "lint:fix": "eslint . --fix",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "test": "pnpm -r run --if-present test"
+    "test": "pnpm -r run --if-present test",
+    "sync-mcp": "node scripts/sync-mcp-to-codex.mjs"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.4",
