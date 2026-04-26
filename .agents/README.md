@@ -91,8 +91,10 @@ Use official product docs as the source of truth for tool-specific file
 locations and behavior:
 
 - Agent Skills open standard: <https://agentskills.io/specification>
-- Agent Skills best practices: <https://agentskills.io/skill-creation/best-practices>
+- Agent Skills best practices (open spec): <https://agentskills.io/skill-creation/best-practices>
 - Claude Code: <https://code.claude.com/docs>
+- Claude Code subagents: <https://code.claude.com/docs/en/sub-agents>
+- Claude Skill authoring best practices (vendor): <https://platform.claude.com/docs/en/agents-and-tools/agent-skills/best-practices>
 - OpenAI Codex: <https://developers.openai.com/codex>
 - Cursor: <https://cursor.com/docs>
 - AGENTS.md standard: <https://agents.md>
