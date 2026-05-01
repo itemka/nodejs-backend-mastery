@@ -1,3 +1,6 @@
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+
 import { createChatService } from './chat/service.js';
 import { helpText, parseArgs } from './cli/args.js';
 import { createReadlineInput } from './cli/readline.js';
@@ -42,6 +45,10 @@ async function main(): Promise<void> {
   }
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) {
+export function isDirectExecution(moduleUrl: string, entrypointPath: string | undefined): boolean {
+  return entrypointPath !== undefined && fileURLToPath(moduleUrl) === path.resolve(entrypointPath);
+}
+
+if (isDirectExecution(import.meta.url, process.argv[1])) {
   await main();
 }

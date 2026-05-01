@@ -6,13 +6,37 @@ export interface InputAdapter {
   close(): void;
 }
 
-export function createReadlineInput(): InputAdapter {
-  const readline = createInterface({ input: stdin, output: stdout });
+export interface ReadlineInputOptions {
+  readonly input?: NodeJS.ReadableStream;
+  readonly output?: NodeJS.WritableStream;
+}
+
+export function createReadlineInput(options: ReadlineInputOptions = {}): InputAdapter {
+  const readline = createInterface({
+    input: options.input ?? stdin,
+    output: options.output ?? stdout,
+  });
+  let isClosed = false;
+  let pendingReject: ((error: Error) => void) | undefined;
+
+  readline.on('close', () => {
+    isClosed = true;
+    pendingReject?.(new Error('Readline input closed'));
+    pendingReject = undefined;
+  });
 
   return {
     ask(prompt) {
-      return new Promise<string>((resolve) => {
-        readline.question(prompt, resolve);
+      if (isClosed) {
+        return Promise.reject(new Error('Readline input closed'));
+      }
+
+      return new Promise<string>((resolve, reject) => {
+        pendingReject = reject;
+        readline.question(prompt, (answer) => {
+          pendingReject = undefined;
+          resolve(answer);
+        });
       });
     },
     close() {
