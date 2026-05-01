@@ -22,11 +22,12 @@ concurrency:
 
 jobs:
   detect:
-    name: Detect changed apps
+    name: Detect changed workspaces
     runs-on: ubuntu-latest
     outputs:
-      apps: ${{ steps.detect.outputs.apps }}
+      workspaces: ${{ steps.detect.outputs.workspaces }}
       any: ${{ steps.detect.outputs.any }}
+      root_build: ${{ steps.detect.outputs.root_build }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -51,30 +52,43 @@ jobs:
             fi
             head="${{ github.sha }}"
           else
-            echo "apps=[]" >> "$GITHUB_OUTPUT"
+            echo "workspaces=[]" >> "$GITHUB_OUTPUT"
             echo "any=false" >> "$GITHUB_OUTPUT"
+            echo "root_build=false" >> "$GITHUB_OUTPUT"
             exit 0
           fi
           mapfile -t files < <(git diff --name-only "$base" "$head" || true)
-          declare -A seen=()
           uniq=()
+          seen_paths=$'\n'
+          root_build=false
           for f in "${files[@]}"; do
-            if [[ "$f" =~ ^workspaces/apps/([^/]+)/ ]]; then
-              app="${BASH_REMATCH[1]}"
-              if [[ -z "${seen[$app]+x}" ]]; then
-                uniq+=("$app")
-                seen[$app]=1
+            case "$f" in
+              .github/workflows/ci.yml | package.json | pnpm-lock.yaml | pnpm-workspace.yaml | tsconfig.base.json)
+                root_build=true
+                ;;
+            esac
+
+            if [[ "$f" =~ ^workspaces/(apps|ai-engineering|packages)/([^/]+)/ ]]; then
+              workspace_path="workspaces/${BASH_REMATCH[1]}/${BASH_REMATCH[2]}"
+              if [[ "$seen_paths" != *$'\n'"$workspace_path"$'\n'* ]]; then
+                workspace_name="$(jq -r '.name // empty' "$workspace_path/package.json" 2>/dev/null || true)"
+                if [[ -z "$workspace_name" ]]; then
+                  continue
+                fi
+                uniq+=("$workspace_name"$'\t'"$workspace_path")
+                seen_paths+="$workspace_path"$'\n'
               fi
             fi
           done
           if [[ "${#uniq[@]}" -eq 0 ]]; then
-            echo "apps=[]" >> "$GITHUB_OUTPUT"
+            echo "workspaces=[]" >> "$GITHUB_OUTPUT"
             echo "any=false" >> "$GITHUB_OUTPUT"
           else
-            apps_json=$(printf '%s\n' "${uniq[@]}" | jq -R -s -c 'split("\n")[:-1]')
-            echo "apps=$apps_json" >> "$GITHUB_OUTPUT"
+            workspaces_json=$(printf '%s\n' "${uniq[@]}" | jq -R -s -c 'split("\n")[:-1] | map(split("\t") | {name: .[0], path: .[1]})')
+            echo "workspaces=$workspaces_json" >> "$GITHUB_OUTPUT"
             echo "any=true" >> "$GITHUB_OUTPUT"
           fi
+          echo "root_build=$root_build" >> "$GITHUB_OUTPUT"
 
   quality:
     name: Lint / Format / Types / Unit
@@ -103,8 +117,8 @@ jobs:
       - name: Unit tests
         run: pnpm run test
 
-  app:
-    name: Build ${{ matrix.app }}
+  workspace:
+    name: Check ${{ matrix.workspace.path }}
     needs: [detect, quality]
     if: needs.detect.outputs.any == 'true'
     runs-on: ubuntu-latest
@@ -112,7 +126,7 @@ jobs:
       fail-fast: false
       matrix:
         node: [22.x]
-        app: ${{ fromJSON(needs.detect.outputs.apps) }}
+        workspace: ${{ fromJSON(needs.detect.outputs.workspaces) }}
     steps:
       - uses: actions/checkout@v4
       - name: Enable Corepack (pnpm)
@@ -125,14 +139,37 @@ jobs:
           cache-dependency-path: pnpm-lock.yaml
       - name: Install deps
         run: pnpm install --frozen-lockfile
-      - name: Lint ${{ matrix.app }}
-        run: pnpm -w --filter ./workspaces/apps/${{ matrix.app }}... run --if-present lint
-      - name: Typecheck ${{ matrix.app }}
-        run: pnpm -w --filter ./workspaces/apps/${{ matrix.app }}... run --if-present typecheck
-      - name: Test ${{ matrix.app }}
-        run: pnpm -w --filter ./workspaces/apps/${{ matrix.app }}... run --if-present test
-      - name: Build ${{ matrix.app }}
-        run: pnpm -w --filter ./workspaces/apps/${{ matrix.app }}... run build
+      - name: Lint ${{ matrix.workspace.path }}
+        run: pnpm --filter "${{ matrix.workspace.name }}" run --if-present lint
+      - name: Typecheck ${{ matrix.workspace.path }}
+        run: pnpm --filter "${{ matrix.workspace.name }}" run --if-present typecheck
+      - name: Test ${{ matrix.workspace.path }}
+        run: pnpm --filter "${{ matrix.workspace.name }}" run --if-present test
+      - name: Build ${{ matrix.workspace.path }}
+        run: pnpm --filter "${{ matrix.workspace.name }}" run --if-present build
+
+  root-build:
+    name: Build all workspaces
+    needs: [detect, quality]
+    if: needs.detect.outputs.root_build == 'true'
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        node: [22.x]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Enable Corepack (pnpm)
+        run: corepack enable
+      - name: Setup Node ${{ matrix.node }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+      - name: Install deps
+        run: pnpm install --frozen-lockfile
+      - name: Build all workspaces
+        run: pnpm run build
 
   security:
     name: Audit / Gitleaks
