@@ -8,6 +8,7 @@ Project-specific orientation for AI agents. Keep this file easy to edit when cop
 - Runtime: Node.js `>=22`.
 - Monorepo workspaces are declared in `pnpm-workspace.yaml`.
 - Apps live under `workspaces/apps/*`.
+- AI engineering learning examples live under `workspaces/ai-engineering/*`.
 - Shared packages live under `workspaces/packages/*`.
 - Docs live under `docs/*`.
 - Shared AI-agent material lives under `.agents/*`. Tool-specific adapters live under `.claude/`, `.codex/`, `.cursor/`, or `.github/` and should stay thin (see [.agents/README.md](../README.md) for design rules).
@@ -18,6 +19,10 @@ Project-specific orientation for AI agents. Keep this file easy to edit when cop
 - `workspaces/apps/local-llm-playground`: Express backend with a Vite/React client and shared schemas.
 - README-only app scaffolds are not production-ready and are not expected to build unless their package config says otherwise.
 - Anything under `_todo`, scratch, or placeholder areas should not be treated as production-ready.
+
+## AI Engineering
+
+- `workspaces/ai-engineering/llm-chat`: provider-neutral LLM chat CLI with an Anthropic adapter.
 
 ## Packages
 

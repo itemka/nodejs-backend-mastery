@@ -1,5 +1,6 @@
 packages:
   - workspaces/apps/*
+  - workspaces/ai-engineering/*
   - workspaces/packages/*
 
 ignoredBuiltDependencies:

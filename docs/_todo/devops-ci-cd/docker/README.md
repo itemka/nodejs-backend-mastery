@@ -3,6 +3,7 @@
 **Category:** devops-ci-cd · **Primary app:** [shop-mvc-express](../../../../workspaces/apps/shop-mvc-express/) · **Prereqs:** — · **Status:** todo
 
 ## Scope
+
 - Multi-stage builds; builder + runtime images.
 - Slim base images (distroless, `node:*-slim`) and non-root user.
 - Layer caching; lockfile-first to maximize cache hits.
@@ -11,6 +12,7 @@
 - Security: no secrets in layers, pin versions, scan with Trivy.
 
 ## Sub-tasks
+
 - [ ] Write a multi-stage Dockerfile for shop-mvc-express (build stage + runtime).
 - [ ] Run as non-root; drop Linux capabilities where possible.
 - [ ] Author `docker-compose.yml` with Postgres + Redis + app for local dev.
@@ -19,6 +21,7 @@
 - [ ] Scan the image with Trivy in CI; fail on HIGH severity.
 
 ## Concepts to know
+
 - Reorder Dockerfile so lockfile + deps land before app source — cache wins.
 - `CMD` vs `ENTRYPOINT`; signal forwarding for graceful shutdown (use `tini` or exec form).
 - Healthchecks: Docker-level only helps docker-compose; for ECS use the task definition.
@@ -26,6 +29,7 @@
 - Single-host deploys are useful for learning; ECS takes over once you need managed rollout and scaling.
 
 ## Interview questions
+
 - Walk through your multi-stage Dockerfile.
 - Why run as non-root? How do you make it work with bind mounts?
 - Why is the order of `COPY` statements load-bearing?

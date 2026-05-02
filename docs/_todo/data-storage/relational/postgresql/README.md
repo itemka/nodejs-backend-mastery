@@ -3,6 +3,7 @@
 **Category:** data-storage/relational · **Primary app:** [shop-mvc-express](../../../../../workspaces/apps/shop-mvc-express/), [shop-feature-fastify](../../../../../workspaces/apps/shop-feature-fastify/) · **Prereqs:** — · **Status:** todo
 
 ## Scope
+
 - Schema design, normalization (1NF–3NF), targeted denormalization.
 - Indexes: B-tree, partial, composite, covering; cost on writes.
 - Transactions and isolation levels (Read Committed, Repeatable Read, Serializable).
@@ -12,6 +13,7 @@
 - Cursor vs offset pagination.
 
 ## Sub-tasks
+
 - [ ] Design schema for `users`, `products`, `orders`, `order_items`; document 1-to-many and many-to-many.
 - [ ] Pick Drizzle or Prisma; write initial migration and seed script.
 - [ ] Add indexes `products(category_id)`, `orders(user_id, created_at)`; verify with `EXPLAIN ANALYZE`.
@@ -21,6 +23,7 @@
 - [ ] Enable `pg_stat_statements`; record a baseline of top-N slow queries.
 
 ## Concepts to know
+
 - Foreign keys + referential integrity prevent orphan rows; they also acquire locks.
 - Each index costs on every INSERT/UPDATE on that table.
 - Default isolation is Read Committed; pick Repeatable Read only when you need stable snapshots.
@@ -28,6 +31,7 @@
 - Connection count is a hard resource — pool per service, and use RDS Proxy for Lambda.
 
 ## Interview questions
+
 - Walk through the schema of your shop. Justify each index.
 - `SELECT … ORDER BY created_at DESC LIMIT 20 OFFSET 1000000` is slow — why, and how do you fix it?
 - Explain `REPEATABLE READ` vs `READ COMMITTED` with a concrete anomaly.
