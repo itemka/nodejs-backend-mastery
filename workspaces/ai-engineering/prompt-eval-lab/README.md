@@ -4,6 +4,11 @@ A small Node.js/TypeScript CLI that runs an automated prompt-evaluation pipeline
 
 Provider-neutral on top of [`@workspaces/packages/llm-client`](../../packages/llm-client) — Anthropic adapter today, others can be added without changing the eval pipeline.
 
+The shape follows Anthropic's current eval guidance: define task-specific,
+measurable success criteria, prefer automated grading when possible, and combine
+code-based checks with LLM-based grading for judgement that is harder to encode
+as deterministic assertions.
+
 ## Run
 
 Create `.env` in this folder:
@@ -71,11 +76,14 @@ See [datasets/basic-code-assistant.dataset.json](datasets/basic-code-assistant.d
 For each test case the runner produces:
 
 - **`output`** — raw model response.
-- **`modelGrade`** — structured grader response from a second LLM call: `{ strengths, weaknesses, reasoning, score }` (1–10), validated with Zod and Anthropic structured outputs (`output_config.format` JSON schema).
+- **`modelGrade`** — structured grader response from a second LLM call: `{ strengths, weaknesses, reasoning, score }` (1–10), requested through Anthropic structured outputs (`output_config.format` JSON schema) and validated again with Zod.
 - **`syntaxScore`** — `10` if the output parses as the requested format, otherwise `0`. JSON via `JSON.parse`, regex via `new RegExp`, TypeScript via the `typescript` compiler API (`ts.transpileModule` with `reportDiagnostics`).
 - **`score`** — average of `modelGrade.score` and `syntaxScore`.
 
 The summary prints the overall average plus a per-format breakdown.
+
+Structured outputs reduce JSON parsing failures for the grader, but the CLI
+still treats the parsed grader response as untrusted and validates it locally.
 
 ## Source Map
 

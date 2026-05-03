@@ -50,6 +50,15 @@ Keep the plan in-chat only when:
 - The user asks for quick advice rather than a durable plan.
 - The change is obvious, low-risk, and the user directly asked to implement.
 
+When the user says things like "do not modify files", "do not implement", or
+"produce a plan only" alongside an explicit plan request, those instructions
+refer to implementation files (source, tests, configs) — they do not forbid
+the plan artifact itself. The plan file _is_ the deliverable for an explicit
+plan request, so still create or update `docs/plan-<short-task-goal>.md`. Only
+skip the file when the user explicitly forbids creating files anywhere
+(including under `docs/`); in that case, present the plan in chat and call out
+that no plan file was written.
+
 Use this path for file-backed plans:
 
 ```text

@@ -18,7 +18,8 @@ All topic content is sharded into per-topic folders under [\_todo/](./_todo/). E
 - Real apps: [workspaces/apps/shop-mvc-express/](../workspaces/apps/shop-mvc-express/), [workspaces/apps/local-llm-playground/](../workspaces/apps/local-llm-playground/)
 - Scaffold apps: `auth-service`, `bff-gateway`, `chat-ws`, `media-service`, `orders-event-driven`, `serverless-toolkit`, `shop-feature-fastify`
 - Scratch app briefs: `workspaces/apps/_todo/*`, including `jobs-workflows` for BullMQ / workflow reliability.
-- Shared libs: [workspaces/packages/config/](../workspaces/packages/config/), [workspaces/packages/errors/](../workspaces/packages/errors/)
+- AI engineering examples: [workspaces/ai-engineering/llm-chat/](../workspaces/ai-engineering/llm-chat/) (interactive Claude chat CLI), [workspaces/ai-engineering/prompt-eval-lab/](../workspaces/ai-engineering/prompt-eval-lab/) (dataset-driven prompt evaluation CLI).
+- Shared libs: [workspaces/packages/config/](../workspaces/packages/config/), [workspaces/packages/errors/](../workspaces/packages/errors/), [workspaces/packages/llm-client/](../workspaces/packages/llm-client/) (provider-neutral LLM client with an Anthropic adapter).
 
 ## Working Rules
 
