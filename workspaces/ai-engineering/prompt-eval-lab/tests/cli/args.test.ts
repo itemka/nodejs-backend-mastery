@@ -64,6 +64,11 @@ describe('parseArgs', () => {
     expect(() => parseArgs(['--dataset=foo.json', '--model='])).toThrow(/--model/);
   });
 
+  it('rejects --out with an unsupported extension', () => {
+    expect(() => parseArgs(['--dataset=foo.json', '--out=report.txt'])).toThrow(/\.html or \.json/);
+    expect(() => parseArgs(['--dataset=foo.json', '--out=report'])).toThrow(/\.html or \.json/);
+  });
+
   it('rejects unknown arguments', () => {
     expect(() => parseArgs(['--dataset=foo.json', '--nope'])).toThrow(/Unknown argument/);
   });

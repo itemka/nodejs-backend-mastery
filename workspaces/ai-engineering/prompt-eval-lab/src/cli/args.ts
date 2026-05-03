@@ -1,3 +1,5 @@
+import path from 'node:path';
+
 import { DEFAULT_CONCURRENCY, MAX_CONCURRENCY, MIN_CONCURRENCY } from '../eval/runner.js';
 import { DEFAULT_TEMPLATE_NAME, isTemplateName, type TemplateName } from '../prompts/templates.js';
 
@@ -26,7 +28,7 @@ export function helpText(): string {
     '',
     'Options:',
     `  --prompt=<name>           Prompt template name (default: ${DEFAULT_TEMPLATE_NAME}).`,
-    '  --out=<path>              Write a JSON report to this path.',
+    '  --out=<path>              Report path (default: timestamped .html in reports/; use .json for raw JSON).',
     '  --model=<id>              Override the ANTHROPIC_MODEL env value.',
     '  --max-tokens=<n>          Max tokens per LLM call (positive integer).',
     `  --concurrency=<n>         Parallel test cases (default: ${DEFAULT_CONCURRENCY}, range ${MIN_CONCURRENCY}..${MAX_CONCURRENCY}).`,
@@ -68,7 +70,14 @@ export function parseArgs(argv: readonly string[]): ParsedArgs {
     }
 
     if (argument.startsWith('--out=')) {
-      outPath = argument.slice('--out='.length);
+      const value = argument.slice('--out='.length);
+      const ext = path.extname(value).toLowerCase();
+
+      if (ext !== '.html' && ext !== '.json') {
+        throw new Error('--out must have a .html or .json extension.');
+      }
+
+      outPath = value;
       continue;
     }
 

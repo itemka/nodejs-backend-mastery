@@ -6,6 +6,8 @@ export type TestCaseFormat = z.infer<typeof testCaseFormatSchema>;
 
 export const testCaseSchema = z.object({
   format: testCaseFormatSchema,
+  prompt_inputs: z.record(z.string(), z.string()).optional(),
+  scenario: z.string().min(1).optional(),
   solution_criteria: z.string().min(1),
   task: z.string().min(1),
 });

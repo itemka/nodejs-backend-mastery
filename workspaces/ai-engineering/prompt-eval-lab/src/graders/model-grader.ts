@@ -24,7 +24,7 @@ export const GRADER_JSON_SCHEMA: Record<string, unknown> = {
   additionalProperties: false,
   properties: {
     reasoning: { type: 'string' },
-    score: { maximum: 10, minimum: 1, type: 'number' },
+    score: { type: 'number' },
     strengths: { items: { type: 'string' }, type: 'array' },
     weaknesses: { items: { type: 'string' }, type: 'array' },
   },
