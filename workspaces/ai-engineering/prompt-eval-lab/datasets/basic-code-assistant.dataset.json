@@ -1,0 +1,17 @@
+[
+  {
+    "task": "Write a TypeScript function `extractAwsRegion(arn: string): string | null` that extracts the AWS region from an ARN. Return null if no region is present.",
+    "format": "typescript",
+    "solution_criteria": "Defines a function with the requested signature; correctly handles standard ARN segments; returns null for ARNs without a region (e.g. global services like IAM)."
+  },
+  {
+    "task": "Generate a JSON configuration object for an AWS Lambda function. Include FunctionName, Runtime, Timeout, MemorySize, and an Environment.Variables block with database connection settings (host, port, name, user, password). Reference the password via AWS Secrets Manager rather than inlining it.",
+    "format": "json",
+    "solution_criteria": "Valid top-level JSON object; required keys present; password is a Secrets Manager reference (not a plaintext value)."
+  },
+  {
+    "task": "Write a regular expression that validates an AWS EC2 instance ID. Format: starts with `i-`, then 17 lowercase hexadecimal characters (e.g. `i-0123456789abcdef0`).",
+    "format": "regex",
+    "solution_criteria": "Anchored at start and end; enforces the `i-` prefix; restricts the suffix to exactly 17 lowercase hex characters."
+  }
+]

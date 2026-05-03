@@ -1,11 +1,6 @@
-import type { OutputFormatConfig, TextDeltaHandler } from '../llm/types.js';
+import type { OutputFormatConfig, TextDeltaHandler } from '@workspaces/packages/llm-client';
 
-export interface ChatMessage {
-  content: string;
-  role: 'user' | 'assistant';
-}
-
-export type Messages = ChatMessage[];
+export type { ChatMessage, Messages } from '@workspaces/packages/llm-client';
 
 export interface ChatOptions {
   debugResponse?: boolean;

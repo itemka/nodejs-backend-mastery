@@ -1,8 +1,8 @@
 import type Anthropic from '@anthropic-ai/sdk';
 import { describe, expect, it, vi } from 'vitest';
 
-import { DEFAULT_MODEL } from '../../../src/config/env.js';
-import { createAnthropicProvider } from '../../../src/llm/anthropic/messages-api.js';
+import { createAnthropicProvider } from '../../src/anthropic/messages-api.js';
+import { DEFAULT_MODEL } from '../../src/config/env.js';
 
 describe('createAnthropicProvider', () => {
   it('streams messages by default and extracts final text', async () => {

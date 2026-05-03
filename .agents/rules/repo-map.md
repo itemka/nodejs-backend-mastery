@@ -22,12 +22,14 @@ Project-specific orientation for AI agents. Keep this file easy to edit when cop
 
 ## AI Engineering
 
-- `workspaces/ai-engineering/llm-chat`: provider-neutral LLM chat CLI with an Anthropic adapter.
+- `workspaces/ai-engineering/llm-chat`: interactive LLM chat CLI built on `@workspaces/packages/llm-client`.
+- `workspaces/ai-engineering/prompt-eval-lab`: automated prompt-evaluation CLI (dataset → render → run → grade) on top of `@workspaces/packages/llm-client`.
 
 ## Packages
 
 - `workspaces/packages/config`: shared env/schema config helpers.
 - `workspaces/packages/errors`: shared error types.
+- `workspaces/packages/llm-client`: provider-neutral LLM client with an Anthropic adapter (source-only, no build step; consumed via `tsconfig` `paths` plus a `workspace:*` dep).
 - Prefer importing shared packages by package name when the package exposes one.
 
 ## Commands And Checks

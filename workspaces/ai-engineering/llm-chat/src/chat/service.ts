@@ -1,4 +1,5 @@
-import type { LlmProvider, LlmRequest } from '../llm/types.js';
+import type { LlmProvider, LlmRequest } from '@workspaces/packages/llm-client';
+
 import { addAssistantMessage, addUserMessage } from './history.js';
 import type { ChatOptions, Messages } from './types.js';
 

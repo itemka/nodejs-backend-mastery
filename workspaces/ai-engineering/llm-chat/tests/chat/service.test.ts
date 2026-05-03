@@ -1,9 +1,9 @@
+import type { LlmProvider, LlmRequest, LlmResponse } from '@workspaces/packages/llm-client';
 import { describe, expect, it, vi } from 'vitest';
 
 import { createChatService } from '../../src/chat/service.js';
 import type { Messages } from '../../src/chat/types.js';
 import { DEFAULT_MODEL } from '../../src/config/env.js';
-import type { LlmProvider, LlmRequest, LlmResponse } from '../../src/llm/types.js';
 
 const noop = (): null => null;
 
