@@ -95,7 +95,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        node: [22.x]
+        node: [24.x]
     steps:
       - uses: actions/checkout@v4
       - name: Enable Corepack (pnpm)
@@ -125,7 +125,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        node: [22.x]
+        node: [24.x]
         workspace: ${{ fromJSON(needs.detect.outputs.workspaces) }}
     steps:
       - uses: actions/checkout@v4
@@ -155,7 +155,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        node: [22.x]
+        node: [24.x]
     steps:
       - uses: actions/checkout@v4
       - name: Enable Corepack (pnpm)
@@ -178,7 +178,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        node: [22.x]
+        node: [24.x]
     steps:
       - uses: actions/checkout@v4
         with:

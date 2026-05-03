@@ -5,7 +5,7 @@ Project-specific orientation for AI agents. Keep this file easy to edit when cop
 ## Shape
 
 - Package manager: `pnpm`.
-- Runtime: Node.js `>=22`.
+- Runtime: Node.js `>=24`.
 - Monorepo workspaces are declared in `pnpm-workspace.yaml`.
 - Apps live under `workspaces/apps/*`.
 - AI engineering learning examples live under `workspaces/ai-engineering/*`.

@@ -13,7 +13,7 @@
   },
   "sideEffects": false,
   "engines": {
-    "node": ">=22"
+    "node": ">=24"
   },
   "scripts": {
     "typecheck": "tsc -p tsconfig.json --noEmit",
