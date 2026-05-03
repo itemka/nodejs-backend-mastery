@@ -1,4 +1,9 @@
-import type { Messages } from '../chat/types.js';
+export interface ChatMessage {
+  content: string;
+  role: 'user' | 'assistant';
+}
+
+export type Messages = ChatMessage[];
 
 export type TextDeltaHandler = (text: string) => void;
 

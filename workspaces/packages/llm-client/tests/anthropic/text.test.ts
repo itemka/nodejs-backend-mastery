@@ -1,7 +1,7 @@
 import type { Message } from '@anthropic-ai/sdk/resources/messages/messages';
 import { describe, expect, it } from 'vitest';
 
-import { textFromMessage } from '../../../src/llm/anthropic/text.js';
+import { textFromMessage } from '../../src/anthropic/text.js';
 
 describe('textFromMessage', () => {
   it('joins text blocks and ignores non-text blocks', () => {

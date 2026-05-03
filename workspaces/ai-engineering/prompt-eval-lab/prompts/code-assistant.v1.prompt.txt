@@ -1,0 +1,6 @@
+Please solve the following task:
+
+{{task}}
+
+* Respond only with TypeScript, JSON, or a plain regular expression.
+* Do not add any comments, commentary, markdown fences, or explanation.

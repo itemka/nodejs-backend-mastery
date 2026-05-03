@@ -29,7 +29,8 @@ Most topics are still `todo` or `partial`; flip status in the same PR as the cod
 
 - [docs/](docs/) — learning roadmap and per-topic notes; start at [docs/README.md](docs/README.md).
 - [workspaces/apps/](workspaces/apps/) — runnable apps that exercise the patterns. Active: [shop-mvc-express](workspaces/apps/shop-mvc-express/), [local-llm-playground](workspaces/apps/local-llm-playground/). Other folders (and anything under `_todo/`) are scaffolds.
-- [workspaces/packages/](workspaces/packages/) — shared libraries: [config](workspaces/packages/config/), [errors](workspaces/packages/errors/).
+- [workspaces/ai-engineering/](workspaces/ai-engineering/) — small runnable Claude API examples: [llm-chat](workspaces/ai-engineering/llm-chat/) (interactive chat CLI), [prompt-eval-lab](workspaces/ai-engineering/prompt-eval-lab/) (dataset-driven prompt evaluation CLI).
+- [workspaces/packages/](workspaces/packages/) — shared libraries: [config](workspaces/packages/config/), [errors](workspaces/packages/errors/), [llm-client](workspaces/packages/llm-client/) (provider-neutral LLM client with an Anthropic adapter, consumed by the AI engineering examples).
 - [.agents/](.agents/) — AI-agent toolkit (rules, skills, agents, commands, checklists) shared by Codex, Claude Code, and Cursor. Entry point: [AGENTS.md](AGENTS.md).
 
 ## Tooling

@@ -1,5 +1,6 @@
+import type { OutputFormatConfig } from '@workspaces/packages/llm-client';
+
 import type { ChatOptions } from '../chat/types.js';
-import type { OutputFormatConfig } from '../llm/types.js';
 
 export const OUTPUT_FORMAT_PRESETS = {
   csv: {

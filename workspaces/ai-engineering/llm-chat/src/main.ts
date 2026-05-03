@@ -1,3 +1,4 @@
+import { createProvider } from '@workspaces/packages/llm-client';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -6,7 +7,6 @@ import { helpText, parseArgs } from './cli/args.js';
 import { createReadlineInput } from './cli/readline.js';
 import { runChatbot } from './cli/run-chatbot.js';
 import { loadConfig, loadEnvironment } from './config/env.js';
-import { createProvider } from './llm/provider-factory.js';
 
 const SYSTEM_PROMPT = 'Answer as shortly as possible.';
 const TEMPERATURE = 0.2;

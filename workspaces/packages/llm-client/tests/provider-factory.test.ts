@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
-import { DEFAULT_MODEL } from '../../src/config/env.js';
-import { createProvider } from '../../src/llm/provider-factory.js';
+import { DEFAULT_MODEL } from '../src/config/env.js';
+import { createProvider } from '../src/provider-factory.js';
 
 describe('createProvider', () => {
   it('returns an LlmProvider with createMessage', () => {
