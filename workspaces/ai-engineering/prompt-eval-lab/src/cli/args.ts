@@ -73,7 +73,13 @@ export function parseArgs(argv: readonly string[]): ParsedArgs {
     }
 
     if (argument.startsWith('--model=')) {
-      model = argument.slice('--model='.length);
+      const value = argument.slice('--model='.length);
+
+      if (!value) {
+        throw new Error('--model must be a non-empty string.');
+      }
+
+      model = value;
       continue;
     }
 

@@ -26,4 +26,10 @@ describe('templates registry', () => {
     expect(isTemplateName(DEFAULT_TEMPLATE_NAME)).toBe(true);
     expect(isTemplateName('does-not-exist')).toBe(false);
   });
+
+  it('isTemplateName rejects inherited prototype keys', () => {
+    expect(isTemplateName('toString')).toBe(false);
+    expect(isTemplateName('__proto__')).toBe(false);
+    expect(isTemplateName('constructor')).toBe(false);
+  });
 });

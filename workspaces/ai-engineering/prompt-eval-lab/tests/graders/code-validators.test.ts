@@ -38,6 +38,11 @@ describe('validateRegex', () => {
     expect(validateRegex('')).toBe(0);
     expect(validateRegex('  \n')).toBe(0);
   });
+
+  it('rejects a pattern exceeding the length cap', () => {
+    expect(validateRegex('a'.repeat(1001))).toBe(0);
+    expect(validateRegex('a'.repeat(1000))).toBe(10);
+  });
 });
 
 describe('validateTypescript', () => {

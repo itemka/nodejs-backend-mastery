@@ -60,6 +60,10 @@ describe('parseArgs', () => {
     expect(() => parseArgs(['--dataset=foo.json', '--max-tokens=abc'])).toThrow(/positive integer/);
   });
 
+  it('rejects an empty --model value', () => {
+    expect(() => parseArgs(['--dataset=foo.json', '--model='])).toThrow(/--model/);
+  });
+
   it('rejects unknown arguments', () => {
     expect(() => parseArgs(['--dataset=foo.json', '--nope'])).toThrow(/Unknown argument/);
   });

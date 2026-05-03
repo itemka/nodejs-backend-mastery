@@ -14,10 +14,12 @@ export function validateJson(text: string): SyntaxScore {
   }
 }
 
+const MAX_REGEX_PATTERN_LENGTH = 1000;
+
 export function validateRegex(text: string): SyntaxScore {
   const pattern = text.trim();
 
-  if (!pattern) {
+  if (!pattern || pattern.length > MAX_REGEX_PATTERN_LENGTH) {
     return 0;
   }
 

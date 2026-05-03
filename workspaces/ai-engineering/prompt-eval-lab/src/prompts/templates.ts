@@ -16,7 +16,7 @@ export const TEMPLATE_NAMES: readonly TemplateName[] = Object.keys(
 ) as TemplateName[];
 
 export function isTemplateName(value: string): value is TemplateName {
-  return value in TEMPLATE_PATHS;
+  return Object.hasOwn(TEMPLATE_PATHS, value);
 }
 
 export async function loadTemplate(name: TemplateName): Promise<string> {
