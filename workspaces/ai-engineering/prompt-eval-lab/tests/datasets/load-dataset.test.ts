@@ -22,14 +22,26 @@ describe('loadDataset', () => {
     await writeFile(
       file,
       JSON.stringify([
-        { format: 'json', solution_criteria: 'Returns valid JSON.', task: 'Generate JSON for X.' },
+        {
+          format: 'json',
+          prompt_inputs: { content: 'Extract JSON from this text.' },
+          scenario: 'JSON extraction',
+          solution_criteria: 'Returns valid JSON.',
+          task: 'Generate JSON for X.',
+        },
       ]),
     );
 
     const dataset = await loadDataset(file);
 
     expect(dataset).toEqual([
-      { format: 'json', solution_criteria: 'Returns valid JSON.', task: 'Generate JSON for X.' },
+      {
+        format: 'json',
+        prompt_inputs: { content: 'Extract JSON from this text.' },
+        scenario: 'JSON extraction',
+        solution_criteria: 'Returns valid JSON.',
+        task: 'Generate JSON for X.',
+      },
     ]);
   });
 

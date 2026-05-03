@@ -140,10 +140,17 @@ describe('gradeByModel', () => {
 
     expect(modelGraderResultSchema.safeParse({ ...base, score: 1 }).success).toBe(true);
     expect(modelGraderResultSchema.safeParse({ ...base, score: 10 }).success).toBe(true);
+    // Anthropic API rejects minimum/maximum on number types; range is enforced by Zod after parsing.
     expect(GRADER_JSON_SCHEMA).toMatchObject({
       properties: {
-        score: { maximum: 10, minimum: 1, type: 'number' },
+        score: { type: 'number' },
       },
     });
+    expect((GRADER_JSON_SCHEMA.properties as Record<string, unknown>).score).not.toHaveProperty(
+      'minimum',
+    );
+    expect((GRADER_JSON_SCHEMA.properties as Record<string, unknown>).score).not.toHaveProperty(
+      'maximum',
+    );
   });
 });

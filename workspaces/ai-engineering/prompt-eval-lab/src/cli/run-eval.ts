@@ -7,9 +7,10 @@ import { formatSummaryLines, summarize } from '../eval/summary.js';
 import { loadTemplate } from '../prompts/templates.js';
 import {
   defaultReportPath,
+  PASS_SCORE,
   type ReportPayload,
-  writeJsonReport,
-} from '../reports/write-json-report.js';
+  writeReport,
+} from '../reports/write-report.js';
 import type { CliOptions } from './args.js';
 
 export interface RunEvalIo {
@@ -46,22 +47,21 @@ export async function runEvalCli(options: CliOptions, io: RunEvalIo = {}): Promi
     log(line);
   }
 
-  if (options.outPath) {
-    const payload: ReportPayload = {
-      metadata: {
-        concurrency: options.concurrency,
-        datasetPath: options.datasetPath,
-        finishedAt: finishedAt.toISOString(),
-        model,
-        startedAt: startedAt.toISOString(),
-        templateName: options.templateName,
-      },
-      results,
-      summary,
-    };
+  const payload: ReportPayload = {
+    metadata: {
+      concurrency: options.concurrency,
+      datasetPath: options.datasetPath,
+      finishedAt: finishedAt.toISOString(),
+      model,
+      startedAt: startedAt.toISOString(),
+      templateName: options.templateName,
+    },
+    passScore: PASS_SCORE,
+    results,
+    summary,
+  };
 
-    const filePath = options.outPath || defaultReportPath('reports', finishedAt);
-    await writeJsonReport(filePath, payload);
-    log(`Wrote report to ${filePath}`);
-  }
+  const filePath = options.outPath ?? defaultReportPath('reports', finishedAt);
+  const format = await writeReport(filePath, payload);
+  log(`Wrote ${format.toUpperCase()} report to ${filePath}`);
 }
