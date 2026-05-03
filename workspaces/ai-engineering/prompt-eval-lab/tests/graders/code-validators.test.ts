@@ -33,6 +33,11 @@ describe('validateRegex', () => {
   it('rejects an unclosed character class', () => {
     expect(validateRegex('[unclosed')).toBe(0);
   });
+
+  it('rejects blank output', () => {
+    expect(validateRegex('')).toBe(0);
+    expect(validateRegex('  \n')).toBe(0);
+  });
 });
 
 describe('validateTypescript', () => {
@@ -48,6 +53,11 @@ describe('validateTypescript', () => {
 
   it('rejects a syntax error', () => {
     expect(validateTypescript('const x: number = ;')).toBe(0);
+  });
+
+  it('rejects blank output', () => {
+    expect(validateTypescript('')).toBe(0);
+    expect(validateTypescript('  \n')).toBe(0);
   });
 });
 

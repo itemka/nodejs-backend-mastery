@@ -15,8 +15,14 @@ export function validateJson(text: string): SyntaxScore {
 }
 
 export function validateRegex(text: string): SyntaxScore {
+  const pattern = text.trim();
+
+  if (!pattern) {
+    return 0;
+  }
+
   try {
-    new RegExp(text.trim());
+    new RegExp(pattern);
 
     return 10;
   } catch {
@@ -25,6 +31,10 @@ export function validateRegex(text: string): SyntaxScore {
 }
 
 export function validateTypescript(text: string): SyntaxScore {
+  if (!text.trim()) {
+    return 0;
+  }
+
   const result = ts.transpileModule(text, {
     compilerOptions: { module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2022 },
     reportDiagnostics: true,
