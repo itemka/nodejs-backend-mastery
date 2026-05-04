@@ -12,7 +12,6 @@ import { createAppToolExecutionContext } from '../tools/types.js';
 import type { AppTool, AppToolExecutionContext } from '../tools/types.js';
 import {
   addAssistantContent,
-  addAssistantMessage,
   addUserMessage,
   addUserToolResultMessage,
 } from './history.js';
@@ -81,7 +80,7 @@ export function createChatService(config: ChatServiceConfig): ChatService {
           console.log('Full response:', response.raw);
         }
 
-        addAssistantMessage(messages, response.text);
+        addAssistantContent(messages, contentFromResponse(response));
 
         return response.text;
       }
@@ -98,7 +97,7 @@ export function createChatService(config: ChatServiceConfig): ChatService {
         }
 
         if (response.stopReason !== 'tool_use') {
-          addAssistantMessage(messages, response.text);
+          addAssistantContent(messages, contentFromResponse(response));
           options.onToolEvent?.({ type: 'final_response_received' });
 
           return response.text;

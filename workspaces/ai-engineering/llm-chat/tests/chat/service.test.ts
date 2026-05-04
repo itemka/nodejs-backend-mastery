@@ -78,7 +78,7 @@ describe('chat service', () => {
     expect(answer).toBe('Hi');
     expect(messages).toEqual([
       { content: 'Hello', role: 'user' },
-      { content: 'Hi', role: 'assistant' },
+      { content: [{ text: 'Hi', type: 'text' }], role: 'assistant' },
     ]);
     expect(calls).toEqual([
       {
@@ -292,7 +292,7 @@ describe('chat service', () => {
         ],
         role: 'user',
       },
-      { content: 'It is noon.', role: 'assistant' },
+      { content: [{ text: 'It is noon.', type: 'text' }], role: 'assistant' },
     ]);
   });
 
