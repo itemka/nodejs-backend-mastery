@@ -1,6 +1,6 @@
 ---
 name: update-docs
-description: Use when updating README files, API examples, changelogs, migration notes, setup docs, developer workflows, or AI-agent guidance for Codex, Claude Code, Cursor, MCP, skills, agents, commands, hooks, prompts, or checklists.
+description: Documentation update workflow for READMEs, API examples, changelogs, migration notes, setup docs, developer workflows, and AI-agent guidance. Use when docs may be stale or need updates for Codex, Claude Code, Cursor, MCP, skills, agents, commands, hooks, prompts, or checklists.
 metadata:
   created: '2026-04-25'
   status: 'baseline'
@@ -74,7 +74,7 @@ Use this rule for AI tools, libraries, framework versions, CLIs, cloud APIs, sec
 Run this when the change touches AI-agent guidance (`.agents/`, `.claude/`, `.codex/`, `.cursor/`, `.github/`, `AGENTS.md`, `CLAUDE.md`, related context files, or any skill/agent/command/checklist/rule).
 
 1. Inspect the in-scope files plus their neighbors: `.agents/**`, `.claude/**`, `.codex/**`, `.cursor/**`, `.github/**`, `AGENTS.md`, `CLAUDE.md`.
-2. Run the `Freshness Window` above first. Check current official best practices before editing.
+2. Run the `Freshness Window` above first. Check current official best practices before editing; use the secondary skill-guidance source list in [.agents/README.md](../../README.md#secondary-skill-guidance-sources) only when needed.
 3. Compare the current layout against `AI-Agent Docs Layout` and the latest official guidance:
    - If official docs or recent best practices suggest a materially better folder or file structure, point it out explicitly, describe the trade-off, and recommend whether to keep or change the current structure. Do not silently restructure.
 4. Look for duplicated guidance across skills, commands, agents, checklists, rules, and tool adapters. Move durable content into the matching skill and leave other surfaces as thin pointers.
@@ -82,6 +82,7 @@ Run this when the change touches AI-agent guidance (`.agents/`, `.claude/`, `.co
 6. Look for overgrown files: rules longer than they need to be (always-loaded cost), commands restating workflows, role specs restating procedures, checklists that explain instead of check, or `.claude/`/other adapters copying skill bodies. Trim them.
 7. Apply cross-tool updates to `.agents/` first; update tool adapters as thin pointers afterward.
 8. Preserve frontmatter contracts: skill `name` matches its folder name; required adapter fields stay valid.
+9. For skill frontmatter, keep `description` under 1024 characters, describe both what the skill does and when to use it, and front-load the key use case and trigger words so shortened skill lists still route well.
 
 ## Workflow
 

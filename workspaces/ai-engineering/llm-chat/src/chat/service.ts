@@ -10,11 +10,7 @@ import type {
 import { executeToolUse } from '../tools/runner.js';
 import { createAppToolExecutionContext } from '../tools/types.js';
 import type { AppTool, AppToolExecutionContext } from '../tools/types.js';
-import {
-  addAssistantContent,
-  addUserMessage,
-  addUserToolResultMessage,
-} from './history.js';
+import { addAssistantContent, addUserMessage, addUserToolResultMessage } from './history.js';
 import type { ChatOptions, Messages } from './types.js';
 
 export const DEFAULT_MAX_TOKENS = 1000;

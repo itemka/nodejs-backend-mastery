@@ -1,6 +1,6 @@
 ---
 name: current-task-context
-description: Update docs/CURRENT_TASK_CONTEXT.md after meaningful codebase changes, debugging, reviews, investigations, or handoffs.
+description: Current task context handoff updates for docs/CURRENT_TASK_CONTEXT.md. Use after meaningful codebase changes, debugging, reviews, investigations, or handoffs.
 metadata:
   created: '2026-04-25'
   status: 'baseline'

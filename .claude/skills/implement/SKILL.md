@@ -1,6 +1,6 @@
 ---
 name: implement
-description: Use to implement focused code, documentation, or configuration changes while preserving existing architecture, contracts, tests, and validation discipline.
+description: Focused implementation workflow for code, documentation, and configuration changes. Use when making scoped changes that preserve architecture, contracts, tests, and validation discipline.
 argument-hint: '[task brief]'
 ---
 

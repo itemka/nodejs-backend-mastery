@@ -1,6 +1,6 @@
 ---
 name: designing-hooks
-description: Design, review, or adapt safe deterministic hooks for AI coding tools without adding risky or destructive automation.
+description: AI coding tool hook design and review for deterministic lifecycle automation. Use when designing, reviewing, or adapting hooks; avoid risky or destructive automation.
 argument-hint: '[hook goal or tool]'
 ---
 

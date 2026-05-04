@@ -92,16 +92,31 @@ locations and behavior:
 - Agent Skills open standard: <https://agentskills.io/specification>
 - Agent Skills best practices (open spec): <https://agentskills.io/skill-creation/best-practices>
 - Claude Code: <https://code.claude.com/docs>
-- Claude Code subagents: <https://code.claude.com/docs/en/sub-agents>
+- Claude Code skills: <https://code.claude.com/docs/en/skills>
+- Claude Code subagents: <https://code.claude.com/docs/en/subagents>
 - Claude Skill authoring best practices (vendor): <https://platform.claude.com/docs/en/agents-and-tools/agent-skills/best-practices>
 - OpenAI Codex: <https://developers.openai.com/codex>
-- Cursor: <https://cursor.com/docs>
+- Cursor rules and AGENTS.md: <https://docs.cursor.com/context/rules-for-ai>
 - AGENTS.md standard: <https://agents.md>
 
 When refreshing AI-agent guidance, also scan official changelogs, release
 notes, and dated best-practice pages. The recency-window rule for that
 refresh is owned by [skills/update-docs/SKILL.md](./skills/update-docs/SKILL.md);
 do not duplicate it elsewhere.
+
+### Secondary Skill-Guidance Sources
+
+Use these when the recency scan is insufficient, or when reviewing skill
+structure, best practices, or agent patterns more broadly. Treat the Agent
+Skills open standard as a portable-format reference; treat community examples
+as secondary context. Cross-check any guidance against official vendor docs
+before adopting it.
+
+- Agent Skills open standard best practices: <https://agentskills.io/skill-creation/best-practices>
+- Community examples: <https://github.com/obra/superpowers/tree/main>
+- Community examples: <https://github.com/addyosmani/agent-skills/>
+- Community directories: <https://skills.sh/>
+- Community directories: <https://mcp.directory/skills>
 
 ## Reuse In Another Project
 

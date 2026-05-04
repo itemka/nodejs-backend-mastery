@@ -1,6 +1,6 @@
 ---
 name: update-docs
-description: Use when updating README files, API examples, changelogs, migration notes, setup docs, developer workflows, or AI-agent guidance for Codex, Claude Code, Cursor, MCP, skills, agents, commands, hooks, prompts, or checklists.
+description: Documentation update workflow for READMEs, API examples, changelogs, migration notes, setup docs, developer workflows, and AI-agent guidance. Use when docs may be stale or need updates for Codex, Claude Code, Cursor, MCP, skills, agents, commands, hooks, prompts, or checklists.
 argument-hint: '[doc surface or change description]'
 ---
 

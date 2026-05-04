@@ -1,6 +1,6 @@
 ---
 name: validate
-description: Use before finishing work to choose and run relevant tests, typechecks, linting, formatting, builds, or focused verification commands. Triggered by "validate", "run the tests", "check this works", or finalizing a change.
+description: Validation workflow for tests, typechecks, linting, formatting, builds, and focused verification. Use before finishing changes or when asked to validate, run tests, or check work.
 metadata:
   created: '2026-04-25'
   status: 'baseline'
