@@ -22,11 +22,7 @@ export interface LlmUnknownBlock {
   readonly type: 'unknown';
 }
 
-export type LlmContentBlock =
-  | LlmTextBlock
-  | LlmToolUseBlock
-  | LlmToolResultBlock
-  | LlmUnknownBlock;
+export type LlmContentBlock = LlmTextBlock | LlmToolUseBlock | LlmToolResultBlock | LlmUnknownBlock;
 
 export interface LlmToolInputSchema {
   readonly type: 'object';
