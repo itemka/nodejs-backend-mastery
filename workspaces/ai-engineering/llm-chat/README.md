@@ -17,6 +17,10 @@ The `json` format uses Anthropic native structured outputs
 assistant message prefill. The `csv` and `html` formats use instruction-only
 formatting.
 
+Use `--tools` to enable local Claude tool-use turns. Tool mode is explicit
+because it can make extra model calls. For v1, tool mode cannot be combined
+with `--output-format=*` or `--structured-commands`.
+
 ## Run
 
 Create `.env` in this folder:
@@ -53,6 +57,35 @@ pnpm --filter llm-chat dev -- --output-format=csv
 pnpm --filter llm-chat dev -- --output-format=html
 ```
 
+Tool-use mode from the repository root:
+
+```bash
+pnpm --filter llm-chat dev -- --tools
+```
+
+Example prompts:
+
+- `What is the exact current time?`
+- `What date and time is 103 days from now?`
+- `Set a reminder for my dentist appointment tomorrow at 09:00.`
+
+When Claude requests a tool, the app appends the assistant `tool_use` message,
+runs the matching local tool in Node.js, appends a user message with matching
+`tool_result` blocks, and sends the updated history back to Claude. The loop
+continues until Claude returns a normal final response.
+
+Available v1 tools:
+
+- `get_current_datetime` - reads the app's current process clock.
+- `add_duration_to_datetime` - adds or subtracts seconds, minutes, hours, days,
+  weeks, months, or years from an ISO datetime.
+- `set_reminder` - stores a mock reminder in process memory only. It does not
+  persist reminders or schedule real notifications.
+
+Tool progress lines use the `[tool]` prefix. `--debug-response` still prints raw
+provider responses and should be treated as developer-only output, especially
+with sensitive prompts.
+
 The system prompt and temperature are currently hardcoded in `src/main.ts` as `SYSTEM_PROMPT` and `TEMPERATURE`.
 
 ## Source Map
@@ -61,4 +94,5 @@ The system prompt and temperature are currently hardcoded in `src/main.ts` as `S
 - `src/config/env.ts` - app-local `.env` path wrapper around the shared config loader.
 - `src/cli/` - argument parsing, readline input adapter, interactive loop.
 - `src/chat/` - chat types, message history helpers, chat service that orchestrates a turn.
+- `src/tools/` - app-local tool registry, runner, and mock tool implementations.
 - `../../packages/llm-client/src/` - provider-neutral types, config loader, provider factory, and Anthropic SDK adapter.

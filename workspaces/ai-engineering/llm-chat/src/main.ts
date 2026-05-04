@@ -7,6 +7,8 @@ import { helpText, parseArgs } from './cli/args.js';
 import { createReadlineInput } from './cli/readline.js';
 import { runChatbot } from './cli/run-chatbot.js';
 import { loadConfig, loadEnvironment } from './config/env.js';
+import { llmChatTools } from './tools/registry.js';
+import { createAppToolExecutionContext } from './tools/types.js';
 
 const SYSTEM_PROMPT = 'Answer as shortly as possible.';
 const TEMPERATURE = 0.2;
@@ -29,6 +31,8 @@ async function main(): Promise<void> {
     provider,
     systemPrompt: SYSTEM_PROMPT,
     temperature: TEMPERATURE,
+    toolContext: createAppToolExecutionContext(),
+    tools: llmChatTools,
   });
 
   const input = createReadlineInput();

@@ -108,4 +108,57 @@ describe('runChatbot', () => {
     expect(chunks).toEqual(['Hel', 'lo']);
     expect(outputs).toEqual(['', '']);
   });
+
+  it('passes tool options and renders tool progress through normal output', async () => {
+    const outputs: string[] = [];
+    const chunks: string[] = [];
+    const userInputs = ['What time is it?'];
+
+    await runChatbot({
+      input: () => {
+        const nextInput = userInputs.shift();
+
+        if (nextInput === undefined) {
+          throw new Error('No more input');
+        }
+
+        return Promise.resolve(nextInput);
+      },
+      output: (text) => {
+        outputs.push(text);
+      },
+      outputChunk: (text) => {
+        chunks.push(text);
+      },
+      runTurn: (messages, text, options) => {
+        expect(text).toBe('What time is it?');
+        expect(options.stream).toBe(false);
+        expect(options.toolsEnabled).toBe(true);
+        expect(options.onTextDelta).toBeUndefined();
+        expect(options.onToolEvent).toEqual(expect.any(Function));
+
+        addUserMessage(messages, text);
+        options.onToolEvent?.({ toolName: 'get_current_datetime', type: 'tool_requested' });
+        options.onToolEvent?.({ toolName: 'get_current_datetime', type: 'tool_running' });
+        options.onToolEvent?.({ toolName: 'get_current_datetime', type: 'tool_succeeded' });
+        options.onToolEvent?.({ count: 1, type: 'tool_results_submitted' });
+        options.onToolEvent?.({ type: 'final_response_received' });
+        addAssistantMessage(messages, 'It is noon.');
+
+        return Promise.resolve('It is noon.');
+      },
+      toolsEnabled: true,
+    });
+
+    expect(chunks).toEqual([]);
+    expect(outputs).toEqual([
+      '[tool] Claude requested get_current_datetime',
+      '[tool] Running get_current_datetime',
+      '[tool] get_current_datetime succeeded',
+      '[tool] Sending tool result to Claude',
+      '[tool] Final response received',
+      'It is noon.',
+      '',
+    ]);
+  });
 });

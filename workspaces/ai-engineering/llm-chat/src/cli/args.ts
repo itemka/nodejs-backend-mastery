@@ -45,7 +45,7 @@ export interface ParsedArgs {
 
 export function helpText(): string {
   return [
-    'Usage: pnpm dev [--max-tokens=<number>] [--debug-response] [--output-format=json|csv|html]',
+    'Usage: pnpm dev [--max-tokens=<number>] [--debug-response] [--output-format=json|csv|html] [--tools]',
     '',
     'Run the LLM chat app.',
     '',
@@ -54,6 +54,7 @@ export function helpText(): string {
     '  --debug-response        Print the full provider response object.',
     '  --output-format=<name>   Return a response formatted as json, csv, or html.',
     '  --structured-commands   Alias for --output-format=json.',
+    '  --tools                 Enable local app tools for Claude tool-use turns.',
     '  -h, --help              Show this help message.',
   ].join('\n');
 }
@@ -72,6 +73,11 @@ export function parseArgs(argv: readonly string[]): ParsedArgs {
 
     if (argument === '--debug-response') {
       options.debugResponse = true;
+      continue;
+    }
+
+    if (argument === '--tools') {
+      options.toolsEnabled = true;
       continue;
     }
 
@@ -97,6 +103,10 @@ export function parseArgs(argv: readonly string[]): ParsedArgs {
     }
 
     throw new Error(`Unknown argument: ${argument}`);
+  }
+
+  if (options.toolsEnabled === true && options.outputFormat !== undefined) {
+    throw new Error('--tools cannot be combined with --output-format or --structured-commands.');
   }
 
   return { options, shouldPrintHelp: false };

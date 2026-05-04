@@ -55,6 +55,18 @@ describe('parseArgs', () => {
     });
   });
 
+  it('parses --tools', () => {
+    expect(parseArgs(['--tools'])).toEqual({
+      options: { toolsEnabled: true },
+      shouldPrintHelp: false,
+    });
+  });
+
+  it('rejects --tools with structured output flags', () => {
+    expect(() => parseArgs(['--tools', '--output-format=json'])).toThrow(/cannot be combined/);
+    expect(() => parseArgs(['--structured-commands', '--tools'])).toThrow(/cannot be combined/);
+  });
+
   it('ignores the forwarded pnpm delimiter', () => {
     expect(parseArgs(['--', '--output-format=json']).options.outputFormat).toEqual({
       instructions:
@@ -86,5 +98,6 @@ describe('helpText', () => {
     expect(text).toContain('--debug-response');
     expect(text).toContain('--output-format');
     expect(text).toContain('--structured-commands');
+    expect(text).toContain('--tools');
   });
 });
