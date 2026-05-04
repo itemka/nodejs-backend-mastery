@@ -5,7 +5,7 @@ metadata:
   created: '2026-04-25'
   status: 'baseline'
   portability: 'cross-tool'
-  last-reviewed: '2026-04-26'
+  last-reviewed: '2026-05-05'
 ---
 
 # Update Docs
@@ -82,7 +82,9 @@ Run this when the change touches AI-agent guidance (`.agents/`, `.claude/`, `.co
 6. Look for overgrown files: rules longer than they need to be (always-loaded cost), commands restating workflows, role specs restating procedures, checklists that explain instead of check, or `.claude/`/other adapters copying skill bodies. Trim them.
 7. Apply cross-tool updates to `.agents/` first; update tool adapters as thin pointers afterward.
 8. Preserve frontmatter contracts: skill `name` matches its folder name; required adapter fields stay valid.
-9. For skill frontmatter, keep `description` under 1024 characters, describe both what the skill does and when to use it, and front-load the key use case and trigger words so shortened skill lists still route well.
+9. For portable skill frontmatter, keep `name` and `description` compatible with the Agent Skills open spec: folder-matching lowercase hyphenated `name`, `description` under the 1024-character limit, no XML tags, and a description that says what the skill does and when to use it.
+10. Write skill descriptions in third person, make them specific, and front-load the key use case and trigger words. For Claude Code adapters, the combined `description` plus optional `when_to_use` listing text is capped at 1,536 characters, so important routing terms must appear early.
+11. Keep product-specific skill metadata on the product-specific surface: Claude-only fields such as `argument-hint`, `when_to_use`, `arguments`, `disable-model-invocation`, or `user-invocable` belong in `.claude/skills/*/SKILL.md`; Codex-only UI, invocation-policy, or tool-dependency metadata belongs in `agents/openai.yaml` beside a skill only when the repo actually needs it. Do not add tool-specific fields to portable `.agents/skills/*/SKILL.md` unless deliberately documenting a product-specific skill.
 
 ## Workflow
 
