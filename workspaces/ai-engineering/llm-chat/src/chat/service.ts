@@ -3,6 +3,7 @@ import type {
   LlmProvider,
   LlmRequest,
   LlmResponse,
+  LlmToolInputStreamEvent,
   LlmToolResultBlock,
   LlmToolUseBlock,
 } from '@workspaces/packages/llm-client';
@@ -11,7 +12,7 @@ import { executeToolUse } from '../tools/runner.js';
 import { createAppToolExecutionContext } from '../tools/types.js';
 import type { AppTool, AppToolExecutionContext } from '../tools/types.js';
 import { addAssistantContent, addUserMessage, addUserToolResultMessage } from './history.js';
-import type { ChatOptions, Messages } from './types.js';
+import type { ChatOptions, Messages, ToolEventHandler } from './types.js';
 
 export const DEFAULT_MAX_TOKENS = 1000;
 export const DEFAULT_STREAM = true;
@@ -39,6 +40,33 @@ function contentFromResponse(response: LlmResponse): readonly LlmContentBlock[] 
   return response.content ?? [{ text: response.text, type: 'text' }];
 }
 
+function makeToolInputStreamEventHandler(
+  onToolEvent: ToolEventHandler,
+): (event: LlmToolInputStreamEvent) => void {
+  return (event: LlmToolInputStreamEvent) => {
+    switch (event.type) {
+      case 'tool_input_stream_started': {
+        onToolEvent({ toolName: event.name, type: 'tool_input_stream_started' });
+        break;
+      }
+
+      case 'tool_input_stream_completed': {
+        onToolEvent({ toolName: event.name, type: 'tool_input_stream_completed' });
+        break;
+      }
+
+      case 'tool_input_stream_failed': {
+        onToolEvent({ toolName: event.name, type: 'tool_input_stream_failed' });
+        break;
+      }
+
+      default: {
+        break;
+      }
+    }
+  };
+}
+
 export function createChatService(config: ChatServiceConfig): ChatService {
   const defaultMaxTokens = config.defaultMaxTokens ?? DEFAULT_MAX_TOKENS;
   const tools = config.tools ?? [];
@@ -49,12 +77,21 @@ export function createChatService(config: ChatServiceConfig): ChatService {
     options: ChatOptions,
     toolsEnabled: boolean,
   ): LlmRequest {
+    const fineGrainedToolStreaming = toolsEnabled && options.fineGrainedToolStreaming === true;
+    const streamValue = toolsEnabled
+      ? fineGrainedToolStreaming
+      : (options.stream ?? DEFAULT_STREAM);
+
     return {
       maxTokens: options.maxTokens ?? defaultMaxTokens,
       messages,
       model: config.model,
-      stream: toolsEnabled ? false : (options.stream ?? DEFAULT_STREAM),
+      stream: streamValue,
       ...(toolsEnabled ? { tools: tools.map((tool) => tool.definition) } : {}),
+      ...(fineGrainedToolStreaming ? { fineGrainedToolStreaming: true } : {}),
+      ...(fineGrainedToolStreaming && options.onToolEvent !== undefined
+        ? { onToolInputStreamEvent: makeToolInputStreamEventHandler(options.onToolEvent) }
+        : {}),
       ...(!toolsEnabled && options.onTextDelta ? { onTextDelta: options.onTextDelta } : {}),
       ...(options.outputFormat ? { outputFormat: options.outputFormat } : {}),
       ...(config.systemPrompt ? { systemPrompt: config.systemPrompt } : {}),

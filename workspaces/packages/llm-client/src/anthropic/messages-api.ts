@@ -12,10 +12,12 @@ import type {
   LlmProvider,
   LlmRequest,
   LlmResponse,
+  LlmTextBlock,
   LlmToolDefinition,
   LlmToolInputSchema,
 } from '../types.js';
 import { textFromMessage } from './text.js';
+import { accumulateToolInputStream } from './tool-input-stream.js';
 
 function toAnthropicInputSchema(schema: LlmToolInputSchema): Tool.InputSchema {
   const { required, ...rest } = schema;
@@ -26,12 +28,16 @@ function toAnthropicInputSchema(schema: LlmToolInputSchema): Tool.InputSchema {
   } as Tool.InputSchema;
 }
 
-export function toAnthropicTools(tools: readonly LlmToolDefinition[]): Tool[] {
+export function toAnthropicTools(
+  tools: readonly LlmToolDefinition[],
+  eagerInputStreaming = false,
+): Tool[] {
   return tools.map((tool) => ({
     input_schema: toAnthropicInputSchema(tool.inputSchema),
     name: tool.name,
     ...(tool.description === undefined ? {} : { description: tool.description }),
     ...(tool.inputExamples === undefined ? {} : { input_examples: [...tool.inputExamples] }),
+    ...(eagerInputStreaming ? { eager_input_streaming: true as const } : {}),
   }));
 }
 
@@ -103,6 +109,13 @@ function createLlmResponse(message: Message, text: string): LlmResponse {
   };
 }
 
+function textFromBlocks(blocks: readonly LlmContentBlock[]): string {
+  return blocks
+    .filter((b): b is LlmTextBlock => b.type === 'text')
+    .map((b) => b.text)
+    .join('\n');
+}
+
 export function createAnthropicProvider(client: Anthropic): LlmProvider {
   return {
     async createMessage(request: LlmRequest): Promise<LlmResponse> {
@@ -120,6 +133,12 @@ export function createAnthropicProvider(client: Anthropic): LlmProvider {
         requestMessages.push({ content: assistantPrefill, role: 'assistant' });
       }
 
+      const streamEnabled = request.stream ?? true;
+      const useFineGrainedStreaming =
+        streamEnabled &&
+        request.fineGrainedToolStreaming === true &&
+        (request.tools?.length ?? 0) > 0;
+
       const params = {
         max_tokens: request.maxTokens,
         messages: requestMessages,
@@ -129,13 +148,43 @@ export function createAnthropicProvider(client: Anthropic): LlmProvider {
           : {}),
         ...(system ? { system } : {}),
         ...(request.temperature === undefined ? {} : { temperature: request.temperature }),
-        ...(request.tools?.length ? { tools: toAnthropicTools(request.tools) } : {}),
+        ...(request.tools?.length
+          ? { tools: toAnthropicTools(request.tools, useFineGrainedStreaming) }
+          : {}),
         ...(jsonSchema === undefined
           ? {}
           : { output_config: { format: { schema: jsonSchema, type: 'json_schema' as const } } }),
       };
 
-      if (request.stream ?? true) {
+      if (useFineGrainedStreaming) {
+        if (assistantPrefill && request.onTextDelta) {
+          request.onTextDelta(assistantPrefill);
+        }
+
+        const stream = client.messages.stream(params);
+        const { blocks, stopReason } = await accumulateToolInputStream(
+          stream,
+          request.onTextDelta,
+          request.onToolInputStreamEvent,
+        );
+        const rawMessage = await stream.finalMessage();
+        const text = `${assistantPrefill}${textFromBlocks(blocks)}${responseSuffix}`;
+
+        if (responseSuffix && request.onTextDelta) {
+          request.onTextDelta(responseSuffix);
+        }
+
+        const resolvedStopReason = stopReason ?? rawMessage.stop_reason ?? undefined;
+
+        return {
+          content: blocks,
+          raw: rawMessage,
+          ...(resolvedStopReason === undefined ? {} : { stopReason: resolvedStopReason }),
+          text,
+        };
+      }
+
+      if (streamEnabled) {
         const stream = client.messages.stream(params);
 
         if (assistantPrefill && request.onTextDelta) {

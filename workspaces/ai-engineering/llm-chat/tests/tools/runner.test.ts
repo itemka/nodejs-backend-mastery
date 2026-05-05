@@ -47,6 +47,39 @@ describe('tool runner', () => {
     });
   });
 
+  it('returns an error result and does not execute the tool when inputError is set', async () => {
+    const tool: AppTool = {
+      definition: {
+        inputSchema: { type: 'object' },
+        name: 'echo_tool',
+      },
+      execute: vi.fn(),
+    };
+
+    const result = await executeToolUse(
+      {
+        id: 'toolu_bad',
+        input: {},
+        inputError: {
+          code: 'invalid_json',
+          message: 'Invalid tool input JSON received from provider.',
+        },
+        name: 'echo_tool',
+        type: 'tool_use',
+      },
+      [tool],
+      context,
+    );
+
+    expect(tool.execute).not.toHaveBeenCalled();
+    expect(result).toEqual({
+      content: '{"error":"Invalid tool input JSON received from provider."}',
+      is_error: true,
+      tool_use_id: 'toolu_bad',
+      type: 'tool_result',
+    });
+  });
+
   it('returns a sanitized error result for thrown validation errors', async () => {
     const tool: AppTool = {
       definition: {

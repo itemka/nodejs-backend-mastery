@@ -33,6 +33,10 @@ export async function executeToolUse(
   tools: readonly AppTool[],
   context: AppToolExecutionContext,
 ): Promise<LlmToolResultBlock> {
+  if (toolUse.inputError !== undefined) {
+    return createErrorResult(toolUse.id, toolUse.inputError.message);
+  }
+
   const tool = findToolByName(tools, toolUse.name);
 
   if (tool === undefined) {

@@ -11,6 +11,7 @@ export type TurnRunner = (
 
 export interface RunChatbotOptions {
   readonly debugResponse?: boolean;
+  readonly fineGrainedToolStreaming?: boolean;
   readonly input: InputFunction;
   readonly maxTokens?: number;
   readonly output?: OutputFunction;
@@ -44,6 +45,18 @@ function formatToolEvent(event: ToolEvent): string {
       : '[tool] Sending tool results to Claude';
   }
 
+  if (event.type === 'tool_input_stream_started') {
+    return `[tool] Streaming input for ${event.toolName}`;
+  }
+
+  if (event.type === 'tool_input_stream_completed') {
+    return '[tool] Tool input completed';
+  }
+
+  if (event.type === 'tool_input_stream_failed') {
+    return '[tool] Tool input streaming failed';
+  }
+
   return '[tool] Final response received';
 }
 
@@ -74,7 +87,10 @@ export async function runChatbot(options: RunChatbotOptions): Promise<Messages> 
       chatOptions.debugResponse = options.debugResponse;
     }
 
-    chatOptions.stream = options.toolsEnabled === true ? false : (options.stream ?? true);
+    const fineGrainedToolStreaming =
+      options.toolsEnabled === true && options.fineGrainedToolStreaming === true;
+    chatOptions.stream =
+      options.toolsEnabled === true ? fineGrainedToolStreaming : (options.stream ?? true);
 
     if (options.outputFormat) {
       chatOptions.outputFormat = options.outputFormat;
@@ -82,6 +98,10 @@ export async function runChatbot(options: RunChatbotOptions): Promise<Messages> 
 
     if (options.toolsEnabled === true) {
       chatOptions.toolsEnabled = true;
+
+      if (fineGrainedToolStreaming) {
+        chatOptions.fineGrainedToolStreaming = true;
+      }
 
       chatOptions.onToolEvent = (event) => {
         output(formatToolEvent(event));

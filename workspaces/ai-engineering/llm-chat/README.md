@@ -21,6 +21,16 @@ Use `--tools` to enable local Claude tool-use turns. Tool mode is explicit
 because it can make extra model calls. For v1, tool mode cannot be combined
 with `--output-format=*` or `--structured-commands`.
 
+Use `--fine-grained-tool-streaming` together with `--tools` to enable
+Anthropic fine-grained tool streaming. When active, the provider streams
+partial tool input JSON incrementally using `eager_input_streaming: true` on
+each user-defined tool. The app accumulates chunks and only executes the tool
+once the full input JSON is parsed after the `content_block_stop` event.
+Progress is reported through the normal `[tool]` output lines:
+`Streaming input for <tool>` and `Tool input completed`. If the streamed JSON
+is malformed (for example, cut off by `max_tokens`), the tool receives an
+error result and is not executed.
+
 ## Run
 
 Create `.env` in this folder:
@@ -61,6 +71,12 @@ Tool-use mode from the repository root:
 
 ```bash
 pnpm --filter llm-chat dev -- --tools
+```
+
+Fine-grained tool streaming mode:
+
+```bash
+pnpm --filter llm-chat dev -- --tools --fine-grained-tool-streaming
 ```
 
 Example prompts:
