@@ -1,11 +1,11 @@
 ---
 name: refactor
-description: Use to improve internal code structure without changing external behavior, public contracts, or user-facing outputs. Triggered by "refactor", "clean up", "extract", or "simplify".
+description: Refactoring workflow for improving internal code structure without changing external behavior, public contracts, or user-facing outputs. Use when asked to refactor, clean up, extract, or simplify.
 metadata:
   created: '2026-04-25'
   status: 'baseline'
   portability: 'cross-tool'
-  last-reviewed: '2026-04-26'
+  last-reviewed: '2026-05-05'
 ---
 
 # Refactor

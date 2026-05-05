@@ -1,6 +1,6 @@
 ---
 name: configuring-mcp
-description: Plan, review, or document safe MCP server usage and configuration boundaries for AI coding tools.
+description: MCP configuration and access-boundary review for AI coding tools. Use when planning, reviewing, or documenting MCP servers, external tool access, or MCP config.
 argument-hint: '[MCP server or external tool]'
 ---
 

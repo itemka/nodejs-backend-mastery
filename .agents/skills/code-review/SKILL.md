@@ -1,11 +1,11 @@
 ---
 name: code-review
-description: Use to review current code or a git diff for correctness, architecture, typing, security, tests, docs, maintainability, and release risk. Triggered by requests like "review this", "audit this diff", or "check for issues".
+description: Code review workflow for current code or git diffs covering correctness, architecture, typing, security, tests, docs, maintainability, and release risk. Use when asked to review, audit, or check for issues.
 metadata:
   created: '2026-04-25'
   status: 'baseline'
   portability: 'cross-tool'
-  last-reviewed: '2026-04-28'
+  last-reviewed: '2026-05-05'
 ---
 
 # Code Review

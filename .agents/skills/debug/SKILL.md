@@ -1,11 +1,11 @@
 ---
 name: debug
-description: Use to investigate failing tests, runtime errors, build errors, flaky behavior, or unclear regressions and fix the minimal root cause. Triggered by stack traces, failing CI, or "this isn't working".
+description: Debug failing tests, runtime errors, build errors, flaky behavior, and unclear regressions. Use when given stack traces, failing CI, symptoms, or "this isn't working".
 metadata:
   created: '2026-04-25'
   status: 'baseline'
   portability: 'cross-tool'
-  last-reviewed: '2026-04-26'
+  last-reviewed: '2026-05-05'
 ---
 
 # Debug

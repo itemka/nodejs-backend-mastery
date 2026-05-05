@@ -1,13 +1,112 @@
 import type Anthropic from '@anthropic-ai/sdk';
-import type { MessageParam } from '@anthropic-ai/sdk/resources/messages/messages';
+import type {
+  ContentBlock,
+  ContentBlockParam,
+  Message,
+  MessageParam,
+  Tool,
+} from '@anthropic-ai/sdk/resources/messages/messages';
 
-import type { LlmProvider, LlmRequest, LlmResponse } from '../types.js';
+import type {
+  LlmContentBlock,
+  LlmProvider,
+  LlmRequest,
+  LlmResponse,
+  LlmToolDefinition,
+  LlmToolInputSchema,
+} from '../types.js';
 import { textFromMessage } from './text.js';
+
+function toAnthropicInputSchema(schema: LlmToolInputSchema): Tool.InputSchema {
+  const { required, ...rest } = schema;
+
+  return {
+    ...rest,
+    ...(required === undefined ? {} : { required: [...required] }),
+  } as Tool.InputSchema;
+}
+
+export function toAnthropicTools(tools: readonly LlmToolDefinition[]): Tool[] {
+  return tools.map((tool) => ({
+    input_schema: toAnthropicInputSchema(tool.inputSchema),
+    name: tool.name,
+    ...(tool.description === undefined ? {} : { description: tool.description }),
+    ...(tool.inputExamples === undefined ? {} : { input_examples: [...tool.inputExamples] }),
+  }));
+}
+
+function toAnthropicContentBlock(block: LlmContentBlock): ContentBlockParam {
+  if (block.type === 'text') {
+    return { text: block.text, type: 'text' };
+  }
+
+  if (block.type === 'tool_use') {
+    return {
+      id: block.id,
+      input: block.input,
+      name: block.name,
+      type: 'tool_use',
+    };
+  }
+
+  if (block.type === 'tool_result') {
+    return {
+      content: block.content,
+      tool_use_id: block.tool_use_id,
+      type: 'tool_result',
+      ...(block.is_error === undefined ? {} : { is_error: block.is_error }),
+    };
+  }
+
+  throw new Error(
+    'Cannot send an unknown content block to Anthropic. Update LlmContentBlock or strip unknown blocks before reuse.',
+  );
+}
+
+export function toAnthropicMessages(messages: LlmRequest['messages']): MessageParam[] {
+  return messages.map((message) => ({
+    content:
+      typeof message.content === 'string'
+        ? message.content
+        : message.content.map((block) => toAnthropicContentBlock(block)),
+    role: message.role,
+  }));
+}
+
+function fromAnthropicContentBlock(block: ContentBlock): LlmContentBlock {
+  if (block.type === 'text') {
+    return { text: block.text, type: 'text' };
+  }
+
+  if (block.type === 'tool_use') {
+    return {
+      id: block.id,
+      input: block.input,
+      name: block.name,
+      type: 'tool_use',
+    };
+  }
+
+  return { raw: block, type: 'unknown' };
+}
+
+export function contentFromAnthropicMessage(message: Message): LlmContentBlock[] {
+  return message.content.map((block) => fromAnthropicContentBlock(block));
+}
+
+function createLlmResponse(message: Message, text: string): LlmResponse {
+  return {
+    content: contentFromAnthropicMessage(message),
+    raw: message,
+    ...(message.stop_reason ? { stopReason: message.stop_reason } : {}),
+    text,
+  };
+}
 
 export function createAnthropicProvider(client: Anthropic): LlmProvider {
   return {
     async createMessage(request: LlmRequest): Promise<LlmResponse> {
-      const requestMessages: MessageParam[] = request.messages.map((message) => ({ ...message }));
+      const requestMessages = toAnthropicMessages(request.messages);
       const jsonSchema = request.outputFormat?.jsonSchema;
       const assistantPrefill =
         jsonSchema === undefined ? (request.outputFormat?.assistantPrefill ?? '') : '';
@@ -30,6 +129,7 @@ export function createAnthropicProvider(client: Anthropic): LlmProvider {
           : {}),
         ...(system ? { system } : {}),
         ...(request.temperature === undefined ? {} : { temperature: request.temperature }),
+        ...(request.tools?.length ? { tools: toAnthropicTools(request.tools) } : {}),
         ...(jsonSchema === undefined
           ? {}
           : { output_config: { format: { schema: jsonSchema, type: 'json_schema' as const } } }),
@@ -53,18 +153,15 @@ export function createAnthropicProvider(client: Anthropic): LlmProvider {
           request.onTextDelta(responseSuffix);
         }
 
-        return {
-          raw: message,
-          text,
-        };
+        return createLlmResponse(message, text);
       }
 
       const message = await client.messages.create(params);
 
-      return {
-        raw: message,
-        text: `${assistantPrefill}${textFromMessage(message)}${responseSuffix}`,
-      };
+      return createLlmResponse(
+        message,
+        `${assistantPrefill}${textFromMessage(message)}${responseSuffix}`,
+      );
     },
   };
 }

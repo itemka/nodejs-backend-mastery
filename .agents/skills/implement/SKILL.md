@@ -1,11 +1,11 @@
 ---
 name: implement
-description: Use to implement focused code, documentation, or configuration changes while preserving existing architecture, contracts, tests, and validation discipline.
+description: Focused implementation workflow for code, documentation, and configuration changes. Use when making scoped changes that preserve architecture, contracts, tests, and validation discipline.
 metadata:
   created: '2026-04-25'
   status: 'baseline'
   portability: 'cross-tool'
-  last-reviewed: '2026-04-26'
+  last-reviewed: '2026-05-05'
 ---
 
 # Implement

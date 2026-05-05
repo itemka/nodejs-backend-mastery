@@ -1,11 +1,11 @@
 ---
 name: plan
-description: Use to turn a vague or multi-step software task into a clear implementation plan with scope, files, risks, and validation before coding. Direct invocations such as "plan this", "/plan", or "create a plan" create or update a docs/plan-*.md file.
+description: Implementation planning for vague or multi-step software tasks. Use when asked to plan, /plan, or create a docs/plan-*.md file with scope, files, risks, and validation.
 metadata:
   created: '2026-04-25'
   status: 'baseline'
   portability: 'cross-tool'
-  last-reviewed: '2026-04-26'
+  last-reviewed: '2026-05-05'
 ---
 
 # Plan

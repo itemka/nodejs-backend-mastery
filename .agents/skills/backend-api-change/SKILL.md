@@ -1,11 +1,11 @@
 ---
 name: backend-api-change
-description: Use when adding or changing backend HTTP routes, handlers, controllers, services, middleware, request/response schemas, validation, status codes, or API error contracts.
+description: Backend API route and contract changes for HTTP handlers, controllers, services, middleware, request/response schemas, validation, status codes, and API errors. Use when adding or changing backend API behavior.
 metadata:
   created: '2026-04-25'
   status: 'baseline'
   portability: 'cross-tool'
-  last-reviewed: '2026-04-26'
+  last-reviewed: '2026-05-05'
 ---
 
 # Backend API Change

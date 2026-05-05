@@ -1,4 +1,4 @@
-import type { ChatOptions, Messages } from '../chat/types.js';
+import type { ChatOptions, Messages, ToolEvent } from '../chat/types.js';
 
 export type InputFunction = (prompt: string) => Promise<string>;
 export type OutputFunction = (text: string) => void;
@@ -18,6 +18,33 @@ export interface RunChatbotOptions {
   readonly outputFormat?: ChatOptions['outputFormat'];
   readonly runTurn: TurnRunner;
   readonly stream?: boolean;
+  readonly toolsEnabled?: boolean;
+}
+
+function formatToolEvent(event: ToolEvent): string {
+  if (event.type === 'tool_requested') {
+    return `[tool] Claude requested ${event.toolName}`;
+  }
+
+  if (event.type === 'tool_running') {
+    return `[tool] Running ${event.toolName}`;
+  }
+
+  if (event.type === 'tool_succeeded') {
+    return `[tool] ${event.toolName} succeeded`;
+  }
+
+  if (event.type === 'tool_failed') {
+    return `[tool] ${event.toolName} failed`;
+  }
+
+  if (event.type === 'tool_results_submitted') {
+    return event.count === 1
+      ? '[tool] Sending tool result to Claude'
+      : '[tool] Sending tool results to Claude';
+  }
+
+  return '[tool] Final response received';
 }
 
 export async function runChatbot(options: RunChatbotOptions): Promise<Messages> {
@@ -47,17 +74,25 @@ export async function runChatbot(options: RunChatbotOptions): Promise<Messages> 
       chatOptions.debugResponse = options.debugResponse;
     }
 
-    chatOptions.stream = options.stream ?? true;
+    chatOptions.stream = options.toolsEnabled === true ? false : (options.stream ?? true);
 
     if (options.outputFormat) {
       chatOptions.outputFormat = options.outputFormat;
     }
 
-    chatOptions.onTextDelta = (text) => {
-      didStreamText = true;
+    if (options.toolsEnabled === true) {
+      chatOptions.toolsEnabled = true;
 
-      outputChunk(text);
-    };
+      chatOptions.onToolEvent = (event) => {
+        output(formatToolEvent(event));
+      };
+    } else {
+      chatOptions.onTextDelta = (text) => {
+        didStreamText = true;
+
+        outputChunk(text);
+      };
+    }
 
     const answer = await options.runTurn(messages, userInput, chatOptions);
 

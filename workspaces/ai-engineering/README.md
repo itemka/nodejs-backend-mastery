@@ -6,5 +6,5 @@ Examples build on top of [`@workspaces/packages/llm-client`](../packages/llm-cli
 
 ## Examples
 
-- [llm-chat](./llm-chat/) — interactive LLM chat CLI with multi-turn history, streaming, and structured output formats (JSON/CSV/HTML).
+- [llm-chat](./llm-chat/) — interactive LLM chat CLI with multi-turn history, streaming, structured output formats (JSON/CSV/HTML), and optional Claude tool-use mode.
 - [prompt-eval-lab](./prompt-eval-lab/) — automated prompt-evaluation pipeline that loads a JSON dataset, calls the model, and grades each response with a model-based grader plus code-based syntax validators.

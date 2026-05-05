@@ -186,4 +186,162 @@ describe('createAnthropicProvider', () => {
       model: DEFAULT_MODEL,
     });
   });
+
+  it('sends tool definitions and block-array messages, then preserves tool-use responses', async () => {
+    const create = vi.fn().mockResolvedValue({
+      content: [
+        {
+          id: 'toolu_123',
+          input: { format: 'iso' },
+          name: 'get_current_datetime',
+          type: 'tool_use',
+        },
+      ],
+      stop_reason: 'tool_use',
+    });
+    const client = { messages: { create } } as unknown as Anthropic;
+
+    const provider = createAnthropicProvider(client);
+    const response = await provider.createMessage({
+      maxTokens: 100,
+      messages: [
+        { content: 'What time is it?', role: 'user' },
+        {
+          content: [
+            {
+              id: 'toolu_previous',
+              input: {},
+              name: 'get_current_datetime',
+              type: 'tool_use',
+            },
+          ],
+          role: 'assistant',
+        },
+        {
+          content: [
+            {
+              content: '{"iso_datetime":"2026-05-04T12:00:00.000Z"}',
+              tool_use_id: 'toolu_previous',
+              type: 'tool_result',
+            },
+          ],
+          role: 'user',
+        },
+      ],
+      model: DEFAULT_MODEL,
+      stream: false,
+      tools: [
+        {
+          description: 'Get the current date and time.',
+          inputExamples: [{ format: 'iso' }],
+          inputSchema: {
+            additionalProperties: false,
+            properties: {
+              format: { enum: ['iso'], type: 'string' },
+            },
+            required: ['format'],
+            type: 'object',
+          },
+          name: 'get_current_datetime',
+        },
+      ],
+    });
+
+    expect(response.content).toEqual([
+      {
+        id: 'toolu_123',
+        input: { format: 'iso' },
+        name: 'get_current_datetime',
+        type: 'tool_use',
+      },
+    ]);
+    expect(response.stopReason).toBe('tool_use');
+    expect(create).toHaveBeenCalledWith({
+      max_tokens: 100,
+      messages: [
+        { content: 'What time is it?', role: 'user' },
+        {
+          content: [
+            {
+              id: 'toolu_previous',
+              input: {},
+              name: 'get_current_datetime',
+              type: 'tool_use',
+            },
+          ],
+          role: 'assistant',
+        },
+        {
+          content: [
+            {
+              content: '{"iso_datetime":"2026-05-04T12:00:00.000Z"}',
+              tool_use_id: 'toolu_previous',
+              type: 'tool_result',
+            },
+          ],
+          role: 'user',
+        },
+      ],
+      model: DEFAULT_MODEL,
+      tools: [
+        {
+          description: 'Get the current date and time.',
+          input_examples: [{ format: 'iso' }],
+          input_schema: {
+            additionalProperties: false,
+            properties: {
+              format: { enum: ['iso'], type: 'string' },
+            },
+            required: ['format'],
+            type: 'object',
+          },
+          name: 'get_current_datetime',
+        },
+      ],
+    });
+  });
+
+  it('preserves unknown response blocks as passthrough so downstream paths fail loudly', async () => {
+    const thinkingBlock = { signature: 'sig', thinking: 'reasoning...', type: 'thinking' };
+    const create = vi.fn().mockResolvedValue({
+      content: [thinkingBlock, { text: 'Hello', type: 'text' }],
+      stop_reason: 'end_turn',
+    });
+    const client = { messages: { create } } as unknown as Anthropic;
+
+    const provider = createAnthropicProvider(client);
+    const response = await provider.createMessage({
+      maxTokens: 100,
+      messages: [{ content: 'Hi', role: 'user' }],
+      model: DEFAULT_MODEL,
+      stream: false,
+    });
+
+    expect(response.content).toEqual([
+      { raw: thinkingBlock, type: 'unknown' },
+      { text: 'Hello', type: 'text' },
+    ]);
+  });
+
+  it('throws when an unknown content block is sent back to the API', async () => {
+    const create = vi.fn();
+    const client = { messages: { create } } as unknown as Anthropic;
+
+    const provider = createAnthropicProvider(client);
+
+    await expect(
+      provider.createMessage({
+        maxTokens: 100,
+        messages: [
+          {
+            content: [{ raw: { type: 'thinking' }, type: 'unknown' }],
+            role: 'assistant',
+          },
+        ],
+        model: DEFAULT_MODEL,
+        stream: false,
+      }),
+    ).rejects.toThrow(/unknown content block/);
+    expect(create).not.toHaveBeenCalled();
+  });
 });
