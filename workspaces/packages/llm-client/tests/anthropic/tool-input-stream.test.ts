@@ -288,7 +288,7 @@ describe('accumulateToolInputStream', () => {
     expect(chunks).toEqual(['Hello ', 'world']);
   });
 
-  it('preserves unknown content blocks as unknown type', async () => {
+  it('preserves unknown content blocks as { block, deltas } with an empty deltas array when no deltas arrive', async () => {
     const thinkingBlock = { signature: 'sig', thinking: 'reasoning...', type: 'thinking' };
     const stream = makeStream([
       { content_block: thinkingBlock, index: 0, type: 'content_block_start' },
@@ -297,7 +297,25 @@ describe('accumulateToolInputStream', () => {
 
     const { blocks } = await accumulateToolInputStream(stream);
 
-    expect(blocks).toEqual([{ raw: thinkingBlock, type: 'unknown' }]);
+    expect(blocks).toEqual([{ raw: { block: thinkingBlock, deltas: [] }, type: 'unknown' }]);
+  });
+
+  it('accumulates raw deltas for unknown blocks so no stream data is dropped', async () => {
+    const startBlock = { thinking: '', type: 'thinking' };
+    const thinkingDelta = { thinking: 'step 1', type: 'thinking_delta' };
+    const signatureDelta = { signature: 'ABC123', type: 'signature_delta' };
+    const stream = makeStream([
+      { content_block: startBlock, index: 0, type: 'content_block_start' },
+      { delta: thinkingDelta, index: 0, type: 'content_block_delta' },
+      { delta: signatureDelta, index: 0, type: 'content_block_delta' },
+      { index: 0, type: 'content_block_stop' },
+    ] as unknown as MessageStreamEvent[]);
+
+    const { blocks } = await accumulateToolInputStream(stream);
+
+    expect(blocks).toEqual([
+      { raw: { block: startBlock, deltas: [thinkingDelta, signatureDelta] }, type: 'unknown' },
+    ]);
   });
 
   it('includes parsed tool_use blocks, text blocks, and stopReason in the result', async () => {

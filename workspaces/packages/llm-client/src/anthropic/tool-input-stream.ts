@@ -18,6 +18,7 @@ interface ToolUseState {
 }
 
 interface UnknownState {
+  deltas: unknown[];
   raw: unknown;
   type: 'unknown';
 }
@@ -53,7 +54,7 @@ export async function accumulateToolInputStream(
           });
           onToolInputStreamEvent?.({ name: content_block.name, type: 'tool_input_stream_started' });
         } else {
-          blockStates.set(index, { raw: content_block, type: 'unknown' });
+          blockStates.set(index, { deltas: [], raw: content_block, type: 'unknown' });
         }
 
         break;
@@ -67,6 +68,8 @@ export async function accumulateToolInputStream(
           onTextDelta?.(event.delta.text);
         } else if (state?.type === 'tool_use' && event.delta.type === 'input_json_delta') {
           state.jsonBuffer += event.delta.partial_json;
+        } else if (state?.type === 'unknown') {
+          state.deltas.push(event.delta);
         }
 
         break;
@@ -142,7 +145,7 @@ export async function accumulateToolInputStream(
         });
       }
     } else {
-      blocks.push({ raw: state.raw, type: 'unknown' });
+      blocks.push({ raw: { block: state.raw, deltas: state.deltas }, type: 'unknown' });
     }
   }
 
