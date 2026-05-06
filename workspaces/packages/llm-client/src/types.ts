@@ -40,12 +40,23 @@ export interface LlmToolInputSchema {
   readonly [key: string]: unknown;
 }
 
-export interface LlmToolDefinition {
+export interface LlmCustomToolDefinition {
+  readonly kind?: 'custom';
   readonly description?: string;
   readonly inputExamples?: readonly Record<string, unknown>[];
   readonly inputSchema: LlmToolInputSchema;
   readonly name: string;
 }
+
+export interface LlmAnthropicTextEditorToolDefinition {
+  readonly kind: 'anthropic_builtin';
+  readonly maxCharacters?: number;
+  readonly name: 'str_replace_based_edit_tool';
+  readonly provider: 'anthropic';
+  readonly type: 'text_editor_20250728';
+}
+
+export type LlmToolDefinition = LlmCustomToolDefinition | LlmAnthropicTextEditorToolDefinition;
 
 export interface ChatMessage {
   content: string | readonly LlmContentBlock[];

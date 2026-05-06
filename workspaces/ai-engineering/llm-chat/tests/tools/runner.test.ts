@@ -80,6 +80,95 @@ describe('tool runner', () => {
     });
   });
 
+  it('routes a tool_use call to a matching client runtime when one is registered', async () => {
+    const customTool: AppTool = {
+      definition: { inputSchema: { type: 'object' }, name: 'my_tool' },
+      execute: vi.fn().mockReturnValue({ ok: true }),
+    };
+    const clientRuntime = {
+      execute: vi.fn().mockResolvedValue({
+        content: '{"path":"x"}',
+        tool_use_id: 'use_X',
+        type: 'tool_result' as const,
+      }),
+      toolName: 'str_replace_based_edit_tool',
+    };
+
+    const result = await executeToolUse(
+      {
+        id: 'use_X',
+        input: { command: 'view', path: 'x' },
+        name: 'str_replace_based_edit_tool',
+        type: 'tool_use',
+      },
+      [customTool],
+      context,
+      [clientRuntime],
+    );
+
+    expect(clientRuntime.execute).toHaveBeenCalledTimes(1);
+    expect(customTool.execute).not.toHaveBeenCalled();
+    expect(result.tool_use_id).toBe('use_X');
+  });
+
+  it('returns a sanitized error result when a client runtime fails', async () => {
+    const customTool: AppTool = {
+      definition: { inputSchema: { type: 'object' }, name: 'my_tool' },
+      execute: vi.fn(),
+    };
+    const clientRuntime = {
+      execute: vi.fn().mockRejectedValue(new Error('runtime failed\n    at internal stack frame')),
+      toolName: 'str_replace_based_edit_tool',
+    };
+
+    const result = await executeToolUse(
+      {
+        id: 'use_runtime_error',
+        input: { command: 'view', path: 'x' },
+        name: 'str_replace_based_edit_tool',
+        type: 'tool_use',
+      },
+      [customTool],
+      context,
+      [clientRuntime],
+    );
+
+    expect(clientRuntime.execute).toHaveBeenCalledOnce();
+    expect(customTool.execute).not.toHaveBeenCalled();
+    expect(result).toEqual({
+      content: '{"error":"runtime failed"}',
+      is_error: true,
+      tool_use_id: 'use_runtime_error',
+      type: 'tool_result',
+    });
+  });
+
+  it('does not let client runtimes intercept normal custom tool calls', async () => {
+    const customTool: AppTool = {
+      definition: { inputSchema: { type: 'object' }, name: 'my_tool' },
+      execute: vi.fn().mockReturnValue({ ok: true }),
+    };
+    const clientRuntime = {
+      execute: vi.fn(),
+      toolName: 'str_replace_based_edit_tool',
+    };
+
+    const result = await executeToolUse(
+      { id: 'use_Y', input: {}, name: 'my_tool', type: 'tool_use' },
+      [customTool],
+      context,
+      [clientRuntime],
+    );
+
+    expect(clientRuntime.execute).not.toHaveBeenCalled();
+    expect(customTool.execute).toHaveBeenCalledOnce();
+    expect(result).toEqual({
+      content: '{"ok":true}',
+      tool_use_id: 'use_Y',
+      type: 'tool_result',
+    });
+  });
+
   it('returns a sanitized error result for thrown validation errors', async () => {
     const tool: AppTool = {
       definition: {

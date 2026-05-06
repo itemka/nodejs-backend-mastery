@@ -3,12 +3,14 @@ import type {
   LlmProvider,
   LlmRequest,
   LlmResponse,
+  LlmToolDefinition,
   LlmToolInputStreamEvent,
   LlmToolResultBlock,
   LlmToolUseBlock,
 } from '@workspaces/packages/llm-client';
 
 import { executeToolUse } from '../tools/runner.js';
+import type { ClientToolRuntime } from '../tools/runner.js';
 import { createAppToolExecutionContext } from '../tools/types.js';
 import type { AppTool, AppToolExecutionContext } from '../tools/types.js';
 import { addAssistantContent, addUserMessage, addUserToolResultMessage } from './history.js';
@@ -18,7 +20,13 @@ export const DEFAULT_MAX_TOKENS = 1000;
 export const DEFAULT_STREAM = true;
 export const DEFAULT_MAX_TOOL_ROUNDS = 5;
 
+export interface BuiltinClientTool {
+  readonly definition: LlmToolDefinition;
+  readonly runtime: ClientToolRuntime;
+}
+
 export interface ChatServiceConfig {
+  readonly builtinClientTools?: readonly BuiltinClientTool[];
   readonly defaultMaxTokens?: number;
   readonly model: string;
   readonly provider: LlmProvider;
@@ -70,7 +78,16 @@ function makeToolInputStreamEventHandler(
 export function createChatService(config: ChatServiceConfig): ChatService {
   const defaultMaxTokens = config.defaultMaxTokens ?? DEFAULT_MAX_TOKENS;
   const tools = config.tools ?? [];
+  const builtinClientTools = config.builtinClientTools ?? [];
+  const clientRuntimes = builtinClientTools.map((tool) => tool.runtime);
   const toolContext = config.toolContext ?? createAppToolExecutionContext();
+
+  function buildToolDefinitions(): readonly LlmToolDefinition[] {
+    const customDefinitions = tools.map((tool) => tool.definition);
+    const builtinDefinitions = builtinClientTools.map((tool) => tool.definition);
+
+    return [...customDefinitions, ...builtinDefinitions];
+  }
 
   function createRequest(
     messages: Messages,
@@ -87,7 +104,7 @@ export function createChatService(config: ChatServiceConfig): ChatService {
       messages,
       model: config.model,
       stream: streamValue,
-      ...(toolsEnabled ? { tools: tools.map((tool) => tool.definition) } : {}),
+      ...(toolsEnabled ? { tools: buildToolDefinitions() } : {}),
       ...(fineGrainedToolStreaming ? { fineGrainedToolStreaming: true } : {}),
       ...(fineGrainedToolStreaming && options.onToolEvent !== undefined
         ? { onToolInputStreamEvent: makeToolInputStreamEventHandler(options.onToolEvent) }
@@ -158,7 +175,7 @@ export function createChatService(config: ChatServiceConfig): ChatService {
         for (const toolUse of toolUseBlocks) {
           options.onToolEvent?.({ toolName: toolUse.name, type: 'tool_running' });
 
-          const result = await executeToolUse(toolUse, tools, toolContext);
+          const result = await executeToolUse(toolUse, tools, toolContext, clientRuntimes);
 
           options.onToolEvent?.({
             toolName: toolUse.name,

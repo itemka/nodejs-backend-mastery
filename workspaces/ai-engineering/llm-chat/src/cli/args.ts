@@ -2,6 +2,15 @@ import type { OutputFormatConfig } from '@workspaces/packages/llm-client';
 
 import type { ChatOptions } from '../chat/types.js';
 
+export interface EditFilesConfig {
+  readonly textEditorMaxCharacters?: number;
+  readonly workspaceRoot?: string;
+}
+
+export interface ParsedOptions extends ChatOptions {
+  editFiles?: EditFilesConfig;
+}
+
 export const OUTPUT_FORMAT_PRESETS = {
   csv: {
     instructions:
@@ -39,29 +48,45 @@ function parseOutputFormat(value: string): OutputFormatConfig {
 }
 
 export interface ParsedArgs {
-  readonly options: ChatOptions;
+  readonly options: ParsedOptions;
   readonly shouldPrintHelp: boolean;
 }
 
 export function helpText(): string {
   return [
-    'Usage: pnpm dev [--max-tokens=<number>] [--debug-response] [--output-format=json|csv|html] [--tools] [--fine-grained-tool-streaming]',
+    'Usage: pnpm dev [--max-tokens=<number>] [--debug-response] [--output-format=json|csv|html] [--tools] [--fine-grained-tool-streaming] [--edit-files] [--workspace-root=<path>] [--text-editor-max-characters=<number>]',
     '',
     'Run the LLM chat app.',
     '',
     'Options:',
-    '  --max-tokens=<number>          Maximum number of output tokens per turn.',
-    '  --debug-response               Print the full provider response object.',
-    '  --output-format=<name>         Return a response formatted as json, csv, or html.',
-    '  --structured-commands          Alias for --output-format=json.',
-    '  --tools                        Enable local app tools for Claude tool-use turns.',
-    '  --fine-grained-tool-streaming  Stream tool input JSON incrementally (requires --tools).',
-    '  -h, --help                     Show this help message.',
+    '  --max-tokens=<number>                 Maximum number of output tokens per turn.',
+    '  --debug-response                      Print the full provider response object.',
+    '  --output-format=<name>                Return a response formatted as json, csv, or html.',
+    '  --structured-commands                 Alias for --output-format=json.',
+    '  --tools                               Enable local app tools for Claude tool-use turns.',
+    '  --fine-grained-tool-streaming         Stream tool input JSON incrementally (requires --tools).',
+    '  --edit-files                          Enable Anthropic Text Editor Tool (requires --tools).',
+    '  --workspace-root=<path>               Allowed filesystem root for --edit-files (default: current working directory).',
+    '  --text-editor-max-characters=<number> Optional max characters for view operations.',
+    '  -h, --help                            Show this help message.',
   ].join('\n');
 }
 
+function parsePositiveInteger(raw: string, flag: string): number {
+  const value = Number(raw);
+
+  if (!Number.isInteger(value) || value <= 0) {
+    throw new Error(`${flag} must be a positive integer.`);
+  }
+
+  return value;
+}
+
 export function parseArgs(argv: readonly string[]): ParsedArgs {
-  const options: ChatOptions = {};
+  const options: ParsedOptions = {};
+  let editFilesEnabled = false;
+  let workspaceRoot: string | undefined;
+  let textEditorMaxCharacters: number | undefined;
 
   for (const argument of argv) {
     if (argument === '--') {
@@ -87,6 +112,11 @@ export function parseArgs(argv: readonly string[]): ParsedArgs {
       continue;
     }
 
+    if (argument === '--edit-files') {
+      editFilesEnabled = true;
+      continue;
+    }
+
     if (argument === '--structured-commands') {
       options.outputFormat = OUTPUT_FORMAT_PRESETS.json;
       continue;
@@ -98,13 +128,29 @@ export function parseArgs(argv: readonly string[]): ParsedArgs {
     }
 
     if (argument.startsWith('--max-tokens=')) {
-      const value = Number(argument.slice('--max-tokens='.length));
+      options.maxTokens = parsePositiveInteger(
+        argument.slice('--max-tokens='.length),
+        '--max-tokens',
+      );
+      continue;
+    }
 
-      if (!Number.isInteger(value) || value <= 0) {
-        throw new Error('--max-tokens must be a positive integer.');
+    if (argument.startsWith('--workspace-root=')) {
+      const value = argument.slice('--workspace-root='.length);
+
+      if (value === '') {
+        throw new Error('--workspace-root must be a non-empty path.');
       }
 
-      options.maxTokens = value;
+      workspaceRoot = value;
+      continue;
+    }
+
+    if (argument.startsWith('--text-editor-max-characters=')) {
+      textEditorMaxCharacters = parsePositiveInteger(
+        argument.slice('--text-editor-max-characters='.length),
+        '--text-editor-max-characters',
+      );
       continue;
     }
 
@@ -117,6 +163,29 @@ export function parseArgs(argv: readonly string[]): ParsedArgs {
 
   if (options.fineGrainedToolStreaming === true && options.toolsEnabled !== true) {
     throw new Error('--fine-grained-tool-streaming requires --tools.');
+  }
+
+  if (editFilesEnabled && options.toolsEnabled !== true) {
+    throw new Error('--edit-files requires --tools.');
+  }
+
+  if (editFilesEnabled && options.fineGrainedToolStreaming === true) {
+    throw new Error('--edit-files cannot be combined with --fine-grained-tool-streaming in v1.');
+  }
+
+  if (!editFilesEnabled && workspaceRoot !== undefined) {
+    throw new Error('--workspace-root requires --edit-files.');
+  }
+
+  if (!editFilesEnabled && textEditorMaxCharacters !== undefined) {
+    throw new Error('--text-editor-max-characters requires --edit-files.');
+  }
+
+  if (editFilesEnabled) {
+    options.editFiles = {
+      ...(textEditorMaxCharacters === undefined ? {} : { textEditorMaxCharacters }),
+      ...(workspaceRoot === undefined ? {} : { workspaceRoot }),
+    };
   }
 
   return { options, shouldPrintHelp: false };
