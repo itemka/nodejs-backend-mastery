@@ -49,7 +49,11 @@ export async function executeToolUse(
   const clientRuntime = findClientRuntime(clientRuntimes, toolUse.name);
 
   if (clientRuntime !== undefined) {
-    return clientRuntime.execute(toolUse);
+    try {
+      return await clientRuntime.execute(toolUse);
+    } catch (error) {
+      return createErrorResult(toolUse.id, sanitizeError(error));
+    }
   }
 
   if (toolUse.inputError !== undefined) {
