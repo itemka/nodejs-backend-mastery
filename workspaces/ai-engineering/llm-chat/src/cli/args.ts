@@ -45,17 +45,18 @@ export interface ParsedArgs {
 
 export function helpText(): string {
   return [
-    'Usage: pnpm dev [--max-tokens=<number>] [--debug-response] [--output-format=json|csv|html] [--tools]',
+    'Usage: pnpm dev [--max-tokens=<number>] [--debug-response] [--output-format=json|csv|html] [--tools] [--fine-grained-tool-streaming]',
     '',
     'Run the LLM chat app.',
     '',
     'Options:',
-    '  --max-tokens=<number>   Maximum number of output tokens per turn.',
-    '  --debug-response        Print the full provider response object.',
-    '  --output-format=<name>   Return a response formatted as json, csv, or html.',
-    '  --structured-commands   Alias for --output-format=json.',
-    '  --tools                 Enable local app tools for Claude tool-use turns.',
-    '  -h, --help              Show this help message.',
+    '  --max-tokens=<number>          Maximum number of output tokens per turn.',
+    '  --debug-response               Print the full provider response object.',
+    '  --output-format=<name>         Return a response formatted as json, csv, or html.',
+    '  --structured-commands          Alias for --output-format=json.',
+    '  --tools                        Enable local app tools for Claude tool-use turns.',
+    '  --fine-grained-tool-streaming  Stream tool input JSON incrementally (requires --tools).',
+    '  -h, --help                     Show this help message.',
   ].join('\n');
 }
 
@@ -78,6 +79,11 @@ export function parseArgs(argv: readonly string[]): ParsedArgs {
 
     if (argument === '--tools') {
       options.toolsEnabled = true;
+      continue;
+    }
+
+    if (argument === '--fine-grained-tool-streaming') {
+      options.fineGrainedToolStreaming = true;
       continue;
     }
 
@@ -107,6 +113,10 @@ export function parseArgs(argv: readonly string[]): ParsedArgs {
 
   if (options.toolsEnabled === true && options.outputFormat !== undefined) {
     throw new Error('--tools cannot be combined with --output-format or --structured-commands.');
+  }
+
+  if (options.fineGrainedToolStreaming === true && options.toolsEnabled !== true) {
+    throw new Error('--fine-grained-tool-streaming requires --tools.');
   }
 
   return { options, shouldPrintHelp: false };

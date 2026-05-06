@@ -161,4 +161,55 @@ describe('runChatbot', () => {
       '',
     ]);
   });
+
+  it('passes fineGrainedToolStreaming and renders streaming progress events', async () => {
+    const outputs: string[] = [];
+    const userInputs = ['What time is it?'];
+
+    await runChatbot({
+      fineGrainedToolStreaming: true,
+      input: () => {
+        const nextInput = userInputs.shift();
+
+        if (nextInput === undefined) {
+          throw new Error('No more input');
+        }
+
+        return Promise.resolve(nextInput);
+      },
+      output: (text) => {
+        outputs.push(text);
+      },
+      runTurn: (messages, text, options) => {
+        expect(options.stream).toBe(true);
+        expect(options.toolsEnabled).toBe(true);
+        expect(options.fineGrainedToolStreaming).toBe(true);
+        expect(options.onTextDelta).toBeUndefined();
+        expect(options.onToolEvent).toEqual(expect.any(Function));
+
+        addUserMessage(messages, text);
+        options.onToolEvent?.({
+          toolName: 'get_current_datetime',
+          type: 'tool_input_stream_started',
+        });
+        options.onToolEvent?.({
+          toolName: 'get_current_datetime',
+          type: 'tool_input_stream_completed',
+        });
+        options.onToolEvent?.({
+          toolName: 'get_current_datetime',
+          type: 'tool_input_stream_failed',
+        });
+        options.onToolEvent?.({ type: 'final_response_received' });
+        addAssistantMessage(messages, 'It is noon.');
+
+        return Promise.resolve('It is noon.');
+      },
+      toolsEnabled: true,
+    });
+
+    expect(outputs).toContain('[tool] Streaming input for get_current_datetime');
+    expect(outputs).toContain('[tool] Tool input completed');
+    expect(outputs).toContain('[tool] Tool input streaming failed');
+  });
 });

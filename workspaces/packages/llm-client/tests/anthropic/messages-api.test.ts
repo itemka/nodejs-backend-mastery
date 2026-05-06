@@ -344,4 +344,123 @@ describe('createAnthropicProvider', () => {
     ).rejects.toThrow(/unknown content block/);
     expect(create).not.toHaveBeenCalled();
   });
+
+  it('includes eager_input_streaming on tools when fineGrainedToolStreaming is enabled', async () => {
+    const events: Anthropic.Messages.MessageStreamEvent[] = [
+      {
+        content_block: {
+          caller: { type: 'direct' },
+          id: 'toolu_1',
+          input: {},
+          name: 'get_current_datetime',
+          type: 'tool_use',
+        },
+        index: 0,
+        type: 'content_block_start',
+      },
+      {
+        delta: { partial_json: '{"format":"iso"}', type: 'input_json_delta' },
+        index: 0,
+        type: 'content_block_delta',
+      },
+      { index: 0, type: 'content_block_stop' },
+      {
+        delta: {
+          container: null,
+          stop_details: null,
+          stop_reason: 'tool_use',
+          stop_sequence: null,
+        },
+        type: 'message_delta',
+        usage: { output_tokens: 10 },
+      },
+      { type: 'message_stop' },
+    ] as unknown as Anthropic.Messages.MessageStreamEvent[];
+
+    const finalMessage = vi.fn().mockResolvedValue({
+      content: [
+        {
+          caller: { type: 'direct' },
+          id: 'toolu_1',
+          input: { format: 'iso' },
+          name: 'get_current_datetime',
+          type: 'tool_use',
+        },
+      ],
+      stop_reason: 'tool_use',
+    });
+
+    let capturedParams: unknown;
+    const stream = vi.fn().mockImplementation((params) => {
+      capturedParams = params;
+
+      return {
+        finalMessage,
+        [Symbol.asyncIterator]() {
+          let i = 0;
+
+          return {
+            next() {
+              const event = events[i++];
+
+              return Promise.resolve(
+                event === undefined
+                  ? { done: true as const, value: undefined }
+                  : { done: false, value: event },
+              );
+            },
+          };
+        },
+      };
+    });
+    const client = { messages: { stream } } as unknown as Anthropic;
+
+    const provider = createAnthropicProvider(client);
+    const response = await provider.createMessage({
+      fineGrainedToolStreaming: true,
+      maxTokens: 100,
+      messages: [{ content: 'What time is it?', role: 'user' }],
+      model: DEFAULT_MODEL,
+      tools: [
+        {
+          description: 'Get the current date and time.',
+          inputSchema: { type: 'object' },
+          name: 'get_current_datetime',
+        },
+      ],
+    });
+
+    expect(response.content).toEqual([
+      { id: 'toolu_1', input: { format: 'iso' }, name: 'get_current_datetime', type: 'tool_use' },
+    ]);
+    expect(response.stopReason).toBe('tool_use');
+    expect(capturedParams).toMatchObject({
+      tools: [
+        expect.objectContaining({ eager_input_streaming: true, name: 'get_current_datetime' }),
+      ],
+    });
+  });
+
+  it('does not include eager_input_streaming on tools when fineGrainedToolStreaming is not enabled', async () => {
+    const create = vi.fn().mockResolvedValue({
+      content: [{ id: 'toolu_1', input: {}, name: 'my_tool', type: 'tool_use' }],
+      stop_reason: 'tool_use',
+    });
+    const client = { messages: { create } } as unknown as Anthropic;
+
+    const provider = createAnthropicProvider(client);
+    await provider.createMessage({
+      maxTokens: 100,
+      messages: [{ content: 'Hello', role: 'user' }],
+      model: DEFAULT_MODEL,
+      stream: false,
+      tools: [{ inputSchema: { type: 'object' }, name: 'my_tool' }],
+    });
+
+    expect(create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        tools: [expect.not.objectContaining({ eager_input_streaming: true })],
+      }),
+    );
+  });
 });

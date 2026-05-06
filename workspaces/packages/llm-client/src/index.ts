@@ -13,6 +13,7 @@ export type {
   LlmTextBlock,
   LlmToolDefinition,
   LlmToolInputSchema,
+  LlmToolInputStreamEvent,
   LlmToolResultBlock,
   LlmToolUseBlock,
   LlmUnknownBlock,

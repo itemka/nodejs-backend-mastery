@@ -3,6 +3,7 @@ import type {
   LlmProvider,
   LlmRequest,
   LlmResponse,
+  LlmToolInputStreamEvent,
 } from '@workspaces/packages/llm-client';
 import { describe, expect, it, vi } from 'vitest';
 
@@ -336,6 +337,127 @@ describe('chat service', () => {
       ],
       role: 'user',
     });
+  });
+
+  it('uses stream: false for normal tool turns', async () => {
+    const messages: Messages = [];
+    const tool: AppTool = {
+      definition: { inputSchema: { type: 'object' }, name: 'echo' },
+      execute: () => ({}),
+    };
+    const { calls, provider } = createSequenceProvider([
+      { content: [{ text: 'done', type: 'text' }], raw: {}, stopReason: 'end_turn', text: 'done' },
+    ]);
+
+    const service = createChatService({ model: DEFAULT_MODEL, provider, tools: [tool] });
+    await service.sendUserTurn(messages, 'hi', { toolsEnabled: true });
+
+    expect(calls[0]).toMatchObject({ stream: false });
+  });
+
+  it('uses stream: true and passes fineGrainedToolStreaming when flag is set', async () => {
+    const messages: Messages = [];
+    const tool: AppTool = {
+      definition: { inputSchema: { type: 'object' }, name: 'echo' },
+      execute: () => ({}),
+    };
+    const { calls, provider } = createSequenceProvider([
+      { content: [{ text: 'done', type: 'text' }], raw: {}, stopReason: 'end_turn', text: 'done' },
+    ]);
+
+    const service = createChatService({ model: DEFAULT_MODEL, provider, tools: [tool] });
+    await service.sendUserTurn(messages, 'hi', {
+      fineGrainedToolStreaming: true,
+      toolsEnabled: true,
+    });
+
+    expect(calls[0]).toMatchObject({ fineGrainedToolStreaming: true, stream: true });
+  });
+
+  it('maps LlmToolInputStreamEvent to ToolEvent via onToolEvent handler', async () => {
+    const messages: Messages = [];
+    const events: ToolEvent[] = [];
+    const tool: AppTool = {
+      definition: { inputSchema: { type: 'object' }, name: 'echo' },
+      execute: () => ({}),
+    };
+    let capturedStreamEventHandler: ((e: LlmToolInputStreamEvent) => void) | undefined;
+    const provider: LlmProvider = {
+      createMessage(request) {
+        capturedStreamEventHandler = request.onToolInputStreamEvent;
+
+        return Promise.resolve({
+          content: [{ text: 'done', type: 'text' }],
+          raw: {},
+          stopReason: 'end_turn',
+          text: 'done',
+        });
+      },
+    };
+
+    const service = createChatService({ model: DEFAULT_MODEL, provider, tools: [tool] });
+    await service.sendUserTurn(messages, 'hi', {
+      fineGrainedToolStreaming: true,
+      onToolEvent: (e) => events.push(e),
+      toolsEnabled: true,
+    });
+
+    capturedStreamEventHandler?.({ name: 'echo', type: 'tool_input_stream_started' } as const);
+    capturedStreamEventHandler?.({ name: 'echo', type: 'tool_input_stream_completed' } as const);
+    capturedStreamEventHandler?.({ name: 'echo', type: 'tool_input_stream_failed' } as const);
+
+    expect(events).toContainEqual({ toolName: 'echo', type: 'tool_input_stream_started' });
+    expect(events).toContainEqual({ toolName: 'echo', type: 'tool_input_stream_completed' });
+    expect(events).toContainEqual({ toolName: 'echo', type: 'tool_input_stream_failed' });
+  });
+
+  it('returns an error tool_result and does not execute the tool when inputError is set', async () => {
+    const messages: Messages = [];
+    const tool: AppTool = {
+      definition: { inputSchema: { type: 'object' }, name: 'echo' },
+      execute: vi.fn(),
+    };
+    const { provider } = createSequenceProvider([
+      {
+        content: [
+          {
+            id: 'toolu_bad',
+            input: {},
+            inputError: {
+              code: 'invalid_json',
+              message: 'Invalid tool input JSON received from provider.',
+            },
+            name: 'echo',
+            type: 'tool_use',
+          },
+        ],
+        raw: {},
+        stopReason: 'tool_use',
+        text: '',
+      },
+      {
+        content: [{ text: 'recovered', type: 'text' }],
+        raw: {},
+        stopReason: 'end_turn',
+        text: 'recovered',
+      },
+    ]);
+
+    const service = createChatService({ model: DEFAULT_MODEL, provider, tools: [tool] });
+    await service.sendUserTurn(messages, 'hi', { toolsEnabled: true });
+
+    expect(tool.execute).not.toHaveBeenCalled();
+    const toolResultMessage = messages[2];
+    expect(toolResultMessage).toBeDefined();
+
+    if (toolResultMessage !== undefined && typeof toolResultMessage.content !== 'string') {
+      const resultBlock = toolResultMessage.content[0];
+      expect(resultBlock).toMatchObject({
+        is_error: true,
+        tool_use_id: 'toolu_bad',
+        type: 'tool_result',
+      });
+    }
   });
 
   it('enforces the max tool round guard', async () => {

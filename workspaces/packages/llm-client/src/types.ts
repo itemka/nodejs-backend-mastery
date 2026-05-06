@@ -6,8 +6,17 @@ export interface LlmTextBlock {
 export interface LlmToolUseBlock {
   readonly id: string;
   readonly input: unknown;
+  readonly inputError?: { readonly code: 'invalid_json'; readonly message: string };
   readonly name: string;
   readonly type: 'tool_use';
+}
+
+export interface LlmToolInputStreamEvent {
+  readonly name: string;
+  readonly type:
+    | 'tool_input_stream_started'
+    | 'tool_input_stream_completed'
+    | 'tool_input_stream_failed';
 }
 
 export interface LlmToolResultBlock {
@@ -56,10 +65,12 @@ export interface OutputFormatConfig {
 }
 
 export interface LlmRequest {
+  readonly fineGrainedToolStreaming?: boolean;
   readonly maxTokens: number;
   readonly messages: Messages;
   readonly model: string;
   readonly onTextDelta?: TextDeltaHandler;
+  readonly onToolInputStreamEvent?: (event: LlmToolInputStreamEvent) => void;
   readonly outputFormat?: OutputFormatConfig;
   readonly stream?: boolean;
   readonly systemPrompt?: string;

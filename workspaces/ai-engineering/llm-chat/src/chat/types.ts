@@ -8,17 +8,21 @@ export type ToolEvent =
   | { readonly toolName: string; readonly type: 'tool_succeeded' }
   | { readonly toolName: string; readonly type: 'tool_failed' }
   | { readonly count: number; readonly type: 'tool_results_submitted' }
-  | { readonly type: 'final_response_received' };
+  | { readonly type: 'final_response_received' }
+  | { readonly toolName: string; readonly type: 'tool_input_stream_started' }
+  | { readonly toolName: string; readonly type: 'tool_input_stream_completed' }
+  | { readonly toolName: string; readonly type: 'tool_input_stream_failed' };
 
 export type ToolEventHandler = (event: ToolEvent) => void;
 
 export interface ChatOptions {
   debugResponse?: boolean;
+  fineGrainedToolStreaming?: boolean;
   maxTokens?: number;
+  maxToolRounds?: number;
   onTextDelta?: TextDeltaHandler;
   onToolEvent?: ToolEventHandler;
   outputFormat?: OutputFormatConfig;
   stream?: boolean;
   toolsEnabled?: boolean;
-  maxToolRounds?: number;
 }

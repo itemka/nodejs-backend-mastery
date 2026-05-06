@@ -67,6 +67,17 @@ describe('parseArgs', () => {
     expect(() => parseArgs(['--structured-commands', '--tools'])).toThrow(/cannot be combined/);
   });
 
+  it('parses --fine-grained-tool-streaming with --tools', () => {
+    expect(parseArgs(['--tools', '--fine-grained-tool-streaming'])).toEqual({
+      options: { fineGrainedToolStreaming: true, toolsEnabled: true },
+      shouldPrintHelp: false,
+    });
+  });
+
+  it('rejects --fine-grained-tool-streaming without --tools', () => {
+    expect(() => parseArgs(['--fine-grained-tool-streaming'])).toThrow(/requires --tools/);
+  });
+
   it('ignores the forwarded pnpm delimiter', () => {
     expect(parseArgs(['--', '--output-format=json']).options.outputFormat).toEqual({
       instructions:
@@ -91,7 +102,7 @@ describe('parseArgs', () => {
 });
 
 describe('helpText', () => {
-  it('mentions both flags', () => {
+  it('mentions all flags', () => {
     const text = helpText();
 
     expect(text).toContain('--max-tokens');
@@ -99,5 +110,6 @@ describe('helpText', () => {
     expect(text).toContain('--output-format');
     expect(text).toContain('--structured-commands');
     expect(text).toContain('--tools');
+    expect(text).toContain('--fine-grained-tool-streaming');
   });
 });
