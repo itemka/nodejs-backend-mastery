@@ -460,6 +460,107 @@ describe('chat service', () => {
     }
   });
 
+  it('sends both custom and built-in client tool definitions in the request', async () => {
+    const messages: Messages = [];
+    const customTool: AppTool = {
+      definition: { inputSchema: { type: 'object' }, name: 'my_tool' },
+      execute: () => ({}),
+    };
+    const { calls, provider } = createSequenceProvider([
+      { content: [{ text: 'done', type: 'text' }], raw: {}, stopReason: 'end_turn', text: 'done' },
+    ]);
+
+    const builtinDefinition = {
+      kind: 'anthropic_builtin' as const,
+      name: 'str_replace_based_edit_tool' as const,
+      provider: 'anthropic' as const,
+      type: 'text_editor_20250728' as const,
+    };
+
+    const service = createChatService({
+      builtinClientTools: [
+        {
+          definition: builtinDefinition,
+          runtime: {
+            execute: () =>
+              Promise.resolve({
+                content: '{}',
+                tool_use_id: 'X',
+                type: 'tool_result' as const,
+              }),
+            toolName: 'str_replace_based_edit_tool',
+          },
+        },
+      ],
+      model: DEFAULT_MODEL,
+      provider,
+      tools: [customTool],
+    });
+    await service.sendUserTurn(messages, 'hi', { toolsEnabled: true });
+
+    expect(calls[0]?.tools).toEqual([customTool.definition, builtinDefinition]);
+  });
+
+  it('routes a builtin tool_use call to the registered client runtime', async () => {
+    const messages: Messages = [];
+    const customTool: AppTool = {
+      definition: { inputSchema: { type: 'object' }, name: 'my_tool' },
+      execute: vi.fn(),
+    };
+    const builtinExecute = vi.fn().mockResolvedValue({
+      content: '{"message":"viewed"}',
+      tool_use_id: 'use_E',
+      type: 'tool_result' as const,
+    });
+    const { provider } = createSequenceProvider([
+      {
+        content: [
+          {
+            id: 'use_E',
+            input: { command: 'view', path: 'a.txt' },
+            name: 'str_replace_based_edit_tool',
+            type: 'tool_use',
+          },
+        ],
+        raw: {},
+        stopReason: 'tool_use',
+        text: '',
+      },
+      { content: [{ text: 'ok', type: 'text' }], raw: {}, stopReason: 'end_turn', text: 'ok' },
+    ]);
+
+    const service = createChatService({
+      builtinClientTools: [
+        {
+          definition: {
+            kind: 'anthropic_builtin' as const,
+            name: 'str_replace_based_edit_tool' as const,
+            provider: 'anthropic' as const,
+            type: 'text_editor_20250728' as const,
+          },
+          runtime: { execute: builtinExecute, toolName: 'str_replace_based_edit_tool' },
+        },
+      ],
+      model: DEFAULT_MODEL,
+      provider,
+      tools: [customTool],
+    });
+    await service.sendUserTurn(messages, 'view file', { toolsEnabled: true });
+
+    expect(customTool.execute).not.toHaveBeenCalled();
+    expect(builtinExecute).toHaveBeenCalledOnce();
+    expect(messages[2]).toEqual({
+      content: [
+        {
+          content: '{"message":"viewed"}',
+          tool_use_id: 'use_E',
+          type: 'tool_result',
+        },
+      ],
+      role: 'user',
+    });
+  });
+
   it('enforces the max tool round guard', async () => {
     const messages: Messages = [];
     const tool: AppTool = {

@@ -5,6 +5,11 @@ import type { AppTool, AppToolExecutionContext } from './types.js';
 
 const MAX_ERROR_MESSAGE_LENGTH = 200;
 
+export interface ClientToolRuntime {
+  readonly toolName: string;
+  execute(toolUse: LlmToolUseBlock): Promise<LlmToolResultBlock>;
+}
+
 function sanitizeError(error: unknown): string {
   const message =
     error instanceof Error && error.message.trim() !== ''
@@ -28,11 +33,25 @@ function createErrorResult(toolUseId: string, message: string): LlmToolResultBlo
   };
 }
 
+function findClientRuntime(
+  runtimes: readonly ClientToolRuntime[],
+  name: string,
+): ClientToolRuntime | undefined {
+  return runtimes.find((runtime) => runtime.toolName === name);
+}
+
 export async function executeToolUse(
   toolUse: LlmToolUseBlock,
   tools: readonly AppTool[],
   context: AppToolExecutionContext,
+  clientRuntimes: readonly ClientToolRuntime[] = [],
 ): Promise<LlmToolResultBlock> {
+  const clientRuntime = findClientRuntime(clientRuntimes, toolUse.name);
+
+  if (clientRuntime !== undefined) {
+    return clientRuntime.execute(toolUse);
+  }
+
   if (toolUse.inputError !== undefined) {
     return createErrorResult(toolUse.id, toolUse.inputError.message);
   }

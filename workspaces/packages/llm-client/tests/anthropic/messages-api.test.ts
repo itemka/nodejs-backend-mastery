@@ -441,6 +441,152 @@ describe('createAnthropicProvider', () => {
     });
   });
 
+  it('maps an Anthropic Text Editor tool definition without input_schema and forwards max_characters', async () => {
+    const create = vi.fn().mockResolvedValue({
+      content: [{ text: 'ok', type: 'text' }],
+      stop_reason: 'end_turn',
+    });
+    const client = { messages: { create } } as unknown as Anthropic;
+
+    const provider = createAnthropicProvider(client);
+    await provider.createMessage({
+      maxTokens: 100,
+      messages: [{ content: 'view file', role: 'user' }],
+      model: DEFAULT_MODEL,
+      stream: false,
+      tools: [
+        {
+          kind: 'anthropic_builtin',
+          maxCharacters: 8000,
+          name: 'str_replace_based_edit_tool',
+          provider: 'anthropic',
+          type: 'text_editor_20250728',
+        },
+      ],
+    });
+
+    expect(create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        tools: [
+          {
+            max_characters: 8000,
+            name: 'str_replace_based_edit_tool',
+            type: 'text_editor_20250728',
+          },
+        ],
+      }),
+    );
+    const toolsArg = create.mock.calls[0]?.[0]?.tools as readonly Record<string, unknown>[];
+    expect(toolsArg[0]).not.toHaveProperty('input_schema');
+    expect(toolsArg[0]).not.toHaveProperty('eager_input_streaming');
+  });
+
+  it('omits max_characters when not provided on the text editor tool', async () => {
+    const create = vi.fn().mockResolvedValue({
+      content: [{ text: 'ok', type: 'text' }],
+      stop_reason: 'end_turn',
+    });
+    const client = { messages: { create } } as unknown as Anthropic;
+
+    const provider = createAnthropicProvider(client);
+    await provider.createMessage({
+      maxTokens: 100,
+      messages: [{ content: 'view file', role: 'user' }],
+      model: DEFAULT_MODEL,
+      stream: false,
+      tools: [
+        {
+          kind: 'anthropic_builtin',
+          name: 'str_replace_based_edit_tool',
+          provider: 'anthropic',
+          type: 'text_editor_20250728',
+        },
+      ],
+    });
+
+    expect(create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        tools: [
+          {
+            name: 'str_replace_based_edit_tool',
+            type: 'text_editor_20250728',
+          },
+        ],
+      }),
+    );
+  });
+
+  it('does not add eager_input_streaming to the text editor tool when fine-grained streaming is enabled', async () => {
+    const events: Anthropic.Messages.MessageStreamEvent[] = [
+      {
+        delta: {
+          container: null,
+          stop_details: null,
+          stop_reason: 'end_turn',
+          stop_sequence: null,
+        },
+        type: 'message_delta',
+        usage: { output_tokens: 1 },
+      },
+      { type: 'message_stop' },
+    ] as unknown as Anthropic.Messages.MessageStreamEvent[];
+    const finalMessage = vi.fn().mockResolvedValue({
+      content: [{ text: 'ok', type: 'text' }],
+      stop_reason: 'end_turn',
+    });
+    let capturedParams: unknown;
+    const stream = vi.fn().mockImplementation((params) => {
+      capturedParams = params;
+
+      return {
+        finalMessage,
+        [Symbol.asyncIterator]() {
+          let i = 0;
+
+          return {
+            next() {
+              const event = events[i++];
+
+              return Promise.resolve(
+                event === undefined
+                  ? { done: true as const, value: undefined }
+                  : { done: false, value: event },
+              );
+            },
+          };
+        },
+      };
+    });
+    const client = { messages: { stream } } as unknown as Anthropic;
+
+    const provider = createAnthropicProvider(client);
+    await provider.createMessage({
+      fineGrainedToolStreaming: true,
+      maxTokens: 100,
+      messages: [{ content: 'view file', role: 'user' }],
+      model: DEFAULT_MODEL,
+      tools: [
+        {
+          kind: 'anthropic_builtin',
+          name: 'str_replace_based_edit_tool',
+          provider: 'anthropic',
+          type: 'text_editor_20250728',
+        },
+      ],
+    });
+
+    expect(capturedParams).toMatchObject({
+      tools: [
+        {
+          name: 'str_replace_based_edit_tool',
+          type: 'text_editor_20250728',
+        },
+      ],
+    });
+    const toolsArg = (capturedParams as { tools: readonly Record<string, unknown>[] }).tools;
+    expect(toolsArg[0]).not.toHaveProperty('eager_input_streaming');
+  });
+
   it('does not include eager_input_streaming on tools when fineGrainedToolStreaming is not enabled', async () => {
     const create = vi.fn().mockResolvedValue({
       content: [{ id: 'toolu_1', input: {}, name: 'my_tool', type: 'tool_use' }],

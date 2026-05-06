@@ -99,6 +99,67 @@ describe('parseArgs', () => {
   it('rejects unknown arguments', () => {
     expect(() => parseArgs(['--nope'])).toThrow(/Unknown argument/);
   });
+
+  it('parses --edit-files with --tools', () => {
+    expect(parseArgs(['--tools', '--edit-files'])).toEqual({
+      options: { editFiles: {}, toolsEnabled: true },
+      shouldPrintHelp: false,
+    });
+  });
+
+  it('rejects --edit-files without --tools', () => {
+    expect(() => parseArgs(['--edit-files'])).toThrow(/--edit-files requires --tools/);
+  });
+
+  it('rejects --edit-files with --fine-grained-tool-streaming', () => {
+    expect(() => parseArgs(['--tools', '--edit-files', '--fine-grained-tool-streaming'])).toThrow(
+      /cannot be combined with --fine-grained-tool-streaming/,
+    );
+  });
+
+  it('parses --workspace-root with --edit-files', () => {
+    expect(parseArgs(['--tools', '--edit-files', '--workspace-root=/tmp/safe'])).toEqual({
+      options: { editFiles: { workspaceRoot: '/tmp/safe' }, toolsEnabled: true },
+      shouldPrintHelp: false,
+    });
+  });
+
+  it('rejects empty --workspace-root', () => {
+    expect(() => parseArgs(['--tools', '--edit-files', '--workspace-root='])).toThrow(
+      /--workspace-root must be a non-empty path/,
+    );
+  });
+
+  it('rejects --workspace-root without --edit-files', () => {
+    expect(() => parseArgs(['--tools', '--workspace-root=/tmp/safe'])).toThrow(
+      /--workspace-root requires --edit-files/,
+    );
+  });
+
+  it('parses --text-editor-max-characters with --edit-files', () => {
+    expect(parseArgs(['--tools', '--edit-files', '--text-editor-max-characters=10000'])).toEqual({
+      options: {
+        editFiles: { textEditorMaxCharacters: 10_000 },
+        toolsEnabled: true,
+      },
+      shouldPrintHelp: false,
+    });
+  });
+
+  it('rejects non-positive --text-editor-max-characters', () => {
+    expect(() => parseArgs(['--tools', '--edit-files', '--text-editor-max-characters=0'])).toThrow(
+      /positive integer/,
+    );
+    expect(() =>
+      parseArgs(['--tools', '--edit-files', '--text-editor-max-characters=abc']),
+    ).toThrow(/positive integer/);
+  });
+
+  it('rejects --text-editor-max-characters without --edit-files', () => {
+    expect(() => parseArgs(['--tools', '--text-editor-max-characters=10000'])).toThrow(
+      /--text-editor-max-characters requires --edit-files/,
+    );
+  });
 });
 
 describe('helpText', () => {
@@ -111,5 +172,8 @@ describe('helpText', () => {
     expect(text).toContain('--structured-commands');
     expect(text).toContain('--tools');
     expect(text).toContain('--fine-grained-tool-streaming');
+    expect(text).toContain('--edit-files');
+    expect(text).toContain('--workspace-root');
+    expect(text).toContain('--text-editor-max-characters');
   });
 });

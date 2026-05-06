@@ -79,6 +79,18 @@ Fine-grained tool streaming mode:
 pnpm --filter llm-chat dev -- --tools --fine-grained-tool-streaming
 ```
 
+Anthropic Text Editor Tool mode (file editing is opt-in):
+
+```bash
+pnpm --filter llm-chat dev -- --tools --edit-files --workspace-root=.
+```
+
+Optional max characters for `view`:
+
+```bash
+pnpm --filter llm-chat dev -- --tools --edit-files --text-editor-max-characters=10000
+```
+
 Example prompts:
 
 - `What is the exact current time?`
@@ -102,6 +114,54 @@ Tool progress lines use the `[tool]` prefix. `--debug-response` still prints raw
 provider responses and should be treated as developer-only output, especially
 with sensitive prompts.
 
+## Anthropic Text Editor Tool
+
+`--edit-files` enables Anthropic's
+[`text_editor_20250728`](https://platform.claude.com/docs/en/agents-and-tools/tool-use/text-editor-tool)
+client tool, named `str_replace_based_edit_tool`. The tool definition is
+schema-less — Claude knows the schema internally — and the application owns
+all file-system execution. The tool is rejected unless `--tools` is also set.
+
+The runtime supports four commands:
+
+- `view` - reads a file with line-numbered output, optional `view_range`, and
+  optional `max_characters` truncation, or lists a directory non-recursively.
+- `create` - writes a new file under the allowed workspace root. Refuses to
+  overwrite an existing file.
+- `str_replace` - replaces exactly one occurrence of `old_str`. Errors when
+  `old_str` matches zero or more than one time.
+- `insert` - inserts `insert_text` after `insert_line` (1-indexed; `0` inserts
+  at the beginning of the file).
+
+`undo_edit` is intentionally not supported. Restore from
+`.llm-chat-edit-backups/<relative-path>` if needed. Backups are written before
+every `str_replace` and `insert`.
+
+### Security model
+
+- `--workspace-root=<path>` (default: `process.cwd()`) bounds every file
+  operation. Paths are normalized against the root and rejected when they
+  escape via `..`, absolute paths, or symbolic links.
+- Hidden paths (segments starting with `.`) are blocked by default. `.env` and
+  `.env.*` files stay blocked even when hidden paths are otherwise allowed.
+- `node_modules`, `.git`, and the backup directory are blocked.
+- Binary and non-UTF-8 files are rejected.
+- `view` enforces a max readable byte size; write operations enforce a max
+  editable byte size and return a clear `tool_result` error when exceeded.
+- Errors are returned as `tool_result` blocks with `is_error: true` and
+  sanitized messages. Stack traces, raw old/new strings, and absolute paths
+  outside the workspace root are not echoed back to Claude.
+
+### Limitations
+
+- v1 does not support `undo_edit`, deletes, renames, chmod, or shell
+  execution.
+- v1 rejects `--fine-grained-tool-streaming` together with `--edit-files`
+  because per-tool `eager_input_streaming` is documented as user-defined-tool
+  only.
+- v1 does not include per-operation user confirmation. The `--edit-files`
+  flag is the explicit opt-in for the entire session.
+
 The system prompt and temperature are currently hardcoded in `src/main.ts` as `SYSTEM_PROMPT` and `TEMPERATURE`.
 
 ## Source Map
@@ -110,5 +170,6 @@ The system prompt and temperature are currently hardcoded in `src/main.ts` as `S
 - `src/config/env.ts` - app-local `.env` path wrapper around the shared config loader.
 - `src/cli/` - argument parsing, readline input adapter, interactive loop.
 - `src/chat/` - chat types, message history helpers, chat service that orchestrates a turn.
-- `src/tools/` - app-local tool registry, runner, and mock tool implementations.
+- `src/tools/` - app-local tool registry, runner, mock tool implementations, and the
+  Anthropic Text Editor runtime under `src/tools/text-editor/`.
 - `../../packages/llm-client/src/` - provider-neutral types, config loader, provider factory, and Anthropic SDK adapter.

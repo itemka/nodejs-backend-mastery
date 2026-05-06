@@ -5,10 +5,13 @@ import type {
   Message,
   MessageParam,
   Tool,
+  ToolTextEditor20250728,
+  ToolUnion,
 } from '@anthropic-ai/sdk/resources/messages/messages';
 
 import type {
   LlmContentBlock,
+  LlmCustomToolDefinition,
   LlmProvider,
   LlmRequest,
   LlmResponse,
@@ -19,6 +22,12 @@ import type {
 import { textFromMessage } from './text.js';
 import { accumulateToolInputStream } from './tool-input-stream.js';
 
+function isAnthropicBuiltinToolDefinition(
+  tool: LlmToolDefinition,
+): tool is Extract<LlmToolDefinition, { readonly kind: 'anthropic_builtin' }> {
+  return tool.kind === 'anthropic_builtin';
+}
+
 function toAnthropicInputSchema(schema: LlmToolInputSchema): Tool.InputSchema {
   const { required, ...rest } = schema;
 
@@ -28,17 +37,37 @@ function toAnthropicInputSchema(schema: LlmToolInputSchema): Tool.InputSchema {
   } as Tool.InputSchema;
 }
 
-export function toAnthropicTools(
-  tools: readonly LlmToolDefinition[],
-  eagerInputStreaming = false,
-): Tool[] {
-  return tools.map((tool) => ({
+function toAnthropicCustomTool(tool: LlmCustomToolDefinition, eagerInputStreaming: boolean): Tool {
+  return {
     input_schema: toAnthropicInputSchema(tool.inputSchema),
     name: tool.name,
     ...(tool.description === undefined ? {} : { description: tool.description }),
     ...(tool.inputExamples === undefined ? {} : { input_examples: [...tool.inputExamples] }),
     ...(eagerInputStreaming ? { eager_input_streaming: true as const } : {}),
-  }));
+  };
+}
+
+function toAnthropicTextEditorTool(
+  tool: Extract<LlmToolDefinition, { readonly kind: 'anthropic_builtin' }>,
+): ToolTextEditor20250728 {
+  return {
+    name: tool.name,
+    type: tool.type,
+    ...(tool.maxCharacters === undefined ? {} : { max_characters: tool.maxCharacters }),
+  };
+}
+
+export function toAnthropicTools(
+  tools: readonly LlmToolDefinition[],
+  eagerInputStreaming = false,
+): ToolUnion[] {
+  return tools.map((tool) => {
+    if (isAnthropicBuiltinToolDefinition(tool)) {
+      return toAnthropicTextEditorTool(tool);
+    }
+
+    return toAnthropicCustomTool(tool, eagerInputStreaming);
+  });
 }
 
 function toAnthropicContentBlock(block: LlmContentBlock): ContentBlockParam {

@@ -6,7 +6,9 @@ export type { AppConfig } from './config/env.js';
 export { createProvider } from './provider-factory.js';
 export type {
   ChatMessage,
+  LlmAnthropicTextEditorToolDefinition,
   LlmContentBlock,
+  LlmCustomToolDefinition,
   LlmProvider,
   LlmRequest,
   LlmResponse,
