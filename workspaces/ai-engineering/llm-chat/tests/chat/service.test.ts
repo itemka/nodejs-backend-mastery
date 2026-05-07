@@ -7,7 +7,7 @@ import type {
 } from '@workspaces/packages/llm-client';
 import { describe, expect, it, vi } from 'vitest';
 
-import { createChatService } from '../../src/chat/service.js';
+import { DEFAULT_MAX_PAUSE_CONTINUATIONS, createChatService } from '../../src/chat/service.js';
 import type { Messages, ToolEvent } from '../../src/chat/types.js';
 import { DEFAULT_MODEL } from '../../src/config/env.js';
 import type { AppTool, AppToolExecutionContext } from '../../src/tools/types.js';
@@ -561,6 +561,47 @@ describe('chat service', () => {
     });
   });
 
+  it('does not count pause_turn continuations against the client tool round limit', async () => {
+    const messages: Messages = [];
+    const tool: AppTool = {
+      definition: {
+        inputSchema: { type: 'object' },
+        name: 'loop_tool',
+      },
+      execute: vi.fn().mockReturnValue({ ok: true }),
+    };
+    const { calls, provider } = createSequenceProvider([
+      {
+        content: [{ text: 'searching', type: 'text' }],
+        raw: {},
+        stopReason: 'pause_turn',
+        text: 'searching',
+      },
+      {
+        content: [{ id: 'toolu_1', input: {}, name: 'loop_tool', type: 'tool_use' }],
+        raw: {},
+        stopReason: 'tool_use',
+        text: '',
+      },
+      {
+        content: [{ text: 'done', type: 'text' }],
+        raw: {},
+        stopReason: 'end_turn',
+        text: 'done',
+      },
+    ]);
+
+    const service = createChatService({ model: DEFAULT_MODEL, provider, tools: [tool] });
+    const answer = await service.sendUserTurn(messages, 'Loop', {
+      maxToolRounds: 1,
+      toolsEnabled: true,
+    });
+
+    expect(answer).toBe('done');
+    expect(tool.execute).toHaveBeenCalledOnce();
+    expect(calls).toHaveLength(3);
+  });
+
   it('enforces the max tool round guard', async () => {
     const messages: Messages = [];
     const tool: AppTool = {
@@ -590,5 +631,177 @@ describe('chat service', () => {
     await expect(
       service.sendUserTurn(messages, 'Loop', { maxToolRounds: 1, toolsEnabled: true }),
     ).rejects.toThrow(/maximum round limit/);
+  });
+
+  it('sends serverTools by default in normal chat without toolsEnabled', async () => {
+    const messages: Messages = [];
+    const webSearchDefinition = {
+      kind: 'anthropic_server' as const,
+      maxUses: 5,
+      name: 'web_search' as const,
+      provider: 'anthropic' as const,
+      type: 'web_search_20250305' as const,
+    };
+    const { calls, provider } = createFakeProvider('hello');
+
+    const service = createChatService({
+      model: DEFAULT_MODEL,
+      provider,
+      serverTools: [webSearchDefinition],
+    });
+    await service.sendUserTurn(messages, 'Hi');
+
+    expect(calls[0]?.tools).toEqual([webSearchDefinition]);
+  });
+
+  it('sends serverTools alongside client tools when toolsEnabled is true', async () => {
+    const messages: Messages = [];
+    const webSearchDefinition = {
+      kind: 'anthropic_server' as const,
+      maxUses: 5,
+      name: 'web_search' as const,
+      provider: 'anthropic' as const,
+      type: 'web_search_20250305' as const,
+    };
+    const customTool: AppTool = {
+      definition: { inputSchema: { type: 'object' }, name: 'echo' },
+      execute: () => ({}),
+    };
+    const { calls, provider } = createSequenceProvider([
+      { content: [{ text: 'done', type: 'text' }], raw: {}, stopReason: 'end_turn', text: 'done' },
+    ]);
+
+    const service = createChatService({
+      model: DEFAULT_MODEL,
+      provider,
+      serverTools: [webSearchDefinition],
+      tools: [customTool],
+    });
+    await service.sendUserTurn(messages, 'hi', { toolsEnabled: true });
+
+    expect(calls[0]?.tools).toEqual([customTool.definition, webSearchDefinition]);
+  });
+
+  it('emits sources from a server-tool response via onSources', async () => {
+    const messages: Messages = [];
+    const webSearchDefinition = {
+      kind: 'anthropic_server' as const,
+      name: 'web_search' as const,
+      provider: 'anthropic' as const,
+      type: 'web_search_20250305' as const,
+    };
+    const { provider } = createSequenceProvider([
+      {
+        content: [{ text: 'Found result.', type: 'text' }],
+        raw: {},
+        sources: [
+          {
+            citedText: 'cited',
+            kind: 'web_search',
+            title: 'Site',
+            url: 'https://example.com',
+          },
+        ],
+        stopReason: 'end_turn',
+        text: 'Found result.',
+      },
+    ]);
+    const collected: { url: string }[] = [];
+
+    const service = createChatService({
+      model: DEFAULT_MODEL,
+      provider,
+      serverTools: [webSearchDefinition],
+    });
+    await service.sendUserTurn(messages, 'search', {
+      onSources: (sources) => {
+        collected.push(...sources);
+      },
+    });
+
+    expect(collected).toEqual([
+      { citedText: 'cited', kind: 'web_search', title: 'Site', url: 'https://example.com' },
+    ]);
+  });
+
+  it('continues on pause_turn until a final response arrives within the limit', async () => {
+    const messages: Messages = [];
+    const { calls, provider } = createSequenceProvider([
+      ...Array.from({ length: DEFAULT_MAX_PAUSE_CONTINUATIONS }, (_, index) => ({
+        content: [{ text: `partial-${index + 1}`, type: 'text' as const }],
+        raw: {},
+        stopReason: 'pause_turn' as const,
+        text: `partial-${index + 1}`,
+      })),
+      {
+        content: [{ text: 'final', type: 'text' }],
+        raw: {},
+        stopReason: 'end_turn',
+        text: 'final',
+      },
+    ]);
+
+    const service = createChatService({ model: DEFAULT_MODEL, provider });
+    const answer = await service.sendUserTurn(messages, 'hi');
+
+    expect(answer).toBe('final');
+    expect(calls).toHaveLength(DEFAULT_MAX_PAUSE_CONTINUATIONS + 1);
+  });
+
+  it('throws when pause_turn exceeds the configured continuation limit', async () => {
+    const messages: Messages = [];
+    const { calls, provider } = createSequenceProvider(
+      Array.from({ length: DEFAULT_MAX_PAUSE_CONTINUATIONS + 1 }, (_, index) => ({
+        content: [{ text: `partial-${index + 1}`, type: 'text' as const }],
+        raw: {},
+        stopReason: 'pause_turn',
+        text: `partial-${index + 1}`,
+      })),
+    );
+
+    const service = createChatService({ model: DEFAULT_MODEL, provider });
+
+    await expect(service.sendUserTurn(messages, 'hi')).rejects.toThrow(/pause_turn/);
+    expect(calls).toHaveLength(DEFAULT_MAX_PAUSE_CONTINUATIONS + 1);
+  });
+
+  it('does not route web_search server_tool_use blocks through the client tool runner', async () => {
+    const messages: Messages = [];
+    const customTool: AppTool = {
+      definition: { inputSchema: { type: 'object' }, name: 'echo' },
+      execute: vi.fn(),
+    };
+    const { provider } = createSequenceProvider([
+      {
+        content: [
+          {
+            id: 'srv_1',
+            input: { query: 'q' },
+            name: 'web_search',
+            type: 'server_tool_use',
+          },
+          {
+            content: [],
+            toolUseId: 'srv_1',
+            type: 'web_search_tool_result',
+          },
+          { text: 'done', type: 'text' },
+        ],
+        raw: {},
+        stopReason: 'end_turn',
+        text: 'done',
+      },
+    ]);
+
+    const service = createChatService({
+      model: DEFAULT_MODEL,
+      provider,
+      tools: [customTool],
+    });
+    const answer = await service.sendUserTurn(messages, 'search', { toolsEnabled: true });
+
+    expect(answer).toBe('done');
+    expect(customTool.execute).not.toHaveBeenCalled();
+    expect(messages).toHaveLength(2);
   });
 });

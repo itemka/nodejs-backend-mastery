@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import { addAssistantMessage, addUserMessage } from '../../src/chat/history.js';
 import type { Messages } from '../../src/chat/types.js';
-import { runChatbot } from '../../src/cli/run-chatbot.js';
+import { renderSources, runChatbot } from '../../src/cli/run-chatbot.js';
 
 describe('runChatbot', () => {
   it('repeats until input stops', async () => {
@@ -162,6 +162,83 @@ describe('runChatbot', () => {
     ]);
   });
 
+  it('renders a Sources block with at most five deduped entries after the answer', async () => {
+    const outputs: string[] = [];
+    const userInputs = ['search'];
+
+    await runChatbot({
+      input: () => {
+        const nextInput = userInputs.shift();
+
+        if (nextInput === undefined) {
+          throw new Error('No more input');
+        }
+
+        return Promise.resolve(nextInput);
+      },
+      output: (text) => {
+        outputs.push(text);
+      },
+      runTurn: (messages, text, options) => {
+        addUserMessage(messages, text);
+        options.onSources?.([
+          { citedText: 'a', kind: 'web_search', title: 'A', url: 'https://example.com/a' },
+          { citedText: 'b', kind: 'web_search', title: 'B', url: 'https://example.com/b' },
+          {
+            citedText: 'a-dup',
+            kind: 'web_search',
+            title: 'A duplicate',
+            url: 'https://example.com/a',
+          },
+          { citedText: 'c', kind: 'web_search', title: 'C', url: 'https://example.com/c' },
+          { citedText: 'd', kind: 'web_search', title: 'D', url: 'https://example.com/d' },
+          { citedText: 'e', kind: 'web_search', title: 'E', url: 'https://example.com/e' },
+          { citedText: 'f', kind: 'web_search', title: 'F', url: 'https://example.com/f' },
+        ]);
+        addAssistantMessage(messages, 'done');
+
+        return Promise.resolve('done');
+      },
+    });
+
+    const sourcesIndex = outputs.indexOf('Sources:');
+    expect(sourcesIndex).toBeGreaterThanOrEqual(0);
+    const sourceLines = outputs.slice(sourcesIndex + 1).filter((line) => /^\s*\d+\./.test(line));
+    expect(sourceLines).toHaveLength(5);
+    expect(sourceLines[0]).toContain('A');
+    expect(sourceLines[0]).toContain('https://example.com/a');
+    expect(outputs).toContain('     "a"');
+    expect(outputs.join('\n')).not.toContain('A duplicate');
+  });
+
+  it('omits the Sources block when no sources are emitted', async () => {
+    const outputs: string[] = [];
+    const userInputs = ['hi'];
+
+    await runChatbot({
+      input: () => {
+        const nextInput = userInputs.shift();
+
+        if (nextInput === undefined) {
+          throw new Error('No more input');
+        }
+
+        return Promise.resolve(nextInput);
+      },
+      output: (text) => {
+        outputs.push(text);
+      },
+      runTurn: (messages, text) => {
+        addUserMessage(messages, text);
+        addAssistantMessage(messages, 'hello');
+
+        return Promise.resolve('hello');
+      },
+    });
+
+    expect(outputs).not.toContain('Sources:');
+  });
+
   it('passes fineGrainedToolStreaming and renders streaming progress events', async () => {
     const outputs: string[] = [];
     const userInputs = ['What time is it?'];
@@ -211,5 +288,24 @@ describe('runChatbot', () => {
     expect(outputs).toContain('[tool] Streaming input for get_current_datetime');
     expect(outputs).toContain('[tool] Tool input completed');
     expect(outputs).toContain('[tool] Tool input streaming failed');
+  });
+});
+
+describe('renderSources', () => {
+  it('returns no lines when given an empty list', () => {
+    expect(renderSources([])).toEqual([]);
+  });
+
+  it('falls back to hostname when title is null', () => {
+    const lines = renderSources([
+      { citedText: 'x', kind: 'web_search', title: null, url: 'https://example.com/path' },
+    ]);
+
+    expect(lines).toEqual([
+      '',
+      'Sources:',
+      '  1. example.com — https://example.com/path',
+      '     "x"',
+    ]);
   });
 });

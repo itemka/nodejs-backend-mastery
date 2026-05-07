@@ -9,6 +9,7 @@ export interface EditFilesConfig {
 
 export interface ParsedOptions extends ChatOptions {
   editFiles?: EditFilesConfig;
+  webSearchEnabled?: boolean;
 }
 
 export const OUTPUT_FORMAT_PRESETS = {
@@ -54,7 +55,7 @@ export interface ParsedArgs {
 
 export function helpText(): string {
   return [
-    'Usage: pnpm dev [--max-tokens=<number>] [--debug-response] [--output-format=json|csv|html] [--tools] [--fine-grained-tool-streaming] [--edit-files] [--workspace-root=<path>] [--text-editor-max-characters=<number>]',
+    'Usage: pnpm dev [--max-tokens=<number>] [--debug-response] [--output-format=json|csv|html] [--tools] [--fine-grained-tool-streaming] [--edit-files] [--workspace-root=<path>] [--text-editor-max-characters=<number>] [--no-web-search]',
     '',
     'Run the LLM chat app.',
     '',
@@ -68,6 +69,7 @@ export function helpText(): string {
     '  --edit-files                          Enable Anthropic Text Editor Tool (requires --tools).',
     '  --workspace-root=<path>               Allowed filesystem root for --edit-files (default: current working directory).',
     '  --text-editor-max-characters=<number> Optional max characters for view operations.',
+    '  --no-web-search                       Disable Anthropic Web Search Tool (default: enabled).',
     '  -h, --help                            Show this help message.',
   ].join('\n');
 }
@@ -87,6 +89,7 @@ export function parseArgs(argv: readonly string[]): ParsedArgs {
   let editFilesEnabled = false;
   let workspaceRoot: string | undefined;
   let textEditorMaxCharacters: number | undefined;
+  let webSearchExplicitlyDisabled = false;
 
   for (const argument of argv) {
     if (argument === '--') {
@@ -114,6 +117,11 @@ export function parseArgs(argv: readonly string[]): ParsedArgs {
 
     if (argument === '--edit-files') {
       editFilesEnabled = true;
+      continue;
+    }
+
+    if (argument === '--no-web-search') {
+      webSearchExplicitlyDisabled = true;
       continue;
     }
 
@@ -186,6 +194,14 @@ export function parseArgs(argv: readonly string[]): ParsedArgs {
       ...(textEditorMaxCharacters === undefined ? {} : { textEditorMaxCharacters }),
       ...(workspaceRoot === undefined ? {} : { workspaceRoot }),
     };
+  }
+
+  const webSearchIncompatible =
+    options.outputFormat !== undefined ||
+    (options.toolsEnabled === true && options.fineGrainedToolStreaming === true);
+
+  if (webSearchExplicitlyDisabled || webSearchIncompatible) {
+    options.webSearchEnabled = false;
   }
 
   return { options, shouldPrintHelp: false };
