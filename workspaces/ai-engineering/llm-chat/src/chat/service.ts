@@ -19,7 +19,7 @@ import type { ChatOptions, Messages, ToolEventHandler } from './types.js';
 export const DEFAULT_MAX_TOKENS = 1000;
 export const DEFAULT_STREAM = true;
 export const DEFAULT_MAX_TOOL_ROUNDS = 5;
-export const DEFAULT_MAX_PAUSE_CONTINUATIONS = 3;
+export const DEFAULT_MAX_PAUSE_CONTINUATIONS = 5;
 
 export interface BuiltinClientTool {
   readonly definition: LlmToolDefinition;
@@ -176,8 +176,9 @@ export function createChatService(config: ChatServiceConfig): ChatService {
 
       const maxToolRounds = options.maxToolRounds ?? DEFAULT_MAX_TOOL_ROUNDS;
       let pauseContinuations = 0;
+      let toolRounds = 0;
 
-      for (let round = 0; round <= maxToolRounds; round += 1) {
+      while (true) {
         const response = await config.provider.createMessage(
           createRequest(messages, options, true),
         );
@@ -207,7 +208,7 @@ export function createChatService(config: ChatServiceConfig): ChatService {
           return response.text;
         }
 
-        if (round === maxToolRounds) {
+        if (toolRounds >= maxToolRounds) {
           throw new Error(`Tool use exceeded the maximum round limit of ${maxToolRounds}.`);
         }
 
@@ -240,9 +241,8 @@ export function createChatService(config: ChatServiceConfig): ChatService {
 
         addUserToolResultMessage(messages, toolResults);
         options.onToolEvent?.({ count: toolResults.length, type: 'tool_results_submitted' });
+        toolRounds += 1;
       }
-
-      throw new Error('Tool use loop ended unexpectedly.');
     },
   };
 }

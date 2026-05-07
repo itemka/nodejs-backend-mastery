@@ -561,6 +561,47 @@ describe('chat service', () => {
     });
   });
 
+  it('does not count pause_turn continuations against the client tool round limit', async () => {
+    const messages: Messages = [];
+    const tool: AppTool = {
+      definition: {
+        inputSchema: { type: 'object' },
+        name: 'loop_tool',
+      },
+      execute: vi.fn().mockReturnValue({ ok: true }),
+    };
+    const { calls, provider } = createSequenceProvider([
+      {
+        content: [{ text: 'searching', type: 'text' }],
+        raw: {},
+        stopReason: 'pause_turn',
+        text: 'searching',
+      },
+      {
+        content: [{ id: 'toolu_1', input: {}, name: 'loop_tool', type: 'tool_use' }],
+        raw: {},
+        stopReason: 'tool_use',
+        text: '',
+      },
+      {
+        content: [{ text: 'done', type: 'text' }],
+        raw: {},
+        stopReason: 'end_turn',
+        text: 'done',
+      },
+    ]);
+
+    const service = createChatService({ model: DEFAULT_MODEL, provider, tools: [tool] });
+    const answer = await service.sendUserTurn(messages, 'Loop', {
+      maxToolRounds: 1,
+      toolsEnabled: true,
+    });
+
+    expect(answer).toBe('done');
+    expect(tool.execute).toHaveBeenCalledOnce();
+    expect(calls).toHaveLength(3);
+  });
+
   it('enforces the max tool round guard', async () => {
     const messages: Messages = [];
     const tool: AppTool = {
@@ -686,24 +727,12 @@ describe('chat service', () => {
   it('continues on pause_turn until a final response arrives within the limit', async () => {
     const messages: Messages = [];
     const { calls, provider } = createSequenceProvider([
-      {
-        content: [{ text: 'partial-1', type: 'text' }],
+      ...Array.from({ length: DEFAULT_MAX_PAUSE_CONTINUATIONS }, (_, index) => ({
+        content: [{ text: `partial-${index + 1}`, type: 'text' as const }],
         raw: {},
-        stopReason: 'pause_turn',
-        text: 'partial-1',
-      },
-      {
-        content: [{ text: 'partial-2', type: 'text' }],
-        raw: {},
-        stopReason: 'pause_turn',
-        text: 'partial-2',
-      },
-      {
-        content: [{ text: 'partial-3', type: 'text' }],
-        raw: {},
-        stopReason: 'pause_turn',
-        text: 'partial-3',
-      },
+        stopReason: 'pause_turn' as const,
+        text: `partial-${index + 1}`,
+      })),
       {
         content: [{ text: 'final', type: 'text' }],
         raw: {},
@@ -716,7 +745,7 @@ describe('chat service', () => {
     const answer = await service.sendUserTurn(messages, 'hi');
 
     expect(answer).toBe('final');
-    expect(calls).toHaveLength(4);
+    expect(calls).toHaveLength(DEFAULT_MAX_PAUSE_CONTINUATIONS + 1);
   });
 
   it('throws when pause_turn exceeds the configured continuation limit', async () => {
