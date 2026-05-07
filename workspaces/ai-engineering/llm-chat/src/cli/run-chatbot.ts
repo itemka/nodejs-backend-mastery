@@ -1,3 +1,5 @@
+import type { LlmWebSearchSource } from '@workspaces/packages/llm-client';
+
 import type { ChatOptions, Messages, ToolEvent } from '../chat/types.js';
 
 export type InputFunction = (prompt: string) => Promise<string>;
@@ -8,6 +10,9 @@ export type TurnRunner = (
   text: string,
   options: ChatOptions,
 ) => Promise<string>;
+
+export const MAX_DISPLAYED_SOURCES = 5;
+export const MAX_SOURCE_EXCERPT_LENGTH = 180;
 
 export interface RunChatbotOptions {
   readonly debugResponse?: boolean;
@@ -60,6 +65,68 @@ function formatToolEvent(event: ToolEvent): string {
   return '[tool] Final response received';
 }
 
+function dedupeSources(sources: readonly LlmWebSearchSource[]): LlmWebSearchSource[] {
+  const seen = new Set<string>();
+  const unique: LlmWebSearchSource[] = [];
+
+  for (const source of sources) {
+    if (seen.has(source.url)) {
+      continue;
+    }
+
+    seen.add(source.url);
+    unique.push(source);
+  }
+
+  return unique;
+}
+
+function hostnameForUrl(url: string): string {
+  try {
+    return new URL(url).hostname;
+  } catch {
+    return url;
+  }
+}
+
+function formatSourceExcerpt(text: string): string | undefined {
+  const normalized = text.replaceAll(/\s+/g, ' ').trim();
+
+  if (normalized === '') {
+    return undefined;
+  }
+
+  if (normalized.length <= MAX_SOURCE_EXCERPT_LENGTH) {
+    return normalized;
+  }
+
+  return `${normalized.slice(0, MAX_SOURCE_EXCERPT_LENGTH - 3)}...`;
+}
+
+export function renderSources(sources: readonly LlmWebSearchSource[]): string[] {
+  const unique = dedupeSources(sources);
+
+  if (unique.length === 0) {
+    return [];
+  }
+
+  const displayed = unique.slice(0, MAX_DISPLAYED_SOURCES);
+  const lines: string[] = ['', 'Sources:'];
+
+  for (const [index, source] of displayed.entries()) {
+    const titleOrHost = source.title ?? hostnameForUrl(source.url);
+    lines.push(`  ${index + 1}. ${titleOrHost} — ${source.url}`);
+
+    const excerpt = formatSourceExcerpt(source.citedText);
+
+    if (excerpt !== undefined) {
+      lines.push(`     "${excerpt}"`);
+    }
+  }
+
+  return lines;
+}
+
 export async function runChatbot(options: RunChatbotOptions): Promise<Messages> {
   const messages: Messages = [];
   const output = options.output ?? console.log;
@@ -78,6 +145,7 @@ export async function runChatbot(options: RunChatbotOptions): Promise<Messages> 
 
     const chatOptions: ChatOptions = {};
     let didStreamText = false;
+    const collectedSources: LlmWebSearchSource[] = [];
 
     if (options.maxTokens !== undefined) {
       chatOptions.maxTokens = options.maxTokens;
@@ -114,8 +182,16 @@ export async function runChatbot(options: RunChatbotOptions): Promise<Messages> 
       };
     }
 
+    chatOptions.onSources = (sources) => {
+      collectedSources.push(...sources);
+    };
+
     const answer = await options.runTurn(messages, userInput, chatOptions);
 
     output(didStreamText ? '' : answer);
+
+    for (const line of renderSources(collectedSources)) {
+      output(line);
+    }
   }
 }

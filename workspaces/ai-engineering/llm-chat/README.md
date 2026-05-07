@@ -21,6 +21,13 @@ Use `--tools` to enable local Claude tool-use turns. Tool mode is explicit
 because it can make extra model calls. For v1, tool mode cannot be combined
 with `--output-format=*` or `--structured-commands`.
 
+Anthropic Web Search is enabled by default for normal chat and `--tools` mode.
+Claude decides when to issue searches; the app does not execute them locally.
+Use `--no-web-search` to disable. Web Search is automatically disabled with
+`--output-format=*`, `--structured-commands`, and the
+`--tools --fine-grained-tool-streaming` combination — see
+[Anthropic Web Search Tool](#anthropic-web-search-tool) below.
+
 Use `--fine-grained-tool-streaming` together with `--tools` to enable
 Anthropic fine-grained tool streaming. When active, the provider streams
 partial tool input JSON incrementally using `eager_input_streaming: true` on
@@ -161,6 +168,44 @@ every `str_replace` and `insert`.
   only.
 - v1 does not include per-operation user confirmation. The `--edit-files`
   flag is the explicit opt-in for the entire session.
+
+## Anthropic Web Search Tool
+
+Anthropic's
+[`web_search_20250305`](https://docs.claude.com/en/docs/agents-and-tools/tool-use/web-search-tool)
+server tool is included by default on every Anthropic chat request. The model
+decides when to search; the application does not execute searches locally and
+does not return `tool_result` blocks for `server_tool_use`. Search calls are
+billed per [Anthropic pricing](https://docs.claude.com/en/docs/agents-and-tools/tool-use/web-search-tool#pricing)
+and require Web Search to be enabled for the organization in the Anthropic
+Console.
+
+Default behavior:
+
+- `max_uses: 5` per API request limits how many searches Claude may issue.
+- The terminal renders a compact `Sources:` block after the answer with up to
+  5 deduped entries (by URL). Source rendering does not change billing or
+  what is sent to Claude — it is a display cap only.
+- Encrypted search content, encrypted citation indexes, and raw provider JSON
+  are kept out of the answer text.
+
+Disable Web Search:
+
+```bash
+pnpm --filter llm-chat dev -- --no-web-search
+```
+
+Web Search is automatically disabled in v1 for:
+
+- `--output-format=json|csv|html` and `--structured-commands` — citations and
+  strict structured output are a poor fit and may produce malformed responses.
+- `--tools --fine-grained-tool-streaming` — the fine-grained streaming
+  accumulator does not yet preserve server-tool blocks. Use plain `--tools`
+  if you want both client tools and Web Search at the same time.
+
+Domain restrictions (`allowedDomains`, `blockedDomains`) and `userLocation`
+are modeled in the shared `LlmAnthropicWebSearchToolDefinition` type but are
+not yet exposed via CLI flags.
 
 The system prompt and temperature are currently hardcoded in `src/main.ts` as `SYSTEM_PROMPT` and `TEMPERATURE`.
 

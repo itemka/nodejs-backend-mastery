@@ -34,6 +34,7 @@ describe('parseArgs', () => {
             'Return the response as JSON only. Use this shape when returning commands: {"commands":["..."]}. Do not include comments, markdown fences, or explanation.',
           jsonSchema: JSON_PRESET_SCHEMA,
         },
+        webSearchEnabled: false,
       },
       shouldPrintHelp: false,
     });
@@ -69,7 +70,7 @@ describe('parseArgs', () => {
 
   it('parses --fine-grained-tool-streaming with --tools', () => {
     expect(parseArgs(['--tools', '--fine-grained-tool-streaming'])).toEqual({
-      options: { fineGrainedToolStreaming: true, toolsEnabled: true },
+      options: { fineGrainedToolStreaming: true, toolsEnabled: true, webSearchEnabled: false },
       shouldPrintHelp: false,
     });
   });
@@ -160,6 +161,28 @@ describe('parseArgs', () => {
       /--text-editor-max-characters requires --edit-files/,
     );
   });
+
+  it('does not set webSearchEnabled when defaulting to enabled', () => {
+    expect(parseArgs([]).options.webSearchEnabled).toBeUndefined();
+    expect(parseArgs(['--tools']).options.webSearchEnabled).toBeUndefined();
+  });
+
+  it('sets webSearchEnabled to false when --no-web-search is given', () => {
+    expect(parseArgs(['--no-web-search']).options.webSearchEnabled).toBe(false);
+    expect(parseArgs(['--tools', '--no-web-search']).options.webSearchEnabled).toBe(false);
+  });
+
+  it('disables web search automatically with structured output formats', () => {
+    expect(parseArgs(['--output-format=json']).options.webSearchEnabled).toBe(false);
+    expect(parseArgs(['--output-format=csv']).options.webSearchEnabled).toBe(false);
+    expect(parseArgs(['--structured-commands']).options.webSearchEnabled).toBe(false);
+  });
+
+  it('disables web search automatically with --tools --fine-grained-tool-streaming', () => {
+    expect(parseArgs(['--tools', '--fine-grained-tool-streaming']).options.webSearchEnabled).toBe(
+      false,
+    );
+  });
 });
 
 describe('helpText', () => {
@@ -175,5 +198,6 @@ describe('helpText', () => {
     expect(text).toContain('--edit-files');
     expect(text).toContain('--workspace-root');
     expect(text).toContain('--text-editor-max-characters');
+    expect(text).toContain('--no-web-search');
   });
 });

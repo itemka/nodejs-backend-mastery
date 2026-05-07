@@ -1,4 +1,15 @@
+export interface LlmWebSearchCitation {
+  readonly citedText: string;
+  readonly encryptedIndex: string;
+  readonly title: string | null;
+  readonly type: 'web_search_result_location';
+  readonly url: string;
+}
+
+export type LlmTextCitation = LlmWebSearchCitation;
+
 export interface LlmTextBlock {
+  readonly citations?: readonly LlmTextCitation[];
   readonly text: string;
   readonly type: 'text';
 }
@@ -26,12 +37,44 @@ export interface LlmToolResultBlock {
   readonly type: 'tool_result';
 }
 
+export interface LlmServerToolUseBlock {
+  readonly id: string;
+  readonly input: unknown;
+  readonly name: 'web_search';
+  readonly type: 'server_tool_use';
+}
+
+export interface LlmWebSearchResultEntry {
+  readonly encryptedContent: string;
+  readonly pageAge?: string | null;
+  readonly title: string;
+  readonly type: 'web_search_result';
+  readonly url: string;
+}
+
+export interface LlmWebSearchToolResultError {
+  readonly errorCode: string;
+  readonly type: 'web_search_tool_result_error';
+}
+
+export interface LlmWebSearchToolResultBlock {
+  readonly content: readonly LlmWebSearchResultEntry[] | LlmWebSearchToolResultError;
+  readonly toolUseId: string;
+  readonly type: 'web_search_tool_result';
+}
+
 export interface LlmUnknownBlock {
   readonly raw: unknown;
   readonly type: 'unknown';
 }
 
-export type LlmContentBlock = LlmTextBlock | LlmToolUseBlock | LlmToolResultBlock | LlmUnknownBlock;
+export type LlmContentBlock =
+  | LlmTextBlock
+  | LlmToolUseBlock
+  | LlmToolResultBlock
+  | LlmServerToolUseBlock
+  | LlmWebSearchToolResultBlock
+  | LlmUnknownBlock;
 
 export interface LlmToolInputSchema {
   readonly type: 'object';
@@ -56,7 +99,29 @@ export interface LlmAnthropicTextEditorToolDefinition {
   readonly type: 'text_editor_20250728';
 }
 
-export type LlmToolDefinition = LlmCustomToolDefinition | LlmAnthropicTextEditorToolDefinition;
+export interface LlmAnthropicUserLocation {
+  readonly city?: string;
+  readonly country?: string;
+  readonly region?: string;
+  readonly timezone?: string;
+  readonly type: 'approximate';
+}
+
+export interface LlmAnthropicWebSearchToolDefinition {
+  readonly allowedDomains?: readonly string[];
+  readonly blockedDomains?: readonly string[];
+  readonly kind: 'anthropic_server';
+  readonly maxUses?: number;
+  readonly name: 'web_search';
+  readonly provider: 'anthropic';
+  readonly type: 'web_search_20250305';
+  readonly userLocation?: LlmAnthropicUserLocation;
+}
+
+export type LlmToolDefinition =
+  | LlmCustomToolDefinition
+  | LlmAnthropicTextEditorToolDefinition
+  | LlmAnthropicWebSearchToolDefinition;
 
 export interface ChatMessage {
   content: string | readonly LlmContentBlock[];
@@ -89,9 +154,17 @@ export interface LlmRequest {
   readonly tools?: readonly LlmToolDefinition[];
 }
 
+export interface LlmWebSearchSource {
+  readonly citedText: string;
+  readonly kind: 'web_search';
+  readonly title: string | null;
+  readonly url: string;
+}
+
 export interface LlmResponse {
   readonly content?: readonly LlmContentBlock[];
   readonly raw: unknown;
+  readonly sources?: readonly LlmWebSearchSource[];
   readonly stopReason?: string | null;
   readonly text: string;
 }

@@ -1,4 +1,8 @@
-import type { OutputFormatConfig, TextDeltaHandler } from '@workspaces/packages/llm-client';
+import type {
+  LlmWebSearchSource,
+  OutputFormatConfig,
+  TextDeltaHandler,
+} from '@workspaces/packages/llm-client';
 
 export type { ChatMessage, Messages } from '@workspaces/packages/llm-client';
 
@@ -15,11 +19,14 @@ export type ToolEvent =
 
 export type ToolEventHandler = (event: ToolEvent) => void;
 
+export type SourcesHandler = (sources: readonly LlmWebSearchSource[]) => void;
+
 export interface ChatOptions {
   debugResponse?: boolean;
   fineGrainedToolStreaming?: boolean;
   maxTokens?: number;
   maxToolRounds?: number;
+  onSources?: SourcesHandler;
   onTextDelta?: TextDeltaHandler;
   onToolEvent?: ToolEventHandler;
   outputFormat?: OutputFormatConfig;

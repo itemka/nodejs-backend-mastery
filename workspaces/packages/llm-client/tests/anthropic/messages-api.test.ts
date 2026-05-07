@@ -1,7 +1,10 @@
 import type Anthropic from '@anthropic-ai/sdk';
 import { describe, expect, it, vi } from 'vitest';
 
-import { createAnthropicProvider } from '../../src/anthropic/messages-api.js';
+import {
+  createAnthropicProvider,
+  extractWebSearchSources,
+} from '../../src/anthropic/messages-api.js';
 import { DEFAULT_MODEL } from '../../src/config/env.js';
 
 describe('createAnthropicProvider', () => {
@@ -608,5 +611,329 @@ describe('createAnthropicProvider', () => {
         tools: [expect.not.objectContaining({ eager_input_streaming: true })],
       }),
     );
+  });
+
+  it('maps the Anthropic Web Search server tool definition with max_uses', async () => {
+    const create = vi.fn().mockResolvedValue({
+      content: [{ citations: null, text: 'ok', type: 'text' }],
+      stop_reason: 'end_turn',
+    });
+    const client = { messages: { create } } as unknown as Anthropic;
+
+    const provider = createAnthropicProvider(client);
+    await provider.createMessage({
+      maxTokens: 100,
+      messages: [{ content: 'search the web', role: 'user' }],
+      model: DEFAULT_MODEL,
+      stream: false,
+      tools: [
+        {
+          kind: 'anthropic_server',
+          maxUses: 5,
+          name: 'web_search',
+          provider: 'anthropic',
+          type: 'web_search_20250305',
+        },
+      ],
+    });
+
+    expect(create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        tools: [
+          {
+            max_uses: 5,
+            name: 'web_search',
+            type: 'web_search_20250305',
+          },
+        ],
+      }),
+    );
+    const toolsArg = create.mock.calls[0]?.[0]?.tools as readonly Record<string, unknown>[];
+    expect(toolsArg[0]).not.toHaveProperty('input_schema');
+    expect(toolsArg[0]).not.toHaveProperty('eager_input_streaming');
+  });
+
+  it('forwards optional Web Search domain and user_location parameters', async () => {
+    const create = vi.fn().mockResolvedValue({
+      content: [{ citations: null, text: 'ok', type: 'text' }],
+      stop_reason: 'end_turn',
+    });
+    const client = { messages: { create } } as unknown as Anthropic;
+
+    const provider = createAnthropicProvider(client);
+    await provider.createMessage({
+      maxTokens: 100,
+      messages: [{ content: 'search the web', role: 'user' }],
+      model: DEFAULT_MODEL,
+      stream: false,
+      tools: [
+        {
+          allowedDomains: ['anthropic.com'],
+          kind: 'anthropic_server',
+          name: 'web_search',
+          provider: 'anthropic',
+          type: 'web_search_20250305',
+          userLocation: { country: 'US', type: 'approximate' },
+        },
+      ],
+    });
+
+    expect(create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        tools: [
+          {
+            allowed_domains: ['anthropic.com'],
+            name: 'web_search',
+            type: 'web_search_20250305',
+            user_location: { country: 'US', type: 'approximate' },
+          },
+        ],
+      }),
+    );
+  });
+
+  it('parses server_tool_use, web_search_tool_result, and text citations from the response', async () => {
+    const create = vi.fn().mockResolvedValue({
+      content: [
+        {
+          caller: { type: 'direct' },
+          id: 'srv_1',
+          input: { query: 'claude opus 4.7' },
+          name: 'web_search',
+          type: 'server_tool_use',
+        },
+        {
+          caller: { type: 'direct' },
+          content: [
+            {
+              encrypted_content: 'enc',
+              page_age: '2026-04-30',
+              title: 'Anthropic news',
+              type: 'web_search_result',
+              url: 'https://anthropic.com/news',
+            },
+          ],
+          tool_use_id: 'srv_1',
+          type: 'web_search_tool_result',
+        },
+        {
+          citations: [
+            {
+              cited_text: 'Claude Opus 4.7 was announced',
+              encrypted_index: 'idx-0',
+              title: 'Anthropic news',
+              type: 'web_search_result_location',
+              url: 'https://anthropic.com/news',
+            },
+          ],
+          text: 'Claude Opus 4.7 was announced.',
+          type: 'text',
+        },
+      ],
+      stop_reason: 'end_turn',
+    });
+    const client = { messages: { create } } as unknown as Anthropic;
+
+    const provider = createAnthropicProvider(client);
+    const response = await provider.createMessage({
+      maxTokens: 200,
+      messages: [{ content: 'What is the latest Claude model?', role: 'user' }],
+      model: DEFAULT_MODEL,
+      stream: false,
+      tools: [
+        {
+          kind: 'anthropic_server',
+          name: 'web_search',
+          provider: 'anthropic',
+          type: 'web_search_20250305',
+        },
+      ],
+    });
+
+    expect(response.content).toEqual([
+      {
+        id: 'srv_1',
+        input: { query: 'claude opus 4.7' },
+        name: 'web_search',
+        type: 'server_tool_use',
+      },
+      {
+        content: [
+          {
+            encryptedContent: 'enc',
+            pageAge: '2026-04-30',
+            title: 'Anthropic news',
+            type: 'web_search_result',
+            url: 'https://anthropic.com/news',
+          },
+        ],
+        toolUseId: 'srv_1',
+        type: 'web_search_tool_result',
+      },
+      {
+        citations: [
+          {
+            citedText: 'Claude Opus 4.7 was announced',
+            encryptedIndex: 'idx-0',
+            title: 'Anthropic news',
+            type: 'web_search_result_location',
+            url: 'https://anthropic.com/news',
+          },
+        ],
+        text: 'Claude Opus 4.7 was announced.',
+        type: 'text',
+      },
+    ]);
+    expect(response.sources).toEqual([
+      {
+        citedText: 'Claude Opus 4.7 was announced',
+        kind: 'web_search',
+        title: 'Anthropic news',
+        url: 'https://anthropic.com/news',
+      },
+    ]);
+  });
+
+  it('round-trips server_tool_use and web_search_tool_result blocks back to Anthropic', async () => {
+    const create = vi.fn().mockResolvedValue({
+      content: [{ citations: null, text: 'follow-up', type: 'text' }],
+      stop_reason: 'end_turn',
+    });
+    const client = { messages: { create } } as unknown as Anthropic;
+
+    const provider = createAnthropicProvider(client);
+    await provider.createMessage({
+      maxTokens: 100,
+      messages: [
+        { content: 'search', role: 'user' },
+        {
+          content: [
+            {
+              id: 'srv_1',
+              input: { query: 'q' },
+              name: 'web_search',
+              type: 'server_tool_use',
+            },
+            {
+              content: [
+                {
+                  encryptedContent: 'enc',
+                  title: 'Site',
+                  type: 'web_search_result',
+                  url: 'https://example.com',
+                },
+              ],
+              toolUseId: 'srv_1',
+              type: 'web_search_tool_result',
+            },
+            {
+              citations: [
+                {
+                  citedText: 'short',
+                  encryptedIndex: 'idx-0',
+                  title: 'Site',
+                  type: 'web_search_result_location',
+                  url: 'https://example.com',
+                },
+              ],
+              text: 'Result.',
+              type: 'text',
+            },
+          ],
+          role: 'assistant',
+        },
+        { content: 'tell me more', role: 'user' },
+      ],
+      model: DEFAULT_MODEL,
+      stream: false,
+    });
+
+    const sentMessages = create.mock.calls[0]?.[0]?.messages as readonly Record<string, unknown>[];
+    const assistantContent = (sentMessages[1] as { content: readonly Record<string, unknown>[] })
+      .content;
+    expect(assistantContent[0]).toEqual({
+      id: 'srv_1',
+      input: { query: 'q' },
+      name: 'web_search',
+      type: 'server_tool_use',
+    });
+    expect(assistantContent[1]).toEqual({
+      content: [
+        {
+          encrypted_content: 'enc',
+          title: 'Site',
+          type: 'web_search_result',
+          url: 'https://example.com',
+        },
+      ],
+      tool_use_id: 'srv_1',
+      type: 'web_search_tool_result',
+    });
+    expect(assistantContent[2]).toEqual({
+      citations: [
+        {
+          cited_text: 'short',
+          encrypted_index: 'idx-0',
+          title: 'Site',
+          type: 'web_search_result_location',
+          url: 'https://example.com',
+        },
+      ],
+      text: 'Result.',
+      type: 'text',
+    });
+  });
+
+  it('extractWebSearchSources dedupes by URL and ignores non-web citations', () => {
+    const sources = extractWebSearchSources([
+      {
+        citations: [
+          {
+            citedText: 'first',
+            encryptedIndex: 'idx-0',
+            title: 'A',
+            type: 'web_search_result_location',
+            url: 'https://example.com/a',
+          },
+        ],
+        text: 'block one',
+        type: 'text',
+      },
+      {
+        citations: [
+          {
+            citedText: 'duplicate',
+            encryptedIndex: 'idx-1',
+            title: 'A again',
+            type: 'web_search_result_location',
+            url: 'https://example.com/a',
+          },
+          {
+            citedText: 'second',
+            encryptedIndex: 'idx-2',
+            title: 'B',
+            type: 'web_search_result_location',
+            url: 'https://example.com/b',
+          },
+        ],
+        text: 'block two',
+        type: 'text',
+      },
+    ]);
+
+    expect(sources).toEqual([
+      {
+        citedText: 'first',
+        kind: 'web_search',
+        title: 'A',
+        url: 'https://example.com/a',
+      },
+      {
+        citedText: 'second',
+        kind: 'web_search',
+        title: 'B',
+        url: 'https://example.com/b',
+      },
+    ]);
   });
 });

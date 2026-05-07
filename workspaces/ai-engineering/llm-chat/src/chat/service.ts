@@ -19,6 +19,7 @@ import type { ChatOptions, Messages, ToolEventHandler } from './types.js';
 export const DEFAULT_MAX_TOKENS = 1000;
 export const DEFAULT_STREAM = true;
 export const DEFAULT_MAX_TOOL_ROUNDS = 5;
+export const DEFAULT_MAX_PAUSE_CONTINUATIONS = 3;
 
 export interface BuiltinClientTool {
   readonly definition: LlmToolDefinition;
@@ -30,6 +31,7 @@ export interface ChatServiceConfig {
   readonly defaultMaxTokens?: number;
   readonly model: string;
   readonly provider: LlmProvider;
+  readonly serverTools?: readonly LlmToolDefinition[];
   readonly systemPrompt?: string;
   readonly temperature?: number;
   readonly toolContext?: AppToolExecutionContext;
@@ -75,18 +77,35 @@ function makeToolInputStreamEventHandler(
   };
 }
 
+function emitSources(response: LlmResponse, options: ChatOptions): void {
+  if (response.sources && response.sources.length > 0) {
+    options.onSources?.(response.sources);
+  }
+}
+
+function createPauseContinuationLimitError(): Error {
+  return new Error(
+    `Provider returned pause_turn more than ${DEFAULT_MAX_PAUSE_CONTINUATIONS} times.`,
+  );
+}
+
 export function createChatService(config: ChatServiceConfig): ChatService {
   const defaultMaxTokens = config.defaultMaxTokens ?? DEFAULT_MAX_TOKENS;
   const tools = config.tools ?? [];
   const builtinClientTools = config.builtinClientTools ?? [];
+  const serverTools = config.serverTools ?? [];
   const clientRuntimes = builtinClientTools.map((tool) => tool.runtime);
   const toolContext = config.toolContext ?? createAppToolExecutionContext();
 
-  function buildToolDefinitions(): readonly LlmToolDefinition[] {
-    const customDefinitions = tools.map((tool) => tool.definition);
-    const builtinDefinitions = builtinClientTools.map((tool) => tool.definition);
+  function buildRequestTools(toolsEnabled: boolean): readonly LlmToolDefinition[] {
+    if (toolsEnabled) {
+      const customDefinitions = tools.map((tool) => tool.definition);
+      const builtinDefinitions = builtinClientTools.map((tool) => tool.definition);
 
-    return [...customDefinitions, ...builtinDefinitions];
+      return [...customDefinitions, ...builtinDefinitions, ...serverTools];
+    }
+
+    return serverTools;
   }
 
   function createRequest(
@@ -94,6 +113,7 @@ export function createChatService(config: ChatServiceConfig): ChatService {
     options: ChatOptions,
     toolsEnabled: boolean,
   ): LlmRequest {
+    const requestTools = buildRequestTools(toolsEnabled);
     const fineGrainedToolStreaming = toolsEnabled && options.fineGrainedToolStreaming === true;
     const streamValue = toolsEnabled
       ? fineGrainedToolStreaming
@@ -104,7 +124,7 @@ export function createChatService(config: ChatServiceConfig): ChatService {
       messages,
       model: config.model,
       stream: streamValue,
-      ...(toolsEnabled ? { tools: buildToolDefinitions() } : {}),
+      ...(requestTools.length > 0 ? { tools: requestTools } : {}),
       ...(fineGrainedToolStreaming ? { fineGrainedToolStreaming: true } : {}),
       ...(fineGrainedToolStreaming && options.onToolEvent !== undefined
         ? { onToolInputStreamEvent: makeToolInputStreamEventHandler(options.onToolEvent) }
@@ -122,20 +142,40 @@ export function createChatService(config: ChatServiceConfig): ChatService {
       const toolsEnabled = options.toolsEnabled === true;
 
       if (!toolsEnabled) {
-        const response = await config.provider.createMessage(
-          createRequest(messages, options, false),
-        );
+        let pauseContinuations = 0;
 
-        if (options.debugResponse) {
-          console.log('Full response:', response.raw);
+        while (true) {
+          const response = await config.provider.createMessage(
+            createRequest(messages, options, false),
+          );
+
+          if (options.debugResponse) {
+            console.log('Full response:', response.raw);
+          }
+
+          const responseContent = contentFromResponse(response);
+
+          if (
+            response.stopReason === 'pause_turn' &&
+            pauseContinuations >= DEFAULT_MAX_PAUSE_CONTINUATIONS
+          ) {
+            throw createPauseContinuationLimitError();
+          }
+
+          addAssistantContent(messages, responseContent);
+          emitSources(response, options);
+
+          if (response.stopReason === 'pause_turn') {
+            pauseContinuations += 1;
+            continue;
+          }
+
+          return response.text;
         }
-
-        addAssistantContent(messages, contentFromResponse(response));
-
-        return response.text;
       }
 
       const maxToolRounds = options.maxToolRounds ?? DEFAULT_MAX_TOOL_ROUNDS;
+      let pauseContinuations = 0;
 
       for (let round = 0; round <= maxToolRounds; round += 1) {
         const response = await config.provider.createMessage(
@@ -146,8 +186,22 @@ export function createChatService(config: ChatServiceConfig): ChatService {
           console.log('Full response:', response.raw);
         }
 
+        const assistantContent = contentFromResponse(response);
+
+        if (response.stopReason === 'pause_turn') {
+          if (pauseContinuations >= DEFAULT_MAX_PAUSE_CONTINUATIONS) {
+            throw createPauseContinuationLimitError();
+          }
+
+          addAssistantContent(messages, assistantContent);
+          emitSources(response, options);
+          pauseContinuations += 1;
+          continue;
+        }
+
         if (response.stopReason !== 'tool_use') {
-          addAssistantContent(messages, contentFromResponse(response));
+          addAssistantContent(messages, assistantContent);
+          emitSources(response, options);
           options.onToolEvent?.({ type: 'final_response_received' });
 
           return response.text;
@@ -157,7 +211,6 @@ export function createChatService(config: ChatServiceConfig): ChatService {
           throw new Error(`Tool use exceeded the maximum round limit of ${maxToolRounds}.`);
         }
 
-        const assistantContent = contentFromResponse(response);
         const toolUseBlocks = extractToolUseBlocks(assistantContent);
 
         if (toolUseBlocks.length === 0) {
@@ -165,6 +218,7 @@ export function createChatService(config: ChatServiceConfig): ChatService {
         }
 
         addAssistantContent(messages, assistantContent);
+        emitSources(response, options);
 
         for (const toolUse of toolUseBlocks) {
           options.onToolEvent?.({ toolName: toolUse.name, type: 'tool_requested' });
