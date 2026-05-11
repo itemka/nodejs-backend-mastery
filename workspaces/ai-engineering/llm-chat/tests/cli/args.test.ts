@@ -185,6 +185,31 @@ describe('parseArgs', () => {
   });
 });
 
+describe('--rag-base-url', () => {
+  it('parses --rag-base-url with --tools', () => {
+    expect(parseArgs(['--tools', '--rag-base-url=http://127.0.0.1:4100'])).toEqual({
+      options: { ragBaseUrl: 'http://127.0.0.1:4100', toolsEnabled: true },
+      shouldPrintHelp: false,
+    });
+  });
+
+  it('rejects --rag-base-url without --tools', () => {
+    expect(() => parseArgs(['--rag-base-url=http://127.0.0.1:4100'])).toThrow(
+      /--rag-base-url requires --tools/,
+    );
+  });
+
+  it('rejects empty --rag-base-url', () => {
+    expect(() => parseArgs(['--tools', '--rag-base-url='])).toThrow(/non-empty URL/);
+  });
+
+  it('rejects --rag-base-url combined with --output-format', () => {
+    expect(() =>
+      parseArgs(['--rag-base-url=http://localhost:4100', '--tools', '--output-format=json']),
+    ).toThrow(/cannot be combined with --output-format/);
+  });
+});
+
 describe('helpText', () => {
   it('mentions all flags', () => {
     const text = helpText();
@@ -199,5 +224,6 @@ describe('helpText', () => {
     expect(text).toContain('--workspace-root');
     expect(text).toContain('--text-editor-max-characters');
     expect(text).toContain('--no-web-search');
+    expect(text).toContain('--rag-base-url');
   });
 });

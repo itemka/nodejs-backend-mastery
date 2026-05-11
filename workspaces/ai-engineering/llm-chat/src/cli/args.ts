@@ -9,6 +9,7 @@ export interface EditFilesConfig {
 
 export interface ParsedOptions extends ChatOptions {
   editFiles?: EditFilesConfig;
+  ragBaseUrl?: string;
   webSearchEnabled?: boolean;
 }
 
@@ -55,7 +56,7 @@ export interface ParsedArgs {
 
 export function helpText(): string {
   return [
-    'Usage: pnpm dev [--max-tokens=<number>] [--debug-response] [--output-format=json|csv|html] [--tools] [--fine-grained-tool-streaming] [--edit-files] [--workspace-root=<path>] [--text-editor-max-characters=<number>] [--no-web-search]',
+    'Usage: pnpm dev [--max-tokens=<number>] [--debug-response] [--output-format=json|csv|html] [--tools] [--fine-grained-tool-streaming] [--edit-files] [--workspace-root=<path>] [--text-editor-max-characters=<number>] [--no-web-search] [--rag-base-url=<url>]',
     '',
     'Run the LLM chat app.',
     '',
@@ -70,6 +71,7 @@ export function helpText(): string {
     '  --workspace-root=<path>               Allowed filesystem root for --edit-files (default: current working directory).',
     '  --text-editor-max-characters=<number> Optional max characters for view operations.',
     '  --no-web-search                       Disable Anthropic Web Search Tool (default: enabled).',
+    '  --rag-base-url=<url>                  Enable the search_docs tool against a running rag-pipeline service (requires --tools). Falls back to the RAG_PIPELINE_BASE_URL env value when omitted.',
     '  -h, --help                            Show this help message.',
   ].join('\n');
 }
@@ -90,6 +92,7 @@ export function parseArgs(argv: readonly string[]): ParsedArgs {
   let workspaceRoot: string | undefined;
   let textEditorMaxCharacters: number | undefined;
   let webSearchExplicitlyDisabled = false;
+  let ragBaseUrl: string | undefined;
 
   for (const argument of argv) {
     if (argument === '--') {
@@ -162,6 +165,17 @@ export function parseArgs(argv: readonly string[]): ParsedArgs {
       continue;
     }
 
+    if (argument.startsWith('--rag-base-url=')) {
+      const value = argument.slice('--rag-base-url='.length).trim();
+
+      if (value === '') {
+        throw new Error('--rag-base-url must be a non-empty URL.');
+      }
+
+      ragBaseUrl = value;
+      continue;
+    }
+
     throw new Error(`Unknown argument: ${argument}`);
   }
 
@@ -194,6 +208,20 @@ export function parseArgs(argv: readonly string[]): ParsedArgs {
       ...(textEditorMaxCharacters === undefined ? {} : { textEditorMaxCharacters }),
       ...(workspaceRoot === undefined ? {} : { workspaceRoot }),
     };
+  }
+
+  if (ragBaseUrl !== undefined) {
+    if (options.toolsEnabled !== true) {
+      throw new Error('--rag-base-url requires --tools.');
+    }
+
+    if (options.outputFormat !== undefined) {
+      throw new Error(
+        '--rag-base-url cannot be combined with --output-format or --structured-commands.',
+      );
+    }
+
+    options.ragBaseUrl = ragBaseUrl;
   }
 
   const webSearchIncompatible =

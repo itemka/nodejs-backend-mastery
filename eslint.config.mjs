@@ -99,6 +99,12 @@ export default [
       // Imports/Node rules tuned for monorepo/TS resolution
       'n/no-missing-import': 'off',
       'n/no-unpublished-import': 'off',
+      // Multi-segment scoped workspace package names (e.g. `@workspaces/packages/errors`)
+      // confuse `n/no-extraneous-import`: it strips after the second segment, so it sees
+      // the package as `@workspaces/packages` and reports it as undeclared even though
+      // pnpm resolves the full name correctly. Turn off to silence false positives;
+      // pnpm + tsc + TS resolution still catch real missing/extraneous imports.
+      'n/no-extraneous-import': 'off',
 
       // Useful unicorn tweaks (keep the rest from preset)
       'unicorn/prevent-abbreviations': 'off', // too noisy in real codebases
