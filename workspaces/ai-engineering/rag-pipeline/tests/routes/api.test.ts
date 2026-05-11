@@ -214,6 +214,21 @@ describe('rag-pipeline API', () => {
     expect(json.error.code).toBe('VALIDATION_ERROR');
   });
 
+  it('rejects malformed JSON bodies with INVALID_JSON', async () => {
+    booted = await bootApp();
+
+    const response = await fetch(`${booted.baseUrl}/search`, {
+      body: '{ "query": "broken',
+      headers: { 'content-type': 'application/json' },
+      method: 'POST',
+    });
+
+    expect(response.status).toBe(400);
+
+    const json = (await response.json()) as { error: { code: string } };
+    expect(json.error.code).toBe('INVALID_JSON');
+  });
+
   it('rejects ingest paths that escape the allowed root', async () => {
     booted = await bootApp();
 

@@ -11,7 +11,7 @@
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run",
     "lint": "eslint src tests --ext .ts",
-    "build": "node esbuild.config.mjs"
+    "build": "pnpm --filter @workspaces/packages/errors run build && node esbuild.config.mjs"
   },
   "dependencies": {
     "@workspaces/packages/errors": "workspace:*",

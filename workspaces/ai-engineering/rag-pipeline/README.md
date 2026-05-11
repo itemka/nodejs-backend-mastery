@@ -117,8 +117,8 @@ lets callers — including the `llm-chat` `search_docs` tool — tell the
 "index is empty" case apart from "your query matched nothing", and forward
 the hint to users without guessing implementation details.
 
-`topK` is capped at 20 server-side; the default is 5. Empty queries return an
-empty result set.
+`topK` is capped at 20 server-side; the default is 5. Blank or whitespace-only
+queries are rejected with `400 VALIDATION_ERROR`.
 
 ## Cross-app demo flow
 
