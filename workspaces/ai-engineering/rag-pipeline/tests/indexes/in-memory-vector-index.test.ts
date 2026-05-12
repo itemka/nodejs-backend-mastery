@@ -37,6 +37,17 @@ describe('InMemoryVectorIndex', () => {
     expect(index.size()).toBe(2);
   });
 
+  it('counts distinct source documents', () => {
+    const index = new InMemoryVectorIndex();
+    index.addMany([
+      makeChunk('a', 'A', [1, 0]),
+      { ...makeChunk('b', 'B', [0, 1]), sourcePath: '/tmp/other.md' },
+      { ...makeChunk('c', 'C', [1, 1]), sourcePath: '/tmp/other.md' },
+    ]);
+
+    expect(index.documentCount()).toBe(2);
+  });
+
   it('rejects empty, non-finite, and dimension-mismatched vectors', () => {
     const index = new InMemoryVectorIndex();
     expect(() => index.addOne(makeChunk('a', 'A', []))).toThrow(/non-empty array/);

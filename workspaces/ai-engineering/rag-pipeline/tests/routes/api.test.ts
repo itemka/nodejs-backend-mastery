@@ -80,7 +80,11 @@ describe('rag-pipeline API', () => {
     const json = (await response.json()) as Record<string, unknown>;
 
     expect(response.status).toBe(200);
-    expect(json).toMatchObject({ embeddingModel: 'fake', status: 'ok' });
+    expect(json).toMatchObject({
+      embeddingModel: 'fake',
+      indexed: { chunks: 0, documents: 0 },
+      status: 'ok',
+    });
   });
 
   it('ingests a fixture document and returns search results', async () => {
@@ -149,6 +153,28 @@ describe('rag-pipeline API', () => {
       strategy: 'sections',
     });
     expect(ingestJson.chunkCount).toBeGreaterThan(0);
+  });
+
+  it('reports the distinct ingested document count in /health', async () => {
+    booted = await bootApp();
+
+    for (const sourcePath of ['sample-report.md', 'report.md']) {
+      const ingestResponse = await fetch(`${booted.baseUrl}/ingest`, {
+        body: JSON.stringify({ sourcePath }),
+        headers: { 'content-type': 'application/json' },
+        method: 'POST',
+      });
+      expect(ingestResponse.status).toBe(200);
+    }
+
+    const response = await fetch(`${booted.baseUrl}/health`);
+    const json = (await response.json()) as {
+      indexed: { chunks: number; documents: number };
+    };
+
+    expect(response.status).toBe(200);
+    expect(json.indexed.documents).toBe(2);
+    expect(json.indexed.chunks).toBeGreaterThan(2);
   });
 
   it('flags an empty-index /search response with indexEmpty and a note', async () => {

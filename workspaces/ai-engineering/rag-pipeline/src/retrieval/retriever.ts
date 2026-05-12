@@ -63,6 +63,10 @@ export class Retriever {
     };
   }
 
+  public documentCount(): number {
+    return this.vectorIndex.documentCount();
+  }
+
   public async search(query: string, topK: number): Promise<SearchResult[]> {
     if (!Number.isInteger(topK) || topK <= 0) {
       throw new RangeError('topK must be a positive integer.');

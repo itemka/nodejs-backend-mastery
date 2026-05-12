@@ -10,7 +10,10 @@ export function createHealthRouter(context: AppContext): Router {
     const sizes = context.retriever.sizes();
     const payload: HealthResponse = {
       embeddingModel: context.env.VOYAGE_EMBEDDING_MODEL,
-      indexed: { chunks: sizes.vector, documents: sizes.vector === 0 ? 0 : 1 },
+      indexed: {
+        chunks: sizes.vector,
+        documents: context.retriever.documentCount(),
+      },
       status: 'ok',
     };
 

@@ -100,6 +100,10 @@ export class InMemoryVectorIndex {
     return this.entries.length;
   }
 
+  public documentCount(): number {
+    return new Set(this.entries.map((entry) => entry.chunk.sourcePath)).size;
+  }
+
   public search(queryVector: readonly number[], topK: number): VectorSearchHit[] {
     if (!Number.isInteger(topK) || topK <= 0) {
       throw new RangeError('topK must be a positive integer.');
