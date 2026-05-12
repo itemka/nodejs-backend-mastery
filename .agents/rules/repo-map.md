@@ -24,6 +24,7 @@ Project-specific orientation for AI agents. Keep this file easy to edit when cop
 
 - `workspaces/ai-engineering/llm-chat`: interactive LLM chat CLI built on `@workspaces/packages/llm-client`.
 - `workspaces/ai-engineering/prompt-eval-lab`: automated prompt-evaluation CLI (dataset → render → run → grade) on top of `@workspaces/packages/llm-client`.
+- `workspaces/ai-engineering/rag-pipeline`: Express RAG retrieval service with VoyageAI embeddings, in-memory vector index, BM25 lexical index, and hybrid RRF retrieval. Consumed by `llm-chat` over HTTP through the optional `search_docs` tool.
 
 ## Packages
 

@@ -116,6 +116,10 @@ Available v1 tools:
   weeks, months, or years from an ISO datetime.
 - `set_reminder` - stores a mock reminder in process memory only. It does not
   persist reminders or schedule real notifications.
+- `search_docs` - opt-in retrieval tool against the
+  [`rag-pipeline`](../rag-pipeline/) service. Only registered when
+  `--rag-base-url=<url>` (or `RAG_PIPELINE_BASE_URL`) is configured together
+  with `--tools`. See [RAG search](#rag-search) below.
 
 Tool progress lines use the `[tool]` prefix. `--debug-response` still prints raw
 provider responses and should be treated as developer-only output, especially
@@ -168,6 +172,60 @@ every `str_replace` and `insert`.
   only.
 - v1 does not include per-operation user confirmation. The `--edit-files`
   flag is the explicit opt-in for the entire session.
+
+## RAG search
+
+The `search_docs` tool is opt-in and only registered when an explicit RAG base
+URL is supplied. It calls the `POST /search` endpoint of the
+[`rag-pipeline`](../rag-pipeline/) service and returns top-k matching
+chunks with source metadata so Claude can cite them. The RAG service must be
+running and have ingested at least one document.
+
+Configuration (precedence: CLI flag > environment variable):
+
+```bash
+# CLI flag (preferred for one-off sessions):
+pnpm --filter llm-chat dev -- --tools --rag-base-url=http://127.0.0.1:4100
+
+# Environment variable (useful when the service URL is stable):
+RAG_PIPELINE_BASE_URL=http://127.0.0.1:4100 pnpm --filter llm-chat dev -- --tools
+```
+
+`--rag-base-url` requires `--tools`. It cannot be combined with
+`--output-format=*` or `--structured-commands`. When the RAG service is not
+configured or is offline, the tool is not registered and a normal `--tools`
+session continues to work; tool failures during a session return sanitized
+errors back to Claude rather than crashing the chat loop.
+
+Tool input schema:
+
+```json
+{ "query": "What happened in INC-2023-Q4-011?", "topK": 5 }
+```
+
+Tool result shape (per chunk):
+
+```json
+{
+  "chunkId": "report#sec0",
+  "chunkIndex": 0,
+  "content": "...truncated chunk text...",
+  "documentId": "report",
+  "score": 0.42,
+  "sectionTitle": "Incident INC-2023-Q4-011",
+  "sourceName": "report.md",
+  "sourcePath": "/abs/path/to/report.md"
+}
+```
+
+`topK` is capped to 10 and chunk content is truncated for compact tool output
+so the provider has enough evidence without flooding context.
+
+When the rag-pipeline service has no ingested documents, `search_docs` also
+returns `indexEmpty: true` and a short `note` field. Claude uses this to
+distinguish "the index is empty — run ingest first" from "your query matched
+nothing", so the user gets actionable feedback instead of a generic
+"no results" answer.
 
 ## Anthropic Web Search Tool
 

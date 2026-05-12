@@ -10,7 +10,8 @@ import type { EditFilesConfig } from './cli/args.js';
 import { createReadlineInput } from './cli/readline.js';
 import { runChatbot } from './cli/run-chatbot.js';
 import { loadConfig, loadEnvironment } from './config/env.js';
-import { llmChatTools } from './tools/registry.js';
+import { buildLlmChatTools } from './tools/registry.js';
+import { createSearchDocsClient } from './tools/search-docs-client.js';
 import { createTextEditorRuntime } from './tools/text-editor/index.js';
 import { createAppToolExecutionContext } from './tools/types.js';
 
@@ -58,7 +59,7 @@ async function main(): Promise<void> {
   loadEnvironment();
   const config = loadConfig();
   const provider = createProvider(config);
-  const { editFiles, webSearchEnabled, ...chatOptions } = parsedArgs.options;
+  const { editFiles, ragBaseUrl, webSearchEnabled, ...chatOptions } = parsedArgs.options;
   const editFilesResult = editFiles === undefined ? undefined : buildBuiltinClientTools(editFiles);
   const builtinClientTools = editFilesResult?.builtinClientTools ?? [];
   const systemPrompt =
@@ -66,6 +67,15 @@ async function main(): Promise<void> {
       ? SYSTEM_PROMPT_BASE
       : `${SYSTEM_PROMPT_BASE} File editing workspace root: "${editFilesResult.workspaceRoot}". Always use paths relative to this root (e.g. "src/main.ts") or absolute paths that start with this root.`;
   const serverTools = webSearchEnabled === false ? [] : [buildWebSearchToolDefinition()];
+  const resolvedRagBaseUrl = ragBaseUrl ?? process.env.RAG_PIPELINE_BASE_URL;
+  const ragSearchEnabled =
+    chatOptions.toolsEnabled === true &&
+    typeof resolvedRagBaseUrl === 'string' &&
+    resolvedRagBaseUrl.trim() !== '';
+  const searchDocsClient =
+    ragSearchEnabled && resolvedRagBaseUrl !== undefined
+      ? createSearchDocsClient({ baseUrl: resolvedRagBaseUrl })
+      : undefined;
   const chatService = createChatService({
     builtinClientTools,
     model: config.model,
@@ -73,8 +83,10 @@ async function main(): Promise<void> {
     serverTools,
     systemPrompt,
     temperature: TEMPERATURE,
-    toolContext: createAppToolExecutionContext(),
-    tools: llmChatTools,
+    toolContext: createAppToolExecutionContext(
+      searchDocsClient === undefined ? {} : { searchDocsClient },
+    ),
+    tools: buildLlmChatTools({ ragSearchEnabled }),
   });
 
   const input = createReadlineInput();
