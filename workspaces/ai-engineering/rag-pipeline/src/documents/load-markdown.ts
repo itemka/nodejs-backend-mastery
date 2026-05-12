@@ -68,7 +68,10 @@ export async function loadMarkdownDocument(options: LoadMarkdownOptions): Promis
   }
 
   const sourceName = path.basename(absolute);
-  const documentId = sourceName.replace(/\.[^./\\]+$/, '');
+  const allowedRootAbsolute = path.resolve(options.allowedRoot);
+  const relativeFromRoot = path.relative(allowedRootAbsolute, absolute);
+  const posixRelative = relativeFromRoot.split(path.sep).join('/');
+  const documentId = posixRelative.replace(/\.[^./]+$/, '');
 
   return {
     content,
