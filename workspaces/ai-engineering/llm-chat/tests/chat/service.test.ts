@@ -715,7 +715,11 @@ describe('chat service', () => {
     });
     await service.sendUserTurn(messages, 'search', {
       onSources: (sources) => {
-        collected.push(...sources);
+        for (const source of sources) {
+          if (source.kind === 'web_search') {
+            collected.push(source);
+          }
+        }
       },
     });
 

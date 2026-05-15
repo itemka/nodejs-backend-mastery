@@ -305,9 +305,9 @@ describe('createAnthropicProvider', () => {
   });
 
   it('preserves unknown response blocks as passthrough so downstream paths fail loudly', async () => {
-    const thinkingBlock = { signature: 'sig', thinking: 'reasoning...', type: 'thinking' };
+    const unsupportedBlock = { detail: 'sample', type: 'never_supported_block' };
     const create = vi.fn().mockResolvedValue({
-      content: [thinkingBlock, { text: 'Hello', type: 'text' }],
+      content: [unsupportedBlock, { text: 'Hello', type: 'text' }],
       stop_reason: 'end_turn',
     });
     const client = { messages: { create } } as unknown as Anthropic;
@@ -321,7 +321,7 @@ describe('createAnthropicProvider', () => {
     });
 
     expect(response.content).toEqual([
-      { raw: thinkingBlock, type: 'unknown' },
+      { raw: unsupportedBlock, type: 'unknown' },
       { text: 'Hello', type: 'text' },
     ]);
   });
