@@ -15,7 +15,8 @@ describe('validateCacheTargetArgs', () => {
     expect(() =>
       validateCacheTargetArgs('document', { documentPath: 'samples/documents/earth.pdf' }),
     ).not.toThrow();
-    expect(() => validateCacheTargetArgs('image', { imagePath: 'samples/images/prop1.png' }))
-      .not.toThrow();
+    expect(() =>
+      validateCacheTargetArgs('image', { imagePath: 'samples/images/prop1.png' }),
+    ).not.toThrow();
   });
 });

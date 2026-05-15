@@ -7,6 +7,7 @@ settings:
 overrides:
   fast-uri: ^3.1.2
   router>path-to-regexp: ^8.4.2
+  systeminformation: ^5.31.6
   ts-declaration-location>picomatch: ^4.0.4
   vitest>picomatch: ^4.0.4
 
@@ -2223,8 +2224,8 @@ packages:
     resolution: {integrity: sha512-MpUEN2OodtUzxvKQl72cUF7RQ5EiHsGvSsVG0ia9c5RbWGL2CI4C7EpPS8UTBIplnlzZiNuV56w+FuNxy3ty2Q==}
     engines: {node: '>=10'}
 
-  systeminformation@5.31.5:
-    resolution: {integrity: sha512-5SyLdip4/3alxD4Kh+63bUQTJmu7YMfYQTC+koZy7X73HgNqZSD2P4wOZQWtUncvPvcEmnfIjCoygN4MRoEejQ==}
+  systeminformation@5.31.6:
+    resolution: {integrity: sha512-Uv2b2uGGM6ns+26czgW2cYRabYdnswM0ddSOOlryHOaelzsmDSet1iM/NT7VOYxW8x/BW+HkY+b1Ve2pLTSGSA==}
     engines: {node: '>=8.0.0'}
     os: [darwin, linux, win32, freebsd, openbsd, netbsd, sunos, android]
     hasBin: true
@@ -3983,7 +3984,7 @@ snapshots:
       inquirer: 8.2.7(@types/node@25.5.2)
       node-fetch: 2.7.0
       ora: 5.4.1
-      systeminformation: 5.31.5
+      systeminformation: 5.31.6
       table: 6.9.0
       yaml: 2.8.3
       zod: 3.25.76
@@ -4342,7 +4343,7 @@ snapshots:
     dependencies:
       has-flag: 4.0.0
 
-  systeminformation@5.31.5: {}
+  systeminformation@5.31.6: {}
 
   table@6.9.0:
     dependencies:
