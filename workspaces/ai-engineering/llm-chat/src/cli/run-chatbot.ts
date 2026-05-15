@@ -183,7 +183,11 @@ export async function runChatbot(options: RunChatbotOptions): Promise<Messages> 
     }
 
     chatOptions.onSources = (sources) => {
-      collectedSources.push(...sources);
+      for (const source of sources) {
+        if (source.kind === 'web_search') {
+          collectedSources.push(source);
+        }
+      }
     };
 
     const answer = await options.runTurn(messages, userInput, chatOptions);

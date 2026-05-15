@@ -1,5 +1,5 @@
 import type {
-  LlmWebSearchSource,
+  LlmSource,
   OutputFormatConfig,
   TextDeltaHandler,
 } from '@workspaces/packages/llm-client';
@@ -19,7 +19,7 @@ export type ToolEvent =
 
 export type ToolEventHandler = (event: ToolEvent) => void;
 
-export type SourcesHandler = (sources: readonly LlmWebSearchSource[]) => void;
+export type SourcesHandler = (sources: readonly LlmSource[]) => void;
 
 export interface ChatOptions {
   debugResponse?: boolean;
