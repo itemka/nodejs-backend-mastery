@@ -161,4 +161,18 @@ export default [
       'unicorn/no-null': 'off',
     },
   },
+
+  // CLI scripts and agent lifecycle hooks: these are genuine entrypoints, so
+  // process.exit() and short names are fine. Mirrors the relaxations applied to TS.
+  {
+    name: 'project:cli-scripts',
+    files: ['scripts/**/*.{mjs,js}', '.agents/hooks/**/*.{mjs,js}'],
+    rules: {
+      'n/no-process-exit': 'off',
+      'unicorn/import-style': 'off',
+      'unicorn/no-null': 'off',
+      'unicorn/no-process-exit': 'off',
+      'unicorn/prevent-abbreviations': 'off',
+    },
+  },
 ];

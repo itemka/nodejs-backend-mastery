@@ -43,8 +43,14 @@ Design safe hook automation for AI coding tools while keeping shared guidance po
 5. Avoid destructive commands, broad writes, force operations, hidden network calls, or automation that can mutate external systems without explicit approval.
 6. Avoid external services unless the project clearly needs them and failure handling is documented.
 7. Keep matchers and scope narrow so the hook runs only for the intended tools, files, or events.
-8. Document the tool-specific adapter location only when implementation is needed; keep shared guidance in skills until concrete hook files exist.
-9. Do not create scripts, settings, or hook config unless the user explicitly requests implementation.
+8. Make hook paths and command working directories repo-root safe. Do not assume the agent session starts at the repository root; use the tool's project-dir variable, a `git rev-parse --show-toplevel` wrapper, or script-level repo-root detection.
+9. Map failures to the target tool's hook semantics. Use blocking exit codes or structured JSON only where the lifecycle event can act on them; do not rely on conventional exit `1` for policy feedback.
+10. Do not rely on multiple hook handlers in one lifecycle event to run sequentially. If order matters, create one small orchestrator hook that runs deterministic checks in sequence.
+11. Remember lifecycle limits: `PreToolUse` can prevent an action; `PostToolUse` observes after the action happened and can only give feedback or continue the loop.
+12. Prefer structured shell parsing for shell-command safety hooks. Use a maintained parser when it improves quote/operator handling; keep fail-closed behavior for unparsable risky syntax. Known parser blind spots that must be closed manually before trusting the parse: literal newline command separators, wrapper commands that take a script string (`bash -c`, `sh -c`, `zsh -c`, `eval`), brace expansion targets, and any positional that contains command substitution or variable references.
+13. Make orchestrator hooks fail closed. When a sub-hook spawn fails (missing script, signal kill, timeout, unexpected exit code), surface the failure as a real block (exit `2` for Claude / Codex) instead of treating it as a silent pass. Assign per-phase timeouts so a stuck early phase cannot exhaust the adapter's overall budget.
+14. Document the tool-specific adapter location only when implementation is needed; keep shared guidance in skills until concrete hook files exist.
+15. Do not create scripts, settings, or hook config unless the user explicitly requests implementation.
 
 ## Output Format
 
@@ -63,6 +69,8 @@ Design safe hook automation for AI coding tools while keeping shared guidance po
 - Do not auto-approve broad permissions or bypass safety prompts.
 - Do not print secrets, tokens, private URLs, or machine-specific paths.
 - Treat hook config as reviewable automation because it can affect every agent run.
+- Validate hooks from both the repository root and a nested workspace directory.
+- Keep hook commands deterministic and bounded with timeouts where supported.
 
 ## When Not To Use
 

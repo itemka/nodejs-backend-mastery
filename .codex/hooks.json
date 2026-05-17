@@ -1,0 +1,52 @@
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "^(Bash|shell)$",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "_root=$(git rev-parse --show-toplevel) && node \"$_root/.agents/hooks/before-bash.mjs\"",
+            "statusMessage": "checking for destructive commands"
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "^(Edit|MultiEdit|Write|apply_patch)$",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "_root=$(git rev-parse --show-toplevel) && node \"$_root/.agents/hooks/after-edit.mjs\"",
+            "timeout": 120,
+            "statusMessage": "formatting, linting, and testing changed file"
+          }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "_root=$(git rev-parse --show-toplevel) && node \"$_root/.agents/hooks/inject-git-context.mjs\"",
+            "timeout": 5
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "_root=$(git rev-parse --show-toplevel) && node \"$_root/.agents/hooks/stop-checks.mjs\"",
+            "timeout": 180,
+            "statusMessage": "running stop checks"
+          }
+        ]
+      }
+    ]
+  }
+}

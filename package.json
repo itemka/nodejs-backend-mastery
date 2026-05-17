@@ -13,7 +13,12 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "test": "pnpm -r run --if-present test",
-    "sync-mcp": "node scripts/sync-mcp-to-codex.mjs"
+    "validate": "pnpm run lint && pnpm run format:check && pnpm run typecheck && pnpm run test",
+    "validate:changed": "node scripts/validate-changed.mjs",
+    "check:secrets": "node scripts/check-secrets.mjs",
+    "check:adapters": "node scripts/check-adapters.mjs",
+    "sync-mcp": "node scripts/sync-mcp-to-codex.mjs",
+    "postinstall": "node scripts/sync-mcp-to-codex.mjs --quiet-missing || true"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.4",
@@ -26,6 +31,7 @@
     "eslint-plugin-unicorn": "^62.0.0",
     "globals": "^16.5.0",
     "prettier": "^3.8.2",
+    "shell-quote": "^1.8.3",
     "typescript": "^5.9.3",
     "typescript-eslint": "^8.58.1"
   },

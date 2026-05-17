@@ -44,6 +44,11 @@ Root entry points stay thin:
 - [checklists/](./checklists/) — Compact verification criteria used by
   skills and reviewers. Keep checklists practical, scannable, and free from
   long explanations.
+- [hooks/](./hooks/) — Portable Node.js hook scripts invoked by AI tool
+  lifecycle events (PostToolUse format/lint, Stop typecheck, etc.). Wired up
+  by `.claude/settings.json` and `.codex/hooks.json`. Design guidance lives
+  in [skills/designing-hooks/](./skills/designing-hooks/); operational details
+  live in [hooks/README.md](./hooks/README.md).
 
 ## AI-Agent Guidance Rule
 
