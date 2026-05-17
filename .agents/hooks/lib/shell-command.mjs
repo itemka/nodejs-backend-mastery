@@ -62,10 +62,7 @@ const baseName = (token) => token?.split('/').at(-1) ?? '';
 const expandWrapperChunk = (tokens, depth) => {
   if (depth >= MAX_WRAPPER_RECURSION) return [tokens];
 
-  // Find the first non-env/sudo command position (mirrors commandIndex without
-  // importing it to avoid a circular helper).
-  let i = 0;
-  while (ENV_ASSIGNMENT_RE.test(tokens[i] ?? '')) i++;
+  const i = commandIndex(tokens);
   const head = baseName(tokens[i]);
 
   if (EVAL_WRAPPERS.has(head)) {
