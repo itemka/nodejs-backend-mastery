@@ -59,6 +59,18 @@ const parseLine = (line) => {
 
 const baseName = (token) => token?.split('/').at(-1) ?? '';
 
+const shellScriptArg = (args) => {
+  for (let i = 0; i < args.length; i++) {
+    const arg = args[i];
+    if (arg === '--') return null;
+    if (arg === '-c' || (/^-[^-]+$/.test(arg) && arg.includes('c'))) {
+      return args[i + 1];
+    }
+  }
+
+  return null;
+};
+
 const expandWrapperChunk = (tokens, depth) => {
   if (depth >= MAX_WRAPPER_RECURSION) return [tokens];
 
@@ -76,8 +88,7 @@ const expandWrapperChunk = (tokens, depth) => {
 
   if (SHELL_WRAPPERS_WITH_C.has(head)) {
     const args = tokens.slice(i + 1);
-    const cIdx = args.indexOf('-c');
-    const script = cIdx === -1 ? null : args[cIdx + 1];
+    const script = shellScriptArg(args);
     if (typeof script === 'string' && script.length > 0) {
       return [tokens, ...expandChunks(parseShellCommandRaw(script), depth + 1)];
     }
@@ -138,7 +149,7 @@ const skipSudoOptions = (tokens, index) => {
 
 const skipEnvPrefix = (tokens, index) => {
   let i = index;
-  if (tokens[i] !== 'env') return i;
+  if (baseName(tokens[i]) !== 'env') return i;
 
   i++;
   while (tokens[i]) {
@@ -176,20 +187,21 @@ export const commandIndex = (tokens) => {
 
   while (ENV_ASSIGNMENT_RE.test(tokens[i] ?? '')) i++;
   while (
-    tokens[i] === 'sudo' ||
-    tokens[i] === 'doas' ||
-    tokens[i] === 'command' ||
-    tokens[i] === 'env'
+    baseName(tokens[i]) === 'sudo' ||
+    baseName(tokens[i]) === 'doas' ||
+    baseName(tokens[i]) === 'command' ||
+    baseName(tokens[i]) === 'env'
   ) {
-    if (tokens[i] === 'env') i = skipEnvPrefix(tokens, i);
-    else if (tokens[i] === 'sudo' || tokens[i] === 'doas') i = skipSudoOptions(tokens, i + 1);
+    const head = baseName(tokens[i]);
+    if (head === 'env') i = skipEnvPrefix(tokens, i);
+    else if (head === 'sudo' || head === 'doas') i = skipSudoOptions(tokens, i + 1);
     else i++;
   }
 
   return i;
 };
 
-export const commandName = (token) => token?.split('/').at(-1);
+export const commandName = (token) => baseName(token);
 
 export const gitSubcommandIndex = (tokens, gitIndex) => {
   let i = gitIndex + 1;

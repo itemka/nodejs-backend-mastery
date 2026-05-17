@@ -158,7 +158,16 @@ printf '%s' '{"tool_input":{"command":"bash -c \"rm -rf /\""}}' \
 printf '%s' '{"tool_input":{"command":"sudo bash -c \"rm -rf /\""}}' \
   | node .agents/hooks/before-bash.mjs
 
+printf '%s' '{"tool_input":{"command":"bash -lc \"rm -rf /\""}}' \
+  | node .agents/hooks/before-bash.mjs
+
 printf '%s' '{"tool_input":{"command":"env FOO=1 sh -c \"git reset --hard\""}}' \
+  | node .agents/hooks/before-bash.mjs
+
+printf '%s' '{"tool_input":{"command":"/usr/bin/env rm -rf /"}}' \
+  | node .agents/hooks/before-bash.mjs
+
+printf '%s' '{"tool_input":{"command":"/usr/bin/env bash -lc \"rm -rf /\""}}' \
   | node .agents/hooks/before-bash.mjs
 
 printf '%s' '{"tool_input":{"command":"eval \"rm -rf ~\""}}' \
