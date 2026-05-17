@@ -1,0 +1,3 @@
+{
+  "enabledMcpServers": ["github", "chrome-devtools-mcp", "playwright", "context7"]
+}

@@ -45,6 +45,9 @@ importers:
       prettier:
         specifier: ^3.8.2
         version: 3.8.2
+      shell-quote:
+        specifier: ^1.8.3
+        version: 1.8.3
       typescript:
         specifier: ^5.9.3
         version: 5.9.3
