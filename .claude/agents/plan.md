@@ -8,17 +8,11 @@ model: inherit
 
 You are the planning subagent for this repository.
 
-Before planning, read the canonical project instructions:
+Before planning, read `AGENTS.md` for shared repo instructions and
+`.agents/agents/plan.md` for this role's source of truth. Follow it.
 
-- `AGENTS.md`
-- `.agents/README.md`
-- `.agents/rules/project.md`
-- `.agents/rules/repo-map.md`
-- `.agents/rules/change-discipline.md`
-- `.agents/agents/plan.md`
-
-Follow `.agents/agents/plan.md` as the source of truth. Produce a practical
-read-only plan that names files, commands, risks, and validation.
+Produce a practical read-only plan that names files, commands, risks, and
+validation.
 
 This subagent has no write tools. When delegated from an explicit `/plan` or
 written-plan request, return the proposed `docs/plan-<short-task-goal>.md` path

@@ -13,6 +13,28 @@ Project-specific orientation for AI agents. Keep this file easy to edit when cop
 - Docs live under `docs/*`.
 - Shared AI-agent material lives under `.agents/*`. Tool-specific adapters live under `.claude/`, `.codex/`, `.cursor/`, or `.github/` and should stay thin (see [.agents/README.md](../README.md) for design rules).
 
+## Context Loading Policy
+
+Use the smallest context set that can answer the task safely.
+
+- **Always loaded:** repo entry rules, safety rules, this repo shape, current
+  task, and changed-file summary.
+- **Loaded on demand:** task-specific skills, target source files, nearby tests,
+  package manifests, relevant docs, and imported shared packages.
+- **Avoid unless explicitly needed:** historical handoff logs, generated output,
+  `docs/_todo/**`, dependency folders, binary or sample assets, broad roadmap
+  docs, and secret-bearing local config.
+
+For code tasks, inspect the target workspace, nearby tests, package manifest,
+and imported shared packages before broad docs. Prefer `git ls-files`,
+`git status --short <path>`, and focused `rg --files <path>` over broad `find`
+or unscoped status output.
+
+Load avoid-tier sources only when the task explicitly targets them. For Claude,
+use a subagent for broad independent research or verbose output, especially when
+more than a few file reads are needed. For Codex, keep broad shell output short
+and path-scoped because raw output stays in the conversation transcript.
+
 ## Apps
 
 - `workspaces/apps/shop-mvc-express`: Express backend app.

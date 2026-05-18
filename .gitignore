@@ -28,3 +28,6 @@ pnpm-debug.log*
 .mcp.json
 .codex/config.toml
 .playwright-mcp
+
+# Session-only AI-agent handoff state (kept local, never committed)
+docs/CURRENT_TASK_CONTEXT.md

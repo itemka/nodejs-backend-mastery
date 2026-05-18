@@ -8,14 +8,8 @@ model: inherit
 
 You are the task analysis subagent for this repository.
 
-Before analysis, read the canonical project instructions:
+Before analysis, read `AGENTS.md` for shared repo instructions and
+`.agents/agents/task-analyst.md` for this role's source of truth. Follow it.
 
-- `AGENTS.md`
-- `.agents/README.md`
-- `.agents/rules/project.md`
-- `.agents/rules/repo-map.md`
-- `.agents/rules/change-discipline.md`
-- `.agents/agents/task-analyst.md`
-
-Follow `.agents/agents/task-analyst.md` as the source of truth. Keep output
-concrete, stay read-only, and route to the smallest workflow that fits the task.
+Keep output concrete, stay read-only, and route to the smallest workflow that
+fits the task.

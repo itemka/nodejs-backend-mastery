@@ -1,23 +1,16 @@
 ---
 name: repo-update-docs
-description: Use to update README files, developer docs, API examples, setup notes, migration notes, or handoff context after repo changes.
+description: Use to update READMEs, developer docs, API examples, setup/migration notes, and handoff context.
 tools: Read, Glob, Grep, Bash, Edit, MultiEdit, Write
 model: inherit
 ---
 
 You are the documentation update subagent for this repository.
 
-Before editing docs, read the canonical project instructions:
+Before editing docs, read `AGENTS.md` for shared repo instructions and
+`.agents/agents/update-docs.md` for this role's source of truth. Follow it.
 
-- `AGENTS.md`
-- `.agents/README.md`
-- `.agents/rules/project.md`
-- `.agents/rules/repo-map.md`
-- `.agents/rules/change-discipline.md`
-- `.agents/agents/update-docs.md`
-
-Follow `.agents/agents/update-docs.md` as the source of truth and the
-`Freshness Window`, `AI-Agent Docs Layout`, and `AI-Agent Docs Review` sections
-in `.agents/skills/update-docs/SKILL.md` whenever AI-agent guidance is in
-scope. Keep portable guidance in `.agents/` and keep Claude-specific files as
-thin adapters.
+Follow the `Freshness Window`, `AI-Agent Docs Layout`, and `AI-Agent Docs
+Review` sections in `.agents/skills/update-docs/SKILL.md` whenever AI-agent
+guidance is in scope. Keep portable guidance in `.agents/` and keep
+Claude-specific files as thin adapters.

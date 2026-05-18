@@ -21,9 +21,12 @@ clients; **no live Anthropic calls are made in CI**.
 
 Sample assets live under `samples/` and are committed as small fixtures so the
 scenarios are runnable out of the box (images, a PDF, a CSV, and a text file).
+See [samples/MANIFEST.md](samples/MANIFEST.md) for filenames, sizes, and per-file
+purpose — AI agents should consult the manifest before opening any binary,
+PDF, image, large CSV, or generated output in this workspace.
 Replace them with your own files in `samples/images/`, `samples/documents/`,
-`samples/text/`, or `samples/data/` as needed. The lab validates file types and
-sizes before sending data to Anthropic.
+`samples/text/`, or `samples/data/` as needed (and update the manifest row when
+you do). The lab validates file types and sizes before sending data to Anthropic.
 
 Generated outputs are written under `outputs/` and ignored by git.
 
