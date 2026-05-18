@@ -9,7 +9,9 @@ const MAX_STATUS_LINES = 10;
 
 const git = (args, root) => {
   try {
-    return execFileSync('git', args, { cwd: root, encoding: 'utf8' }).trim();
+    // trimEnd, not trim: `git status --short` uses the leading column to mark
+    // unstaged-only changes (" M file"), and trimming the left side flips it to staged.
+    return execFileSync('git', args, { cwd: root, encoding: 'utf8' }).trimEnd();
   } catch {
     return '';
   }
