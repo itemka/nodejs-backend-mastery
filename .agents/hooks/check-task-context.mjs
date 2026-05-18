@@ -1,6 +1,6 @@
-// Stop hook: enforce docs/CURRENT_TASK_CONTEXT.md before the session ends.
-// Exits 2 (blocking) when the file is missing; nudges (exit 0) when stale.
-// stop_hook_active guard prevents an infinite loop on the second Stop attempt.
+// Stop hook: nudge to keep docs/CURRENT_TASK_CONTEXT.md fresh.
+// Advisory only — always exits 0. Emits a system message when the file is
+// missing or stale in a dirty worktree.
 
 import { execFileSync } from 'node:child_process';
 import { existsSync, statSync } from 'node:fs';
@@ -40,12 +40,10 @@ const main = () => {
 
   const ctxPath = resolve(root, CTX);
   if (!existsSync(ctxPath)) {
-    // Already in a stop-hook retry loop — don't block indefinitely.
-    if (payload?.stop_hook_active) return 0;
-    process.stderr.write(
-      `[hook] ${CTX} is missing — create it before stopping. See ${SKILL_HINT}\n`,
+    writeSystemMessage(
+      `[hook] reminder: ${CTX} is missing — add a compact handoff if work continues across sessions. See ${SKILL_HINT}`,
     );
-    return 2;
+    return 0;
   }
 
   const ctxMtime = statSync(ctxPath).mtimeMs;

@@ -19,8 +19,8 @@ For AI-agent docs design rules (skills are canonical, adapters are thin, role sp
 
 ## Current Task Context Rule
 
-`docs/CURRENT_TASK_CONTEXT.md` is a **session-only file** — it is intentionally not committed to the repository. Create it if it does not exist; do not treat a missing file as an error or skip updating it because it is absent.
+`docs/CURRENT_TASK_CONTEXT.md` is a **session-only, gitignored local handoff file** — not a permanent audit trail and not part of any commit.
 
-After every meaningful codebase change, investigation, debugging session, review, or implementation step, create or update [docs/CURRENT_TASK_CONTEXT.md](../../docs/CURRENT_TASK_CONTEXT.md) using [skills/current-task-context/SKILL.md](../skills/current-task-context/SKILL.md).
+Keep a compact handoff in [docs/CURRENT_TASK_CONTEXT.md](../../docs/CURRENT_TASK_CONTEXT.md) when work will continue across turns, tools, or sessions. Skip it for trivial or fully reverted edits, or when the next action is already obvious from the current diff. Create the file when needed; do not treat a missing file as an error.
 
-Keep `Current Focus` concise. Append timestamped entries to `Implementation Log`, `Decision Log`, and `Validation Log` using local ISO 8601 minute precision with timezone offset (for example `2026-04-25T14:32+02:00`). Do not delete or rewrite historical log entries; append a correction or follow-up entry instead. Record what changed, why, files touched, validation run, risks, and next steps. Do not include secrets, long logs, or full source code.
+Use [skills/current-task-context/SKILL.md](../skills/current-task-context/SKILL.md) for the file shape, update rules, and the `Activity Log` compaction rule (~120 lines). Use local ISO 8601 minute precision with timezone offset (for example `2026-05-18T16:32+02:00`) for log headings. Record what changed, why, files touched, validation run, risks, and next steps. Do not include secrets, long terminal logs, or full source code.

@@ -8,7 +8,7 @@ Use this as a runnable prompt for scoped validation of the current changed files
 2. Read and follow [.agents/skills/validate/SKILL.md](../skills/validate/SKILL.md).
 3. Run `pnpm run validate:changed`.
 4. If validation fails, summarize the failing phase and use focused follow-up checks after any fix.
-5. Update `docs/CURRENT_TASK_CONTEXT.md` with [.agents/skills/current-task-context/SKILL.md](../skills/current-task-context/SKILL.md) after meaningful investigation or fixes.
+5. When a handoff is useful — work continues across turns, tools, or sessions — update `docs/CURRENT_TASK_CONTEXT.md` per [.agents/skills/current-task-context/SKILL.md](../skills/current-task-context/SKILL.md) (see its `When To Use` / `When Not To Use`).
 
 ## User Input
 

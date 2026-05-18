@@ -51,7 +51,7 @@ Implement requested changes with the smallest practical diff while preserving ex
 6. Add or update tests for meaningful behavior changes.
 7. Update docs or examples when user-facing, setup, API, migration, or workflow behavior changes.
 8. Use [validate](../validate/SKILL.md) before finishing.
-9. Use [current-task-context](../current-task-context/SKILL.md) after meaningful implementation handoffs.
+9. Use [current-task-context](../current-task-context/SKILL.md) only when a handoff is useful — work continues across turns, tools, or sessions; defer to its `When To Use` / `When Not To Use`.
 
 ## Output Format
 

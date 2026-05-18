@@ -1,43 +1,38 @@
 ---
 name: current-task-context
-description: Current task context handoff updates for docs/CURRENT_TASK_CONTEXT.md. Use after meaningful codebase changes, debugging, reviews, investigations, or handoffs.
+description: Current task context handoff updates for docs/CURRENT_TASK_CONTEXT.md. Use when work will continue across turns, tools, or sessions and a compact handoff would help the next agent.
 metadata:
   created: '2026-04-25'
   status: 'baseline'
   portability: 'cross-tool'
-  last-reviewed: '2026-05-05'
+  last-reviewed: '2026-05-18'
 ---
 
 # Current Task Context
 
 ## Purpose
 
-Keep `docs/CURRENT_TASK_CONTEXT.md` accurate as shared working memory and an audit trail for humans and AI tools.
+Keep `docs/CURRENT_TASK_CONTEXT.md` as a compact local handoff so another tool or session can pick up the current work without re-deriving context from scratch.
 
-Use this skill to capture the current state of work so another tool or session can continue without losing context, while preserving the history of meaningful implementation, decision, validation, and handoff events.
+The file is gitignored and session-only — it is shared working memory, not a permanent audit trail. Git history is the durable record; this file just carries what the next turn needs.
 
 ## When To Use
 
-Use after a meaningful:
+Update when work will continue across turns, tools, or sessions, after a meaningful:
 
-- implementation
-- refactor
-- debugging session
-- code review
-- test fix
-- architecture decision
-- dependency or config change
-- investigation that changes understanding of the codebase
+- implementation, refactor, or debugging step
+- review, investigation, or architecture decision
+- dependency, schema, or config change
+- validation run whose result informs the next action
 - PR or commit preparation step
 
 ## When Not To Use
 
-Do not update for:
+Skip the update for:
 
-- formatting-only edits
-- typo-only changes
+- formatting-only edits or typo fixes
 - temporary experiments that were fully reverted
-- duplicated information already captured in the latest entry
+- information already captured in the latest entry or trivially recoverable from `git diff` / `git log`
 
 ## Inputs
 
@@ -55,47 +50,32 @@ Do not guess missing facts. Mark unknowns clearly.
 ## Workflow
 
 1. Inspect the current diff, recent changes, and `git status`.
-2. Get a local timestamp at minute precision with timezone offset, for example `2026-04-25T14:32+02:00`.
-3. Identify only meaningful information worth handing off or preserving.
-4. Open `docs/CURRENT_TASK_CONTEXT.md`.
-5. Update `Current Focus` in place with the latest live state.
-6. Append new entries to `Implementation Log`, `Decision Log`, and `Validation Log` as needed.
-7. Record exact validation commands and real results.
-8. Update `Open Items` and `Handoff Summary` so the next AI or human session can continue.
-9. Report what was updated.
+2. Get a local timestamp at minute precision with timezone offset, for example `2026-05-18T16:32+02:00`.
+3. Identify only meaningful information worth handing off — skip anything recoverable from git.
+4. Open `docs/CURRENT_TASK_CONTEXT.md` (create it if missing).
+5. Update `Current Focus`, `Open Items`, `Risks / Watchouts`, and `Handoff Summary` in place.
+6. Append a typed entry to `Activity Log` if there is something worth preserving.
+7. Compact `Activity Log` when it grows past ~120 lines (see Update Rules).
+8. Report what was updated.
 
 ## Update Rules
 
-Prefer concise entries, but do not collapse history into a single latest summary.
+`Current Focus`, `Open Items`, `Risks / Watchouts`, and `Handoff Summary` are mutable sections. Keep them current and concise — they describe the live state, not history.
 
-`Current Focus`, `Open Items`, and `Handoff Summary` are mutable sections. Keep them current and concise.
-
-`Implementation Log`, `Decision Log`, and `Validation Log` are append-only sections. Do not delete, reorder, or rewrite historical entries just because newer work supersedes them. If an old entry is wrong, append a correction entry with a new timestamp. Archive old history only when explicitly asked.
-
-Use local ISO 8601 minute precision with timezone offset for log headings:
+`Activity Log` is append-mostly. Each entry has a typed heading with a local timestamp at minute precision and timezone offset:
 
 ```md
-### 2026-04-25T14:32+02:00 - Short title
+### 2026-05-18T16:32+02:00 - Short title (type)
 ```
 
-Seconds are unnecessary for manual updates. Automated tooling may include seconds if needed for uniqueness.
+Entry types: `implementation`, `decision`, `validation`, `review`, `blocker`, `rollback`, `handoff`, `docs`.
 
-Meaningful event types include:
+Compaction rule: when `Activity Log` exceeds ~120 lines, summarize or drop the oldest entries that no longer inform `Current Focus`, `Open Items`, `Risks`, or recent decisions. Do not drop entries that still load-bear for the next action. Git history remains the durable record — this file is a rolling working set, not an archive. If an old entry is wrong, append a corrected entry with a new timestamp rather than rewriting it in place.
 
-- implementation
-- review
-- validation
-- decision
-- blocker
-- rollback
-- handoff
-- docs update
-
-Good context answers these questions:
+Good context answers:
 
 - What is the task?
-- What changed?
-- Why did it change?
+- What changed and why?
 - Which files matter?
 - What was validated?
 - What remains risky or unfinished?
@@ -103,11 +83,11 @@ Good context answers these questions:
 
 Avoid:
 
-- long logs
+- long terminal logs
 - copied source code
 - secrets
 - speculation
-- duplicate commit messages
+- duplicating commit messages
 - generic notes like "improved code"
 
 ## Recommended `docs/CURRENT_TASK_CONTEXT.md` Shape
@@ -117,9 +97,7 @@ Use this structure. Skip empty sections.
 ```md
 # Current Task Context
 
-Shared working context for humans and AI agents.
-
-Current focus is the live handoff. Logs are historical and append-only.
+Local working context for humans and AI agents. Session-only, gitignored.
 
 ## Current Focus
 
@@ -129,33 +107,14 @@ Current focus is the live handoff. Logs are historical and append-only.
 - Next action:
 - Related files:
 
-## Implementation Log
+## Activity Log
 
-### YYYY-MM-DDTHH:mm+HH:MM - Short title
+### YYYY-MM-DDTHH:mm+HH:MM - Short title (type)
 
-- Type:
-- Status:
-- Actor:
-- Implemented:
+- Summary:
 - Files:
 - Validation:
 - Follow-up:
-
-## Decision Log
-
-### YYYY-MM-DDTHH:mm+HH:MM - Short title
-
-- Decision:
-- Reason:
-- Trade-off:
-
-## Validation Log
-
-### YYYY-MM-DDTHH:mm+HH:MM - Short title
-
-- Commands:
-- Result:
-- Notes:
 
 ## Open Items
 
@@ -194,64 +153,6 @@ Updated `docs/CURRENT_TASK_CONTEXT.md`.
 
 ## Example Entry
 
-```md
-## Current Focus
-
-- Task: Add backend API validation.
-- Status: Validation implemented and tested.
-- Current blocker: None.
-- Next action: Review error response shape.
-- Related files:
-  - `workspaces/apps/orders/src/routes/orders.ts`
-  - `workspaces/apps/orders/src/schemas/order.schema.ts`
-  - `workspaces/apps/orders/src/routes/orders.test.ts`
-
-## Implementation Log
-
-### 2026-04-25T14:32+02:00 - Add backend API validation
-
-- Type: implementation
-- Status: done
-- Actor: Codex
-- Implemented: Added request validation for the create order endpoint to prevent invalid payloads from reaching service logic.
-- Files:
-  - `workspaces/apps/orders/src/routes/orders.ts`
-  - `workspaces/apps/orders/src/schemas/order.schema.ts`
-  - `workspaces/apps/orders/src/routes/orders.test.ts`
-- Validation:
-  - `pnpm --filter orders test` - passed
-- Follow-up: Confirm error response shape matches project conventions.
-
-## Decision Log
-
-### 2026-04-25T14:32+02:00 - Keep validation at the route boundary
-
-- Decision: Keep validation at the route boundary.
-- Reason: Invalid input should be rejected before business logic.
-- Trade-off: Route layer has more schema code, but service layer stays cleaner.
-
-## Validation Log
-
-### 2026-04-25T14:32+02:00 - Validate order route changes
-
-- Commands:
-  - `pnpm --filter orders test`
-- Result: Passed.
-- Notes: Covered invalid quantity.
-
-## Risks / Watchouts
-
-- Risk: Existing clients may rely on loose validation.
-- Mitigation: Check API examples and update docs if needed.
-
-## Open Items
-
-- [ ] Update API docs if contract changed.
-
-## Handoff Summary
-
-- Current state: Validation is implemented and tested.
-- What changed: Invalid order payloads now return a validation error.
-- What remains: Confirm error shape matches project conventions.
-- Recommended next action: Review current diff and prepare commit.
-```
+For a concrete formatting example, open
+[references/example.md](references/example.md) only when the template above is
+not enough.

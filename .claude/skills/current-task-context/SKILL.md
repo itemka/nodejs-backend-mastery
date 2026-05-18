@@ -1,6 +1,6 @@
 ---
 name: current-task-context
-description: Current task context handoff updates for docs/CURRENT_TASK_CONTEXT.md. Use after meaningful codebase changes, debugging, reviews, investigations, or handoffs.
+description: Current task context handoff updates for docs/CURRENT_TASK_CONTEXT.md. Use when work will continue across turns, tools, or sessions and a compact handoff would help the next agent.
 argument-hint: '[change, validation, or handoff summary]'
 ---
 
@@ -14,4 +14,4 @@ When this skill is selected:
 2. Read `.agents/README.md` and the rules under `.agents/rules/`.
 3. Read `.agents/skills/current-task-context/SKILL.md`.
 4. Follow the `.agents` skill as the source of truth.
-5. Keep the live focus concise, keep history logs append-only, and do not include secrets or long logs.
+5. Keep the live focus concise, follow the canonical `Activity Log` compaction rules, and do not include secrets or long logs.
