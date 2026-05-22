@@ -45,6 +45,7 @@ and path-scoped because raw output stays in the conversation transcript.
 ## AI Engineering
 
 - `workspaces/ai-engineering/llm-chat`: interactive LLM chat CLI built on `@workspaces/packages/llm-client`.
+- `workspaces/ai-engineering/mcp-chat`: document-focused MCP server + CLI MCP client/chatbot using the MCP TypeScript SDK V2 alpha. In-memory documents, streaming chat, `@doc_name` mentions, MCP-prompt slash commands.
 - `workspaces/ai-engineering/prompt-eval-lab`: automated prompt-evaluation CLI (dataset → render → run → grade) on top of `@workspaces/packages/llm-client`.
 - `workspaces/ai-engineering/rag-pipeline`: Express RAG retrieval service with VoyageAI embeddings, in-memory vector index, BM25 lexical index, and hybrid RRF retrieval. Consumed by `llm-chat` over HTTP through the optional `search_docs` tool.
 

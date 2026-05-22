@@ -1,0 +1,32 @@
+{
+  "name": "mcp-chat",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "dev": "tsx src/cli/main.ts",
+    "server:dev": "tsx src/server/main.ts",
+    "server": "node dist/server/main.js",
+    "chat": "node dist/cli/main.js",
+    "inspect": "npx -y @modelcontextprotocol/inspector node dist/server/main.js",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run",
+    "lint": "eslint src tests --ext .ts",
+    "build": "node esbuild.config.mjs"
+  },
+  "dependencies": {
+    "@cfworker/json-schema": "^4.1.1",
+    "@modelcontextprotocol/client": "2.0.0-alpha.2",
+    "@modelcontextprotocol/server": "2.0.0-alpha.2",
+    "@workspaces/packages/llm-client": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^25.6.0",
+    "esbuild": "^0.28.0",
+    "tsx": "^4.20.6",
+    "typescript": "^5.9.3",
+    "vitest": "^4.1.5"
+  }
+}
