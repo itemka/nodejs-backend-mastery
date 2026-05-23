@@ -6,7 +6,7 @@
     "node": ">=24"
   },
   "scripts": {
-    "dev": "tsx src/cli/main.ts",
+    "dev": "tsx src/cli/main.ts --server-dev",
     "server:dev": "tsx src/server/main.ts",
     "server": "node dist/server/main.js",
     "chat": "node dist/cli/main.js",
