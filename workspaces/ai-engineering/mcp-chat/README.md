@@ -9,6 +9,21 @@ A learning/demo workspace that pairs a small document-focused MCP server with a 
 - One CLI chatbot consuming the server via stdio.
 - No database, no persistence across restarts, no live API calls in tests.
 
+## How it works
+
+A tool-using turn loops between the CLI chatbot (which embeds the MCP client), the document MCP server, and Claude:
+
+![MCP message flow: the client lists tools from the server, sends the query plus tools to Claude, relays Claude's tool calls to the server, and returns the tool results to Claude for the final answer.](docs/images/mcp-workflow-example.png)
+
+Mapping the diagram's generic actors onto this workspace:
+
+- **Our Server / MCP Client** — the CLI chatbot. It owns the stdio MCP client and orchestrates the turn.
+- **MCP Server** — the in-memory document server exposing `read_doc_contents`, `edit_document`, the `docs://` resources, and the `format` prompt.
+- **Claude** — the Anthropic API, reached through `@workspaces/packages/llm-client`.
+- **Github** — only an illustrative external system in the source diagram. This workspace has no external backend; the document store lives inside the MCP server.
+
+The sequence is: the client fetches the tool list (`ListTools`) from the server, sends the query plus tools to Claude, receives a `ToolUse`, calls the tool on the server (`CallTool`), feeds the tool result back to Claude, and streams the final answer to the user.
+
 ## SDK versions and protocol
 
 - MCP TypeScript SDK V2 packages (alpha) — pinned exactly:
