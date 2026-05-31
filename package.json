@@ -34,14 +34,5 @@
     "shell-quote": "^1.8.3",
     "typescript": "^5.9.3",
     "typescript-eslint": "^8.58.1"
-  },
-  "pnpm": {
-    "overrides": {
-      "fast-uri": "^3.1.2",
-      "router>path-to-regexp": "^8.4.2",
-      "systeminformation": "^5.31.6",
-      "ts-declaration-location>picomatch": "^4.0.4",
-      "vitest>picomatch": "^4.0.4"
-    }
   }
 }
