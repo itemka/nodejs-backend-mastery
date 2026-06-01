@@ -6,6 +6,8 @@ import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
+import * as ui from '@workspaces/cli-output';
+
 const PATTERNS = [
   { name: 'GitHub PAT', re: /\bgithub_pat_[A-Za-z0-9_]{20,}/g },
   { name: 'GitHub OAuth/legacy PAT', re: /\b(?:ghp|gho|ghu|ghs|ghr)_[A-Za-z0-9]{30,}/g },
@@ -28,7 +30,10 @@ const listTrackedFiles = () => {
       .filter(Boolean)
       .filter((f) => !ALLOWLIST.has(f));
   } catch (error) {
-    console.error('[check:secrets] could not list tracked files:', error.message);
+    console.error(
+      `${ui.prefix('[check:secrets]')} ${ui.error('could not list tracked files:')}`,
+      error.message,
+    );
     process.exit(1);
   }
 };
@@ -63,7 +68,7 @@ const grepPattern = (grepArgs, patternName) => {
 
   const stderr = (res.stderr ?? '').trim();
   console.error(
-    `[check:secrets] git grep failed for pattern "${patternName}" (exit ${res.status}). ${stderr}`,
+    `${ui.prefix('[check:secrets]')} ${ui.error(`git grep failed for pattern "${patternName}" (exit ${res.status}).`)} ${stderr}`,
   );
   process.exit(1);
 };
@@ -99,8 +104,12 @@ const assertPcreSupport = () => {
 
     const stderr = (res.stderr ?? '').trim();
     console.error(
-      `[check:secrets] git grep does not support PCRE (-P) on this system. ` +
-        `Install a git build with PCRE or update this script.${stderr ? `\n${stderr}` : ''}`,
+      `${ui.prefix('[check:secrets]')} ` +
+        ui.error(
+          `git grep does not support PCRE (-P) on this system. ` +
+            `Install a git build with PCRE or update this script.`,
+        ) +
+        `${stderr ? `\n${stderr}` : ''}`,
     );
     process.exit(1);
   } finally {
@@ -113,12 +122,14 @@ const main = () => {
   const files = listTrackedFiles();
   const findings = scan(files);
   if (findings.length === 0) {
-    console.log('[check:secrets] OK — no credential patterns in tracked files');
+    console.log(
+      `${ui.prefix('[check:secrets]')} ${ui.ok('no credential patterns in tracked files')}`,
+    );
     return 0;
   }
-  console.error('[check:secrets] FAIL — credential patterns detected:');
+  console.error(`${ui.prefix('[check:secrets]')} ${ui.fail('credential patterns detected:')}`);
   for (const { name, hits } of findings) {
-    console.error(`\n## ${name}\n${hits}`);
+    console.error(`\n${ui.heading(`## ${name}`)}\n${hits}`);
   }
   return 1;
 };

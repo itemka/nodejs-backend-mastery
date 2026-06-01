@@ -1,3 +1,4 @@
+import * as ui from '@workspaces/cli-output';
 import type {
   LlmContentBlock,
   LlmResponse,
@@ -18,7 +19,11 @@ function truncate(text: string): string {
 }
 
 export function renderFinalAnswer(text: string): string {
-  return ['', '=== Answer ===', text.trim() === '' ? '(no text returned)' : text].join('\n');
+  return [
+    '',
+    ui.heading('=== Answer ==='),
+    text.trim() === '' ? ui.muted('(no text returned)') : text,
+  ].join('\n');
 }
 
 export function renderThinking(
@@ -33,9 +38,9 @@ export function renderThinking(
 
   for (const block of content) {
     if (block.type === 'thinking') {
-      lines.push('--- thinking ---', block.thinking.trim());
+      lines.push(ui.muted('--- thinking ---'), block.thinking.trim());
     } else if (block.type === 'redacted_thinking') {
-      lines.push('--- thinking (redacted by safety filter) ---');
+      lines.push(ui.muted('--- thinking (redacted by safety filter) ---'));
     }
   }
 
@@ -43,7 +48,7 @@ export function renderThinking(
     return '';
   }
 
-  return ['', '=== Thinking ===', ...lines].join('\n');
+  return ['', ui.heading('=== Thinking ==='), ...lines].join('\n');
 }
 
 export function renderSources(sources: readonly LlmSource[] | undefined): string {
@@ -51,7 +56,7 @@ export function renderSources(sources: readonly LlmSource[] | undefined): string
     return '';
   }
 
-  const lines: string[] = ['', '=== Citations ==='];
+  const lines: string[] = ['', ui.heading('=== Citations ===')];
 
   for (const [index, source] of sources.entries()) {
     if (source.kind === 'web_search') {
@@ -81,7 +86,7 @@ export function renderSources(sources: readonly LlmSource[] | undefined): string
     }
 
     if (source.fileId !== undefined && source.fileId !== null) {
-      lines.push(`     file_id=${source.fileId}`);
+      lines.push(ui.muted(`     file_id=${source.fileId}`));
     }
 
     lines.push(`     "${truncate(source.citedText)}"`);
@@ -126,9 +131,11 @@ export function renderUsage(usage: LlmUsage | undefined): string {
     }
   }
 
-  return ['', '=== Usage ===', parts.join(', ')].join('\n');
+  return ['', ui.heading('=== Usage ==='), ui.muted(parts.join(', '))].join('\n');
 }
 
 export function renderResponseDebug(response: LlmResponse): string {
-  return ['', '=== Raw response ===', JSON.stringify(response.raw, undefined, 2)].join('\n');
+  return ['', ui.heading('=== Raw response ==='), JSON.stringify(response.raw, undefined, 2)].join(
+    '\n',
+  );
 }

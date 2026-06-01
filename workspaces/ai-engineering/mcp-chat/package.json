@@ -20,6 +20,7 @@
     "@cfworker/json-schema": "^4.1.1",
     "@modelcontextprotocol/client": "2.0.0-alpha.2",
     "@modelcontextprotocol/server": "2.0.0-alpha.2",
+    "@workspaces/cli-output": "workspace:*",
     "@workspaces/packages/llm-client": "workspace:*"
   },
   "devDependencies": {

@@ -1,4 +1,5 @@
 import 'dotenv/config';
+import * as ui from '@workspaces/cli-output';
 import { spawn } from 'node:child_process';
 import http from 'node:http';
 import https from 'node:https';
@@ -49,7 +50,7 @@ async function waitForApiReadiness(readinessUrl, timeoutMs, intervalMs) {
   }
 
   console.warn(
-    `[client:dev] Backend did not become ready at ${readinessUrl.origin} within ${timeoutMs}ms. Starting Vite anyway.`,
+    `${ui.prefix('[client:dev]')} ${ui.warn(`Backend did not become ready at ${readinessUrl.origin} within ${timeoutMs}ms. Starting Vite anyway.`)}`,
   );
 }
 

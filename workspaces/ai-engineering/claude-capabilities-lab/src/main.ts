@@ -1,3 +1,4 @@
+import * as ui from '@workspaces/cli-output';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -75,7 +76,7 @@ export async function main(argv: readonly string[]): Promise<void> {
 
   if (scenario === undefined) {
     if (scenarioArg !== undefined) {
-      console.error(`Unknown scenario: ${scenarioArg}`);
+      console.error(ui.error(`Unknown scenario: ${scenarioArg}`));
     }
 
     console.log(HELP_TEXT);

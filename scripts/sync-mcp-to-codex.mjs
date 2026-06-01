@@ -1,5 +1,7 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 
+import * as ui from '@workspaces/cli-output';
+
 const SOURCE_PATH = '.mcp.json';
 const TARGET_PATH = '.codex/config.toml';
 const ENABLED_PATH = '.codex/mcp-enabled.json';
@@ -228,10 +230,10 @@ if (argv.some((argument) => HELP_FLAGS.has(argument))) {
     const enabledServerNames = readEnabledServerNames(mcpServers);
 
     writeCodexConfig(buildGeneratedBlock(filterEnabledMcpServers(mcpServers, enabledServerNames)));
-    console.log(`Synced ${SOURCE_PATH} to ${TARGET_PATH}`);
+    console.log(ui.success(`Synced ${SOURCE_PATH} to ${ui.muted(TARGET_PATH)}`));
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    console.error(`sync-mcp failed: ${message}`);
+    console.error(ui.error(`sync-mcp failed: ${message}`));
     process.exitCode = 1;
   }
 }

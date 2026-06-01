@@ -1,3 +1,5 @@
+import * as ui from '@workspaces/cli-output';
+
 import type { ChatSession } from '../chat/chat-session.js';
 import {
   buildUserTextWithContext,
@@ -100,6 +102,11 @@ function buildPromptArgsRecord(
 }
 
 export async function runChatbot(options: RunChatbotOptions): Promise<void> {
+  // Color is applied where each line's role is known (tool events, status and
+  // error lines below) rather than by sniffing arbitrary output — so an
+  // assistant answer is never recolored. `formatToolEvent` stays uncolored and
+  // testable. Tests capture plain strings because chalk is disabled under
+  // Vitest; color degrades automatically via chalk's NO_COLOR/TTY detection.
   const output = options.output ?? console.log;
   const outputChunk = options.outputChunk ?? ((text) => process.stdout.write(text));
   const stream = options.stream ?? true;
@@ -129,15 +136,19 @@ export async function runChatbot(options: RunChatbotOptions): Promise<void> {
       const commands = await listAvailableCommands(options.documentServer);
       output(
         commands.length === 0
-          ? '(no MCP commands available)'
-          : `Commands: /${commands.join(', /')}`,
+          ? ui.muted('(no MCP commands available)')
+          : ui.heading(`Commands: /${commands.join(', /')}`),
       );
       continue;
     }
 
     if (trimmed === '@') {
       const docs = await listKnownDocumentIds(options.documentServer);
-      output(docs.length === 0 ? '(no documents available)' : `Documents: @${docs.join(', @')}`);
+      output(
+        docs.length === 0
+          ? ui.muted('(no documents available)')
+          : ui.heading(`Documents: @${docs.join(', @')}`),
+      );
       continue;
     }
 
@@ -160,7 +171,7 @@ export async function runChatbot(options: RunChatbotOptions): Promise<void> {
         const line = formatToolEvent(event);
 
         if (line !== undefined) {
-          outputLine(line);
+          outputLine(ui.accent(line));
         }
       },
     };
@@ -178,7 +189,7 @@ export async function runChatbot(options: RunChatbotOptions): Promise<void> {
       const mentions = await resolveMentions(options.documentServer, userInput);
 
       for (const docId of mentions.unknown) {
-        output(`[context] Unknown document: @${docId}`);
+        output(ui.warn(`[context] Unknown document: @${docId}`));
       }
 
       messageText = buildUserTextWithContext(userInput, mentions.snippets);
@@ -187,7 +198,7 @@ export async function runChatbot(options: RunChatbotOptions): Promise<void> {
       const promptMeta = prompts.find((p) => p.name === parsedCommand.name);
 
       if (promptMeta === undefined) {
-        output(`Unknown command: /${parsedCommand.name}`);
+        output(ui.warn(`Unknown command: /${parsedCommand.name}`));
         continue;
       }
 
@@ -200,7 +211,7 @@ export async function runChatbot(options: RunChatbotOptions): Promise<void> {
           promptMeta.arguments,
         );
       } catch (error) {
-        output(error instanceof Error ? error.message : String(error));
+        output(ui.error(error instanceof Error ? error.message : String(error)));
         continue;
       }
 
@@ -208,7 +219,7 @@ export async function runChatbot(options: RunChatbotOptions): Promise<void> {
       const promptMessages = mcpPromptToChatMessages(promptResult);
 
       if (promptMessages.length === 0) {
-        output('(prompt returned no text messages)');
+        output(ui.muted('(prompt returned no text messages)'));
         continue;
       }
 
@@ -230,7 +241,7 @@ export async function runChatbot(options: RunChatbotOptions): Promise<void> {
       if (typeof lastMessage.content === 'string') {
         messageText = lastMessage.content;
       } else {
-        output('(prompt last message had non-text content; skipping turn)');
+        output(ui.muted('(prompt last message had non-text content; skipping turn)'));
         continue;
       }
     }

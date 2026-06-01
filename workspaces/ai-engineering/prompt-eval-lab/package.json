@@ -13,6 +13,7 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@workspaces/cli-output": "workspace:*",
     "@workspaces/packages/llm-client": "workspace:*",
     "typescript": "^5.9.3",
     "zod": "^4.1.12"

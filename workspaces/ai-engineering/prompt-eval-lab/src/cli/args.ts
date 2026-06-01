@@ -1,3 +1,4 @@
+import * as ui from '@workspaces/cli-output';
 import path from 'node:path';
 
 import { DEFAULT_CONCURRENCY, MAX_CONCURRENCY, MIN_CONCURRENCY } from '../eval/runner.js';
@@ -19,14 +20,14 @@ export interface ParsedArgs {
 
 export function helpText(): string {
   return [
-    'Usage: pnpm dev -- --dataset=<path> [options]',
+    ui.heading('Usage: pnpm dev -- --dataset=<path> [options]'),
     '',
     'Run a prompt-evaluation pipeline against a JSON dataset.',
     '',
-    'Required:',
+    ui.heading('Required:'),
     '  --dataset=<path>          Path to a JSON dataset file.',
     '',
-    'Options:',
+    ui.heading('Options:'),
     `  --prompt=<name>           Prompt template name (default: ${DEFAULT_TEMPLATE_NAME}).`,
     '  --out=<path>              Report path (default: timestamped .html in reports/; use .json for raw JSON).',
     '  --model=<id>              Override the ANTHROPIC_MODEL env value.',

@@ -1,3 +1,4 @@
+import * as ui from '@workspaces/cli-output';
 import {
   type NormalizedHttpError,
   NotFoundError,
@@ -32,7 +33,7 @@ export function registerErrorHandlingMiddleware() {
 
     // TODO: log via implemented logger later (plus correlationId/requestId when request logging middleware is added)
     // Future: add correlationId/requestId when request logging middleware is added
-    console.error('Request error normalizedError:', normalizedError);
+    console.error(ui.error('Request error normalizedError:'), normalizedError);
 
     const preferredType = getPreferredResponseType(req);
     const isProdEnv = config.nodeEnv === 'production';

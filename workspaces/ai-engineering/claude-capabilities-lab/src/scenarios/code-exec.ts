@@ -1,3 +1,4 @@
+import * as ui from '@workspaces/cli-output';
 import {
   createAnthropicClient,
   createAnthropicFilesApi,
@@ -42,7 +43,9 @@ export async function runCodeExecScenario(parsed: ParsedFlags): Promise<void> {
   const validated = await loadCodeExecUpload(filePath);
   const uploadStream = fs.createReadStream(validated.absolutePath);
   const metadata = await files.upload({ file: uploadStream });
-  console.log(`Uploaded ${path.basename(validated.absolutePath)} as ${metadata.id}`);
+  console.log(
+    ui.success(`Uploaded ${path.basename(validated.absolutePath)} as ${ui.muted(metadata.id)}`),
+  );
 
   const userContent: LlmContentBlock[] = [
     { fileId: metadata.id, type: 'container_upload' },
@@ -74,23 +77,23 @@ export async function runCodeExecScenario(parsed: ParsedFlags): Promise<void> {
       const content = block.content;
 
       if (content.type !== 'code_execution_result') {
-        console.log(`\n=== code_execution_tool_result_error: ${content.errorCode} ===`);
+        console.log(ui.error(`\n=== code_execution_tool_result_error: ${content.errorCode} ===`));
         continue;
       }
 
-      console.log('\n=== code_execution_result ===');
-      console.log(`return_code=${content.returnCode}`);
+      console.log(ui.heading('\n=== code_execution_result ==='));
+      console.log(ui.muted(`return_code=${content.returnCode}`));
 
       if (content.stdout) {
-        console.log(`stdout: ${content.stdout.slice(0, 800)}`);
+        console.log(`${ui.muted('stdout:')} ${content.stdout.slice(0, 800)}`);
       }
 
       if (content.stderr) {
-        console.log(`stderr: ${content.stderr.slice(0, 800)}`);
+        console.log(`${ui.muted('stderr:')} ${content.stderr.slice(0, 800)}`);
       }
 
       for (const output of content.content) {
-        console.log(`generated file_id=${output.fileId}`);
+        console.log(ui.muted(`generated file_id=${output.fileId}`));
         outputFileIds.push(output.fileId);
       }
 
@@ -101,23 +104,25 @@ export async function runCodeExecScenario(parsed: ParsedFlags): Promise<void> {
       const content = block.content;
 
       if (content.type !== 'bash_code_execution_result') {
-        console.log(`\n=== bash_code_execution_tool_result_error: ${content.errorCode} ===`);
+        console.log(
+          ui.error(`\n=== bash_code_execution_tool_result_error: ${content.errorCode} ===`),
+        );
         continue;
       }
 
-      console.log('\n=== bash_code_execution_result ===');
-      console.log(`return_code=${content.returnCode}`);
+      console.log(ui.heading('\n=== bash_code_execution_result ==='));
+      console.log(ui.muted(`return_code=${content.returnCode}`));
 
       if (content.stdout) {
-        console.log(`stdout: ${content.stdout.slice(0, 800)}`);
+        console.log(`${ui.muted('stdout:')} ${content.stdout.slice(0, 800)}`);
       }
 
       if (content.stderr) {
-        console.log(`stderr: ${content.stderr.slice(0, 800)}`);
+        console.log(`${ui.muted('stderr:')} ${content.stderr.slice(0, 800)}`);
       }
 
       for (const output of content.content) {
-        console.log(`generated file_id=${output.fileId}`);
+        console.log(ui.muted(`generated file_id=${output.fileId}`));
         outputFileIds.push(output.fileId);
       }
     }
@@ -133,7 +138,7 @@ export async function runCodeExecScenario(parsed: ParsedFlags): Promise<void> {
       const meta = await files.metadata(fileId);
 
       if (meta.downloadable === false) {
-        console.log(`Skipping ${fileId}: not downloadable.`);
+        console.log(ui.warn(`Skipping ${fileId}: not downloadable.`));
         continue;
       }
 
@@ -143,7 +148,11 @@ export async function runCodeExecScenario(parsed: ParsedFlags): Promise<void> {
 
       await fsp.writeFile(absolutePath, buffer);
 
-      console.log(`Downloaded ${fileId} -> ${absolutePath} (${buffer.byteLength} bytes)`);
+      console.log(
+        ui.success(
+          `Downloaded ${fileId} -> ${ui.muted(absolutePath)} (${buffer.byteLength} bytes)`,
+        ),
+      );
     }
   }
 

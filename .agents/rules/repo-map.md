@@ -51,6 +51,13 @@ and path-scoped because raw output stays in the conversation transcript.
 
 ## Packages
 
+- `workspaces/packages/cli-output`: shared terminal color theme (semantic
+  helpers such as `heading`, `success`, `warn`, `error`, `muted`, `accent`,
+  `ok`, `fail`, plus a `symbols` map). Imported as `@workspaces/cli-output`.
+  Plain ESM JS + hand-written `index.d.ts` (no build step) so it resolves under
+  both plain `node` scripts and the TS toolchain; wraps `chalk@^5` and relies on
+  its `NO_COLOR`/TTY detection. Use it for human-facing CLI output only — never
+  for JSON loggers or machine-consumed streams.
 - `workspaces/packages/config`: shared env/schema config helpers.
 - `workspaces/packages/errors`: shared error types.
 - `workspaces/packages/llm-client`: provider-neutral LLM client with an Anthropic adapter (source-only, no build step; consumed via `tsconfig` `paths` plus a `workspace:*` dep).
@@ -60,6 +67,9 @@ and path-scoped because raw output stays in the conversation transcript.
 
 - Root scripts are defined in `package.json`.
 - Common root checks: `pnpm run lint`, `pnpm run format:check`, `pnpm run typecheck`, `pnpm run test`, `pnpm run build`.
+- Aggregate gates: `pnpm run validate` (lint + format:check + typecheck + test) and
+  `pnpm run validate:all` (adds `check:secrets`, `check:adapters`, and `build`).
+  Use `pnpm run validate:changed` for the scoped, hook-driven path.
 - Use pnpm filters for package-specific work, for example `pnpm --filter local-llm-playground test`.
 - `local-llm-playground` uses Vitest and has separate backend/client typecheck and build scripts.
 - `shop-mvc-express` has build and typecheck scripts but no test script in its package file.

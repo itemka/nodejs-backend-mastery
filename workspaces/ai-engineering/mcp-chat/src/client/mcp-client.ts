@@ -3,6 +3,7 @@ import {
   StdioClientTransport,
   type StdioServerParameters,
 } from '@modelcontextprotocol/client';
+import * as ui from '@workspaces/cli-output';
 
 export const CLIENT_NAME = 'mcp-chat-client';
 export const CLIENT_VERSION = '0.1.0';
@@ -70,13 +71,16 @@ export async function connectMcpStdioClient(
       try {
         await client.close();
       } catch (error) {
-        console.error('[mcp-client] error closing client:', error);
+        console.error(`${ui.prefix('[mcp-client]')} ${ui.error('error closing client:')}`, error);
       }
 
       try {
         await transport.close();
       } catch (error) {
-        console.error('[mcp-client] error closing transport:', error);
+        console.error(
+          `${ui.prefix('[mcp-client]')} ${ui.error('error closing transport:')}`,
+          error,
+        );
       }
     },
     async getPrompt(name, args) {

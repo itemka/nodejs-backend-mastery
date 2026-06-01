@@ -1,3 +1,4 @@
+import * as ui from '@workspaces/cli-output';
 import type { OutputFormatConfig } from '@workspaces/packages/llm-client';
 
 import type { ChatOptions } from '../chat/types.js';
@@ -56,11 +57,13 @@ export interface ParsedArgs {
 
 export function helpText(): string {
   return [
-    'Usage: pnpm dev [--max-tokens=<number>] [--debug-response] [--output-format=json|csv|html] [--tools] [--fine-grained-tool-streaming] [--edit-files] [--workspace-root=<path>] [--text-editor-max-characters=<number>] [--no-web-search] [--rag-base-url=<url>]',
+    ui.heading(
+      'Usage: pnpm dev [--max-tokens=<number>] [--debug-response] [--output-format=json|csv|html] [--tools] [--fine-grained-tool-streaming] [--edit-files] [--workspace-root=<path>] [--text-editor-max-characters=<number>] [--no-web-search] [--rag-base-url=<url>]',
+    ),
     '',
     'Run the LLM chat app.',
     '',
-    'Options:',
+    ui.heading('Options:'),
     '  --max-tokens=<number>                 Maximum number of output tokens per turn.',
     '  --debug-response                      Print the full provider response object.',
     '  --output-format=<name>                Return a response formatted as json, csv, or html.',
