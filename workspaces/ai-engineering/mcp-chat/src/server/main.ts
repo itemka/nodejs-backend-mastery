@@ -1,4 +1,5 @@
 import { StdioServerTransport } from '@modelcontextprotocol/server';
+import * as ui from '@workspaces/cli-output';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -19,9 +20,11 @@ async function main(): Promise<void> {
     }
 
     shuttingDown = true;
-    console.error(`[document-mcp-server] received ${signal}, shutting down`);
+    console.error(
+      `${ui.prefix('[document-mcp-server]')} ${ui.muted(`received ${signal}, shutting down`)}`,
+    );
     server.close().catch((error: unknown) => {
-      console.error('[document-mcp-server] shutdown error:', error);
+      console.error(`${ui.prefix('[document-mcp-server]')} ${ui.error('shutdown error:')}`, error);
       process.exitCode = 1;
     });
   };

@@ -1,12 +1,14 @@
+import * as ui from '@workspaces/cli-output';
+
 import { SCENARIO_NAMES } from './args.js';
 
 export const HELP_TEXT = [
-  'Usage: pnpm --filter claude-capabilities-lab dev -- <scenario> [options]',
+  ui.heading('Usage: pnpm --filter claude-capabilities-lab dev -- <scenario> [options]'),
   '',
-  'Scenarios:',
-  ...SCENARIO_NAMES.map((name) => `  ${name}`),
+  ui.heading('Scenarios:'),
+  ...SCENARIO_NAMES.map((name) => `  ${ui.accent(name)}`),
   '',
-  'Common options:',
+  ui.heading('Common options:'),
   '  --prompt=<text>            Override the default prompt for the scenario.',
   '  --max-tokens=<n>           Override the max tokens per request.',
   '  --debug-response           Print the raw Anthropic response object.',

@@ -4,6 +4,10 @@ import { addAssistantMessage, addUserMessage } from '../../src/chat/history.js';
 import type { Messages } from '../../src/chat/types.js';
 import { renderSources, runChatbot } from '../../src/cli/run-chatbot.js';
 
+const ANSI_SGR_PATTERN = new RegExp(String.raw`\u001b\[[0-9;]*m`, 'g');
+const stripAnsi = (value: string): string => value.replaceAll(ANSI_SGR_PATTERN, '');
+const stripAnsiLines = (lines: readonly string[]): string[] => lines.map((line) => stripAnsi(line));
+
 describe('runChatbot', () => {
   it('repeats until input stops', async () => {
     const prompts: string[] = [];
@@ -151,7 +155,7 @@ describe('runChatbot', () => {
     });
 
     expect(chunks).toEqual([]);
-    expect(outputs).toEqual([
+    expect(stripAnsiLines(outputs)).toEqual([
       '[tool] Claude requested get_current_datetime',
       '[tool] Running get_current_datetime',
       '[tool] get_current_datetime succeeded',
@@ -201,14 +205,17 @@ describe('runChatbot', () => {
       },
     });
 
-    const sourcesIndex = outputs.indexOf('Sources:');
+    const plainOutputs = stripAnsiLines(outputs);
+    const sourcesIndex = plainOutputs.indexOf('Sources:');
     expect(sourcesIndex).toBeGreaterThanOrEqual(0);
-    const sourceLines = outputs.slice(sourcesIndex + 1).filter((line) => /^\s*\d+\./.test(line));
+    const sourceLines = plainOutputs
+      .slice(sourcesIndex + 1)
+      .filter((line) => /^\s*\d+\./.test(line));
     expect(sourceLines).toHaveLength(5);
     expect(sourceLines[0]).toContain('A');
     expect(sourceLines[0]).toContain('https://example.com/a');
-    expect(outputs).toContain('     "a"');
-    expect(outputs.join('\n')).not.toContain('A duplicate');
+    expect(plainOutputs).toContain('     "a"');
+    expect(plainOutputs.join('\n')).not.toContain('A duplicate');
   });
 
   it('omits the Sources block when no sources are emitted', async () => {
@@ -285,9 +292,10 @@ describe('runChatbot', () => {
       toolsEnabled: true,
     });
 
-    expect(outputs).toContain('[tool] Streaming input for get_current_datetime');
-    expect(outputs).toContain('[tool] Tool input completed');
-    expect(outputs).toContain('[tool] Tool input streaming failed');
+    const plainOutputs = stripAnsiLines(outputs);
+    expect(plainOutputs).toContain('[tool] Streaming input for get_current_datetime');
+    expect(plainOutputs).toContain('[tool] Tool input completed');
+    expect(plainOutputs).toContain('[tool] Tool input streaming failed');
   });
 });
 

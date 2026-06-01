@@ -1,3 +1,4 @@
+import * as ui from '@workspaces/cli-output';
 import * as esbuild from 'esbuild';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -69,4 +70,4 @@ for (const direction of ['public', 'views']) {
   }
 }
 
-console.log('✅ Build completed successfully');
+console.log(ui.ok('Build completed successfully'));

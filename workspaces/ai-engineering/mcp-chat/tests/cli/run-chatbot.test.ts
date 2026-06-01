@@ -10,6 +10,9 @@ const noop = (_text: string): void => {
   void _text;
 };
 
+const ANSI_SGR_PATTERN = new RegExp(String.raw`\u001b\[[0-9;]*m`, 'g');
+const stripAnsi = (value: string): string => value.replaceAll(ANSI_SGR_PATTERN, '');
+
 function fakeDocumentServer(documents: Record<string, string>): McpStdioClient {
   return {
     callTool: () =>
@@ -294,6 +297,6 @@ describe('runChatbot', () => {
 
     expect(chunks).toEqual(['partial response']);
     expect(outputs).toContain('');
-    expect(outputs).toContain('[tool] Running read_doc_contents');
+    expect(outputs.map((line) => stripAnsi(line))).toContain('[tool] Running read_doc_contents');
   });
 });

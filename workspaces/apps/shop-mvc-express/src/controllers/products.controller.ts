@@ -1,3 +1,4 @@
+import * as ui from '@workspaces/cli-output';
 import escapeHtml from 'escape-html';
 import type { Request, Response, NextFunction } from 'express';
 import { z } from 'zod';
@@ -41,8 +42,8 @@ export function createProduct(req: Request, res: Response, next: NextFunction) {
 
     products.push(product);
 
-    console.log('Product created:', product);
-    console.log('All products:', products);
+    console.log(ui.success('Product created:'), product);
+    console.log(ui.muted('All products:'), products);
 
     res.redirect('/products');
   } catch (error) {

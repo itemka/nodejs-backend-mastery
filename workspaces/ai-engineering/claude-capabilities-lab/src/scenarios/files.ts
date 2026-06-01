@@ -1,3 +1,4 @@
+import * as ui from '@workspaces/cli-output';
 import { createAnthropicClient, createAnthropicFilesApi } from '@workspaces/packages/llm-client';
 import fs from 'node:fs';
 import fsp from 'node:fs/promises';
@@ -38,7 +39,7 @@ export async function runFilesScenario(parsed: ParsedFlags): Promise<void> {
     const validated = await loadFilesApiUpload(filePath);
     const fileLike = fs.createReadStream(validated.absolutePath);
     const metadata = await files.upload({ file: fileLike });
-    console.log('Uploaded:', metadata);
+    console.log(ui.success('Uploaded:'), metadata);
 
     return;
   }
@@ -47,19 +48,19 @@ export async function runFilesScenario(parsed: ParsedFlags): Promise<void> {
     const page = await files.list();
 
     if (page.files.length === 0) {
-      console.log('No files.');
+      console.log(ui.muted('No files.'));
 
       return;
     }
 
     for (const file of page.files) {
       console.log(
-        `${file.id}\t${file.filename}\t${file.mimeType}\t${file.sizeBytes}b\tdownloadable=${file.downloadable ?? 'unknown'}`,
+        `${ui.accent(file.id)}\t${file.filename}\t${ui.muted(`${file.mimeType}\t${file.sizeBytes}b\tdownloadable=${file.downloadable ?? 'unknown'}`)}`,
       );
     }
 
     if (page.hasMore) {
-      console.log('(more results available)');
+      console.log(ui.muted('(more results available)'));
     }
 
     return;
@@ -86,7 +87,7 @@ export async function runFilesScenario(parsed: ParsedFlags): Promise<void> {
     }
 
     const result = await files.delete(fileId);
-    console.log('Deleted:', result.id);
+    console.log(ui.success('Deleted:'), ui.muted(result.id));
 
     return;
   }
@@ -114,5 +115,7 @@ export async function runFilesScenario(parsed: ParsedFlags): Promise<void> {
 
   await fsp.writeFile(absolutePath, buffer);
 
-  console.log(`Downloaded ${fileId} -> ${absolutePath} (${buffer.byteLength} bytes)`);
+  console.log(
+    ui.success(`Downloaded ${fileId} -> ${ui.muted(absolutePath)} (${buffer.byteLength} bytes)`),
+  );
 }

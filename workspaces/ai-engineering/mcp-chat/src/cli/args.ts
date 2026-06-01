@@ -1,3 +1,5 @@
+import * as ui from '@workspaces/cli-output';
+
 export interface ParsedArgs {
   readonly maxTokens?: number;
   readonly shouldPrintHelp: boolean;
@@ -7,15 +9,15 @@ export interface ParsedArgs {
 
 export function helpText(): string {
   return [
-    'Usage: mcp-chat [options]',
+    ui.heading('Usage: mcp-chat [options]'),
     '',
-    'Options:',
+    ui.heading('Options:'),
     '  --help, -h             Print this help text and exit.',
     '  --no-stream            Disable assistant streaming output.',
     '  --max-tokens <n>       Maximum tokens per assistant response (default 1024).',
     '  --server-dev           Launch the MCP server with tsx (TypeScript source).',
     '',
-    'Built-in commands inside the REPL:',
+    ui.heading('Built-in commands inside the REPL:'),
     '  /                      List available MCP prompts/commands.',
     '  @                      List available document ids.',
     '  /format <doc_id>       Run the format prompt for the given document.',

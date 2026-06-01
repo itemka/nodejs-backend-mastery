@@ -1,3 +1,4 @@
+import * as ui from '@workspaces/cli-output';
 import type {
   ChatMessage,
   LlmProvider,
@@ -177,7 +178,7 @@ describe('chat service', () => {
     const service = createChatService({ model: 'm', provider });
     await service.sendUserTurn(messages, 'hi', { debugResponse: true });
 
-    expect(logSpy).toHaveBeenCalledWith('Full response:', { text: 'ok' });
+    expect(logSpy).toHaveBeenCalledWith(ui.muted('Full response:'), { text: 'ok' });
     logSpy.mockRestore();
   });
 

@@ -14,6 +14,7 @@
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.92.0",
+    "@workspaces/cli-output": "workspace:*",
     "@workspaces/packages/llm-client": "workspace:*",
     "dotenv": "^17.2.3"
   },

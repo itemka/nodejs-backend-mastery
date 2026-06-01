@@ -125,6 +125,12 @@ Tool progress lines use the `[tool]` prefix. `--debug-response` still prints raw
 provider responses and should be treated as developer-only output, especially
 with sensitive prompts.
 
+Human-facing terminal output is colorized through the shared
+[`@workspaces/cli-output`](../../packages/cli-output/) theme (`[tool]` lines,
+the `Sources:` header, etc.). Color is applied only at the print boundary, so
+captured/piped output and `NO_COLOR` runs stay plain and the underlying strings
+are unchanged.
+
 ## Anthropic Text Editor Tool
 
 `--edit-files` enables Anthropic's

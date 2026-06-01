@@ -1,3 +1,4 @@
+import * as ui from '@workspaces/cli-output';
 import { createProvider } from '@workspaces/packages/llm-client';
 
 import { loadConfig, loadEnvironment } from '../config/env.js';
@@ -29,7 +30,9 @@ export async function runEvalCli(options: CliOptions, io: RunEvalIo = {}): Promi
   const startedAt = new Date();
 
   log(
-    `Running ${dataset.length} test case(s) with template "${options.templateName}" against model ${model}...`,
+    ui.accent(
+      `${ui.symbols.pointer} Running ${dataset.length} test case(s) with template "${options.templateName}" against model ${model}...`,
+    ),
   );
 
   const results = await runEval(dataset, {
@@ -43,8 +46,11 @@ export async function runEvalCli(options: CliOptions, io: RunEvalIo = {}): Promi
   const finishedAt = new Date();
   const summary = summarize(results);
 
+  // Color the summary at the display boundary only — `formatSummaryLines` stays
+  // plain so its content assertions remain stable. Structural lines start at
+  // column 0 (heading); indented per-format detail lines are muted.
   for (const line of formatSummaryLines(summary)) {
-    log(line);
+    log(line.startsWith('  ') ? ui.muted(line) : ui.heading(line));
   }
 
   const payload: ReportPayload = {
@@ -63,5 +69,5 @@ export async function runEvalCli(options: CliOptions, io: RunEvalIo = {}): Promi
 
   const filePath = options.outPath ?? defaultReportPath('reports', finishedAt);
   const format = await writeReport(filePath, payload);
-  log(`Wrote ${format.toUpperCase()} report to ${filePath}`);
+  log(ui.success(`Wrote ${format.toUpperCase()} report to ${ui.muted(filePath)}`));
 }

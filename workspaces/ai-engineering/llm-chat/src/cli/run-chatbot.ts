@@ -1,3 +1,4 @@
+import * as ui from '@workspaces/cli-output';
 import type { LlmWebSearchSource } from '@workspaces/packages/llm-client';
 
 import type { ChatOptions, Messages, ToolEvent } from '../chat/types.js';
@@ -127,6 +128,20 @@ export function renderSources(sources: readonly LlmWebSearchSource[]): string[] 
   return lines;
 }
 
+// Color is applied where the line's role is known (tool events, the sources
+// block) rather than by sniffing arbitrary output text — so an assistant answer
+// that happens to start with `1.` or a quote is never recolored. The pure
+// formatters (`formatToolEvent`, `renderSources`) stay uncolored and directly
+// testable. Tests capture plain strings because chalk is disabled under Vitest;
+// color degrades automatically via chalk's NO_COLOR/TTY detection.
+function colorizeSourceLine(line: string): string {
+  if (line === '') {
+    return line;
+  }
+
+  return line === 'Sources:' ? ui.heading(line) : ui.muted(line);
+}
+
 export async function runChatbot(options: RunChatbotOptions): Promise<Messages> {
   const messages: Messages = [];
   const output = options.output ?? console.log;
@@ -172,7 +187,7 @@ export async function runChatbot(options: RunChatbotOptions): Promise<Messages> 
       }
 
       chatOptions.onToolEvent = (event) => {
-        output(formatToolEvent(event));
+        output(ui.accent(formatToolEvent(event)));
       };
     } else {
       chatOptions.onTextDelta = (text) => {
@@ -195,7 +210,7 @@ export async function runChatbot(options: RunChatbotOptions): Promise<Messages> 
     output(didStreamText ? '' : answer);
 
     for (const line of renderSources(collectedSources)) {
-      output(line);
+      output(colorizeSourceLine(line));
     }
   }
 }

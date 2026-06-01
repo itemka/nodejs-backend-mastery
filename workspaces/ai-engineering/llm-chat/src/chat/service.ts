@@ -1,3 +1,4 @@
+import * as ui from '@workspaces/cli-output';
 import type {
   LlmContentBlock,
   LlmProvider,
@@ -150,7 +151,7 @@ export function createChatService(config: ChatServiceConfig): ChatService {
           );
 
           if (options.debugResponse) {
-            console.log('Full response:', response.raw);
+            console.log(ui.muted('Full response:'), response.raw);
           }
 
           const responseContent = contentFromResponse(response);
@@ -184,7 +185,7 @@ export function createChatService(config: ChatServiceConfig): ChatService {
         );
 
         if (options.debugResponse) {
-          console.log('Full response:', response.raw);
+          console.log(ui.muted('Full response:'), response.raw);
         }
 
         const assistantContent = contentFromResponse(response);
