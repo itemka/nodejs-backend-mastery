@@ -1,6 +1,10 @@
 import * as ui from '@workspaces/cli-output';
 import type { Server } from 'node:http';
 
+function gracefulLine(...segments: readonly string[]): string {
+  return [ui.prefix('[graceful]'), ...segments].join(' ');
+}
+
 export function registerGracefulShutdown(
   server: Server,
   resources?: {
@@ -19,14 +23,15 @@ export function registerGracefulShutdown(
     const timeoutMs = 10_000;
 
     console.log(
-      `\n${ui.prefix('[graceful]')} ${ui.accent(`Received ${signal}. Starting shutdown...`)} ${ui.muted(`pid=${pid}`)}`,
+      '\n' +
+        gracefulLine(ui.accent(`Received ${signal}. Starting shutdown...`), ui.muted(`pid=${pid}`)),
     );
 
     const hard = setTimeout(() => {
       const elapsed = Date.now() - start;
-      console.warn(
-        `${ui.prefix('[graceful]')} ${ui.warn(`Forcing shutdown after ${timeoutMs}ms. Exit 1 (forced-timeout): shutdown exceeded ${timeoutMs}ms (elapsed=${elapsed}ms, signal=${signal}, pid=${pid}, uptime=${process.uptime().toFixed(1)}s)`)}`,
-      );
+      const message = `Forcing shutdown after ${timeoutMs}ms. Exit 1 (forced-timeout): shutdown exceeded ${timeoutMs}ms (elapsed=${elapsed}ms, signal=${signal}, pid=${pid}, uptime=${process.uptime().toFixed(1)}s)`;
+
+      console.warn(gracefulLine(ui.warn(message)));
       // eslint-disable-next-line n/no-process-exit, unicorn/no-process-exit
       process.exit(1);
     }, timeoutMs);
@@ -48,21 +53,19 @@ export function registerGracefulShutdown(
       await resources?.closeAll?.();
 
       const elapsed = Date.now() - start;
+      const message = `Shutdown complete. Exit 0 (clean): shutdown complete in ${elapsed}ms (signal=${signal}, pid=${pid}, uptime=${process.uptime().toFixed(1)}s)`;
 
-      console.log(
-        `${ui.prefix('[graceful]')} ${ui.success(`Shutdown complete. Exit 0 (clean): shutdown complete in ${elapsed}ms (signal=${signal}, pid=${pid}, uptime=${process.uptime().toFixed(1)}s)`)}`,
-      );
+      console.log(gracefulLine(ui.success(message)));
 
       // Exit cleanly
       // eslint-disable-next-line n/no-process-exit, unicorn/no-process-exit
       process.exit(0);
     } catch (error) {
       const elapsed = Date.now() - start;
+      const message = `Shutdown failed. Exit 1 (shutdown-error): after ${elapsed}ms (signal=${signal}, pid=${pid}, uptime=${process.uptime().toFixed(1)}s)`;
 
-      console.error(
-        `${ui.prefix('[graceful]')} ${ui.error(`Shutdown failed. Exit 1 (shutdown-error): after ${elapsed}ms (signal=${signal}, pid=${pid}, uptime=${process.uptime().toFixed(1)}s)`)}`,
-      );
-      console.error(`${ui.prefix('[graceful]')} ${ui.error('Error details:')}`, error);
+      console.error(gracefulLine(ui.error(message)));
+      console.error(gracefulLine(ui.error('Error details:')), error);
       // Non-zero exit on failure
       // eslint-disable-next-line n/no-process-exit, unicorn/no-process-exit
       process.exit(1);

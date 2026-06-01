@@ -7,9 +7,10 @@ import { registerGracefulShutdown } from './infra/shutdown';
 const app = createApp();
 
 const server = app.listen(config.port, () => {
-  console.log(
-    `${ui.success(`Server listening on http://localhost:${config.port} in ${config.nodeEnv} mode`)} ${ui.muted(`(DEPLOYMENT_ENV=${config.deploymentEnv})`)}`,
-  );
+  const listenMessage = `Server listening on http://localhost:${config.port} in ${config.nodeEnv} mode`;
+  const deploymentMessage = `(DEPLOYMENT_ENV=${config.deploymentEnv})`;
+
+  console.log([ui.success(listenMessage), ui.muted(deploymentMessage)].join(' '));
 });
 
 registerGracefulShutdown(server, {
