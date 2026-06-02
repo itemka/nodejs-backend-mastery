@@ -70,6 +70,11 @@ and path-scoped because raw output stays in the conversation transcript.
 - Aggregate gates: `pnpm run validate` (lint + format:check + typecheck + test) and
   `pnpm run validate:all` (adds `check:secrets`, `check:adapters`, and `build`).
   Use `pnpm run validate:changed` for the scoped, hook-driven path.
+- Codex sandbox note: `pnpm` is Corepack-backed here. Before running multiple
+  `pnpm` checks, make sure `pnpm --version` works in the current execution mode;
+  if sandboxed `pnpm` waits then reports `[ERROR] fetch failed`, rerun required
+  `pnpm` validation commands with escalation instead of treating it as a repo
+  check failure.
 - Use pnpm filters for package-specific work, for example `pnpm --filter local-llm-playground test`.
 - `local-llm-playground` uses Vitest and has separate backend/client typecheck and build scripts.
 - `shop-mvc-express` has build and typecheck scripts but no test script in its package file.
@@ -78,6 +83,6 @@ and path-scoped because raw output stays in the conversation transcript.
 
 - TypeScript base config: `tsconfig.base.json`.
 - ESLint config: `eslint.config.mjs`.
-- CI workflow: `.github/workflows/ci.yml`.
+- GitHub workflows: `.github/workflows/ci.yml` and `.github/workflows/claude.yml`.
 - CI runs lint, format check, typecheck, tests, app builds for changed apps, audit, secret scanning, and SonarCloud when available.
 - When `.agents/skills/` changes, keep [.agents/README.md](../README.md) and tool-specific skill adapters in sync.
