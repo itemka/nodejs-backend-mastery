@@ -2,7 +2,7 @@
 name: repo-task-analyst
 description: Use to classify a task, identify affected repo areas, ask necessary clarifying questions, and route work to the right workflow.
 tools: Read, Glob, Grep, Bash
-disallowedTools: Edit, MultiEdit, Write
+disallowedTools: Edit, Write
 model: inherit
 ---
 

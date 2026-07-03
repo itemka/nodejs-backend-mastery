@@ -5,7 +5,7 @@ metadata:
   created: '2026-04-25'
   status: 'baseline'
   portability: 'cross-tool'
-  last-reviewed: '2026-05-05'
+  last-reviewed: '2026-07-03'
 ---
 
 # Implement
@@ -42,10 +42,12 @@ Implement requested changes with the smallest practical diff while preserving ex
    - Backend API behavior: [backend-api-change](../backend-api-change/SKILL.md)
    - Data, persistence, migrations, queries, or caching: [data-storage-change](../data-storage-change/SKILL.md)
    - Internal cleanup with preserved behavior: [refactor](../refactor/SKILL.md)
-   - Documentation impact: [update-docs](../update-docs/SKILL.md)
+   - Removing or replacing a system, feature, flag, or dependency and migrating consumers: [deprecation-and-migration](../deprecation-and-migration/SKILL.md)
+   - General documentation impact: [update-docs](../update-docs/SKILL.md)
+   - AI-agent documentation impact: [maintain-agent-docs](../maintain-agent-docs/SKILL.md)
    - Hook design: [designing-hooks](../designing-hooks/SKILL.md)
    - MCP configuration boundaries: [configuring-mcp](../configuring-mcp/SKILL.md)
-3. Make the smallest practical change that satisfies the task.
+3. Make the smallest practical change that satisfies the task. Solve the general problem for all valid inputs — do not hard-code outputs or special-case the solution to pass specific tests or examples.
 4. Follow existing architecture, naming, TypeScript, validation, error-handling, and logging patterns.
 5. Preserve stated non-goals, acceptance criteria, public contracts, and compatibility constraints.
 6. Add or update tests for meaningful behavior changes.
@@ -65,7 +67,7 @@ Implement requested changes with the smallest practical diff while preserving ex
 ## Safety Rules
 
 - Do not perform unrelated refactors, formatting sweeps, dependency upgrades, destructive commands, or broad rewrites without explicit approval.
-- Do not change public contracts unless the task requires it.
+- Do not change public contracts unless the task requires it. When a change to a shared type, constant, interface, or exported name is required, update every consumer in the same change.
 - Do not hide validation failures or claim checks passed when they were not run.
 - Do not add secrets, local machine paths, private URLs, or personal environment details.
 

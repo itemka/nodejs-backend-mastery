@@ -5,8 +5,8 @@ Use this as a runnable prompt for preparing PR text from the current diff and va
 ## Run
 
 1. Read `AGENTS.md` and the rules under `.agents/rules/`.
-2. Read and follow [.agents/skills/commit-preparation/SKILL.md](../skills/commit-preparation/SKILL.md).
-3. Use [.agents/skills/commit-preparation/pr-description-template.md](../skills/commit-preparation/pr-description-template.md) for the PR shape.
+2. Read and follow [.agents/skills/pr-description/SKILL.md](../skills/pr-description/SKILL.md).
+3. Use [.agents/skills/pr-description/pr-description-template.md](../skills/pr-description/pr-description-template.md) for the PR shape.
 4. Use [.agents/checklists/pr-readiness.md](../checklists/pr-readiness.md) for readiness checks.
 5. Do not push, open a PR, or mutate remote state unless the user explicitly asks.
 
@@ -16,11 +16,8 @@ Use the command arguments or latest user message as PR-preparation context. Incl
 
 ## Output
 
+- Title.
 - Summary.
-- Motivation.
-- Changes.
-- Validation.
-- Risks.
-- Rollback.
-- Screenshots/examples if relevant.
-- Checklist.
+- Changes, unless the PR is a small single-concern change.
+- Validation when known.
+- Risks, rollback, screenshots, examples, migrations, and checklist items when relevant.

@@ -7,7 +7,7 @@ Use this as a runnable prompt for preparing commit messages from the current dif
 1. Read `AGENTS.md` and the rules under `.agents/rules/`.
 2. Read and follow [.agents/skills/commit-preparation/SKILL.md](../skills/commit-preparation/SKILL.md).
 3. Use [.agents/skills/commit-preparation/conventional-commits.md](../skills/commit-preparation/conventional-commits.md) for type and scope guidance.
-4. Do not stage, commit, or push unless the user explicitly asks.
+4. Do not stage or commit unless the user explicitly asks. Never push from this command.
 
 ## User Input
 

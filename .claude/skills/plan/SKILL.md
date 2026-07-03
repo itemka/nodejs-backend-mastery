@@ -1,6 +1,6 @@
 ---
 name: plan
-description: Implementation planning for vague or multi-step software tasks. Use when asked to plan, /plan, or create a docs/plan-*.md file with scope, files, risks, and validation.
+description: Implementation planning for vague or multi-step software tasks before coding. Use when asked to plan, /plan, or create/update a docs/plan-*.md file with scope, files, risks, steps, and validation.
 argument-hint: '[task brief]'
 ---
 

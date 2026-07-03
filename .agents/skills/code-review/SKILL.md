@@ -1,11 +1,11 @@
 ---
 name: code-review
-description: Code review workflow for current code or git diffs covering correctness, architecture, typing, security, tests, docs, maintainability, and release risk. Use when asked to review, audit, or check for issues.
+description: Use to review current code or a git diff for correctness, architecture, typing, security, tests, docs, maintainability, and release risk. Triggered by requests like "review this", "audit this diff", or "check for issues".
 metadata:
   created: '2026-04-25'
   status: 'baseline'
   portability: 'cross-tool'
-  last-reviewed: '2026-05-05'
+  last-reviewed: '2026-07-03'
 ---
 
 # Code Review
@@ -92,7 +92,7 @@ Open questions and test gaps use the same shape with severity replaced by `quest
 
 ## Severity & Confidence
 
-Mirror this table in the [code-review checklist](../../checklists/code-review.md#severity--confidence) — they must agree.
+Single home for these definitions; the [code-review checklist](../../checklists/code-review.md#severity--confidence) links here instead of restating them.
 
 Severity:
 

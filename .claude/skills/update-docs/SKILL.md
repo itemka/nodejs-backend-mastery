@@ -1,6 +1,6 @@
 ---
 name: update-docs
-description: Documentation update workflow for READMEs, API examples, changelogs, migration notes, setup docs, developer workflows, and AI-agent guidance. Use when docs may be stale or need updates for Codex, Claude Code, Cursor, MCP, skills, agents, commands, hooks, prompts, or checklists.
+description: Updates general project documentation for READMEs, API examples, changelogs, migration notes, setup docs, and developer workflows. Use when non-agent docs need to match implemented behavior.
 argument-hint: '[doc surface or change description]'
 ---
 
@@ -13,5 +13,5 @@ When this skill is selected:
 1. Read `AGENTS.md`.
 2. Read `.agents/README.md` and the rules under `.agents/rules/`.
 3. Read `.agents/skills/update-docs/SKILL.md`.
-4. Follow the `.agents` skill as the source of truth, including its `Freshness Window`, `AI-Agent Docs Layout`, and `AI-Agent Docs Review` sections for AI-agent docs.
+4. Follow the `.agents` skill as the source of truth.
 5. Document only behavior that was implemented or verified.

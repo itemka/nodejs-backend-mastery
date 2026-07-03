@@ -1,7 +1,7 @@
 ---
 name: repo-delivery
 description: Use to prepare commits, PR descriptions, release summaries, and handoff notes.
-tools: Read, Glob, Grep, Bash, Edit, MultiEdit, Write
+tools: Read, Glob, Grep, Bash, Edit, Write
 model: inherit
 ---
 

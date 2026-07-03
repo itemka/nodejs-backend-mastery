@@ -18,7 +18,7 @@ Project rules, repo layout, and change discipline are imported from `AGENTS.md` 
 ### Claude-specific adapters (thin pointers into `.agents/`)
 
 - `.claude/skills/<name>/SKILL.md` — Claude-native skill adapters; bodies live in `.agents/skills/<name>/SKILL.md`.
-- `.claude/agents/*.md` — project subagents (backend-architect, code-review, debug, delivery, implement, plan, security-reviewer, task-analyst, tests, update-docs).
+- `.claude/agents/*.md` — project subagents (backend-architect, code-review, debug, delivery, implement, maintain-agent-docs, plan, security-reviewer, task-analyst, tests, update-docs).
 - `.claude/commands/*.md` — slash commands; new workflows should go in `.claude/skills/` instead.
 - `.claude/settings.json` — permissions allowlist and hook wiring.
 
@@ -29,7 +29,7 @@ When editing skills, agents, or commands, follow the design rule in [.agents/REA
 `.claude/settings.json` wires Node scripts under [.agents/hooks/](.agents/hooks/) to Claude Code events:
 
 - `PreToolUse` (Bash) → `before-bash.mjs` → denies destructive shell, runs pre-commit guardrails for `git commit`.
-- `PostToolUse` (Edit/MultiEdit/Write) → `after-edit.mjs` → Prettier + ESLint fix, then scoped tests when a test/spec file changes.
+- `PostToolUse` (Edit/Write) → `after-edit.mjs` → Prettier + ESLint fix, then scoped tests when a test/spec file changes.
 - `UserPromptSubmit` → `inject-git-context.mjs` → injects a small git-status header.
 - `Stop` → `stop-checks.mjs` → scoped typecheck on changed workspaces, then a `docs/CURRENT_TASK_CONTEXT.md` reminder.
 

@@ -13,8 +13,9 @@ Root entry points stay thin:
 ## What Belongs Here
 
 - Cross-tool always-on rules.
-- Reusable workflows for planning, coding, testing, review, docs, debugging,
-  refactoring, commits, and PRs.
+- Reusable workflows for brainstorming, planning, coding, testing, review,
+  docs, debugging, refactoring, deprecation and migration, commits, PR
+  descriptions, and subagent orchestration.
 - Portable role specs used by specialist or worker agents.
 - Compact review checklists.
 
@@ -31,8 +32,10 @@ Root entry points stay thin:
   follow before editing the repo. Keep these concise because they are likely
   to be loaded often.
 - [skills/](./skills/) — Canonical reusable workflows for development tasks
-  such as planning, implementation, debugging, validation, review, docs,
-  commits, hooks, and MCP decisions. Put durable step-by-step guidance here
+  such as brainstorming, planning, implementation, debugging, validation,
+  review, docs, agent-doc maintenance, deprecation and migration, commits,
+  PR descriptions, branch naming, hooks, subagent orchestration, token-usage
+  investigation, and MCP decisions. Put durable step-by-step guidance here
   first.
 - [agents/](./agents/) — Optional specialist role specs used for focused
   review or thinking, such as backend architecture, security, testing,
@@ -101,13 +104,14 @@ locations and behavior:
 - Claude Code subagents: <https://code.claude.com/docs/en/subagents>
 - Claude Skill authoring best practices (vendor): <https://platform.claude.com/docs/en/agents-and-tools/agent-skills/best-practices>
 - OpenAI Codex: <https://developers.openai.com/codex>
-- Cursor rules and AGENTS.md: <https://docs.cursor.com/context/rules-for-ai>
+- Cursor rules and AGENTS.md: <https://cursor.com/docs/context/rules>
 - AGENTS.md standard: <https://agents.md>
 
 When refreshing AI-agent guidance, also scan official changelogs, release
-notes, and dated best-practice pages. The recency-window rule for that
-refresh is owned by [skills/update-docs/SKILL.md](./skills/update-docs/SKILL.md);
-do not duplicate it elsewhere.
+notes, and dated best-practice pages. The recency-window rule and structural
+review for that refresh are owned by
+[skills/maintain-agent-docs/SKILL.md](./skills/maintain-agent-docs/SKILL.md);
+do not duplicate them elsewhere.
 
 ### Secondary Skill-Guidance Sources
 
