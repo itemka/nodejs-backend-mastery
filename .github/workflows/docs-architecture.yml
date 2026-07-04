@@ -1,0 +1,29 @@
+name: Docs Architecture
+
+on:
+  pull_request:
+    paths:
+      - "docs/architecture/**"
+  push:
+    branches: [main]
+    paths:
+      - "docs/architecture/**"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: docs-architecture-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate-workspace:
+    name: Validate Structurizr workspace
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Validate workspace.dsl
+        run: |
+          docker run --rm -v "$PWD/docs/architecture":/usr/local/structurizr \
+            structurizr/structurizr validate -workspace workspace.dsl

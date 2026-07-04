@@ -33,10 +33,10 @@ Root entry points stay thin:
   to be loaded often.
 - [skills/](./skills/) — Canonical reusable workflows for development tasks
   such as brainstorming, planning, implementation, debugging, validation,
-  review, docs, agent-doc maintenance, deprecation and migration, commits,
-  PR descriptions, branch naming, hooks, subagent orchestration, token-usage
-  investigation, and MCP decisions. Put durable step-by-step guidance here
-  first.
+  review, docs, agent-doc maintenance, architecture diagrams, deprecation and
+  migration, commits, PR descriptions, branch naming, hooks, subagent
+  orchestration, token-usage investigation, and MCP decisions. Put durable
+  step-by-step guidance here first.
 - [agents/](./agents/) — Optional specialist role specs used for focused
   review or thinking, such as backend architecture, security, testing,
   delivery, or documentation. Keep agents thin and link them from relevant

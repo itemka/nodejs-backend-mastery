@@ -1,0 +1,30 @@
+graph LR
+  linkStyle default fill:#ffffff
+
+  subgraph diagram ["System Landscape View"]
+    style diagram fill:#ffffff,stroke:#ffffff
+
+    1["<div style='font-weight: bold'>Developer</div><div style='font-size: 70%; margin-top: 0px'>[Person]</div><div style='font-size: 80%; margin-top:10px'>Runs the apps locally while<br />learning backend patterns.</div>"]
+    style 1 fill:#ffffff,stroke:#444444,color:#444444
+    10["<div style='font-weight: bold'>llm-chat</div><div style='font-size: 70%; margin-top: 0px'>[Software System]</div><div style='font-size: 80%; margin-top:10px'>Interactive LLM chat CLI with<br />an optional search_docs<br />retrieval tool.</div>"]
+    style 10 fill:#ffffff,stroke:#444444,color:#444444
+    2["<div style='font-weight: bold'>Ollama</div><div style='font-size: 70%; margin-top: 0px'>[Software System]</div><div style='font-size: 80%; margin-top:10px'>Local LLM runtime exposing an<br />OpenAI-compatible API on<br />localhost:11434.</div>"]
+    style 2 fill:#8c8c8c,stroke:#626262,color:#ffffff
+    3["<div style='font-weight: bold'>VoyageAI API</div><div style='font-size: 70%; margin-top: 0px'>[Software System]</div><div style='font-size: 80%; margin-top:10px'>Hosted embeddings API<br />(voyage-3-large by default).</div>"]
+    style 3 fill:#8c8c8c,stroke:#626262,color:#ffffff
+    4["<div style='font-weight: bold'>Anthropic API</div><div style='font-size: 70%; margin-top: 0px'>[Software System]</div><div style='font-size: 80%; margin-top:10px'>Hosted Claude models API.</div>"]
+    style 4 fill:#8c8c8c,stroke:#626262,color:#ffffff
+    5["<div style='font-weight: bold'>local-llm-playground</div><div style='font-size: 70%; margin-top: 0px'>[Software System]</div><div style='font-size: 80%; margin-top:10px'>Local-only LLM lab: chat,<br />streaming chat, multi-model<br />compare, and llm-checker<br />recommendations.</div>"]
+    style 5 fill:#ffffff,stroke:#444444,color:#444444
+    8["<div style='font-weight: bold'>rag-pipeline</div><div style='font-size: 70%; margin-top: 0px'>[Software System]</div><div style='font-size: 80%; margin-top:10px'>Retrieval-only RAG service:<br />markdown ingest, hybrid<br />vector + BM25 search with RRF<br />fusion.</div>"]
+    style 8 fill:#ffffff,stroke:#444444,color:#444444
+
+    1-. "<div>Chats and compares models in<br />the browser</div><div style='font-size: 70%'></div>" .->5
+    5-. "<div>Sends chat/completions<br />requests</div><div style='font-size: 70%'>[OpenAI-compatible HTTP]</div>" .->2
+    1-. "<div>Chats in the terminal</div><div style='font-size: 70%'></div>" .->10
+    10-. "<div>Sends messages requests</div><div style='font-size: 70%'>[HTTPS]</div>" .->4
+    10-. "<div>Calls POST /search via the<br />search_docs tool</div><div style='font-size: 70%'>[JSON over HTTP]</div>" .->8
+    1-. "<div>Ingests documents and<br />inspects search results</div><div style='font-size: 70%'>[HTTP]</div>" .->8
+    8-. "<div>Embeds chunks and queries</div><div style='font-size: 70%'>[POST /v1/embeddings]</div>" .->3
+
+  end

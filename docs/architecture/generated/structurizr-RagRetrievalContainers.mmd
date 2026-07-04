@@ -1,0 +1,26 @@
+graph LR
+  linkStyle default fill:#ffffff
+
+  subgraph diagram ["Container View: rag-pipeline"]
+    style diagram fill:#ffffff,stroke:#ffffff
+
+    1["<div style='font-weight: bold'>Developer</div><div style='font-size: 70%; margin-top: 0px'>[Person]</div><div style='font-size: 80%; margin-top:10px'>Runs the apps locally while<br />learning backend patterns.</div>"]
+    style 1 fill:#ffffff,stroke:#444444,color:#444444
+    3["<div style='font-weight: bold'>VoyageAI API</div><div style='font-size: 70%; margin-top: 0px'>[Software System]</div><div style='font-size: 80%; margin-top:10px'>Hosted embeddings API<br />(voyage-3-large by default).</div>"]
+    style 3 fill:#8c8c8c,stroke:#626262,color:#ffffff
+    10["<div style='font-weight: bold'>llm-chat</div><div style='font-size: 70%; margin-top: 0px'>[Software System]</div><div style='font-size: 80%; margin-top:10px'>Interactive LLM chat CLI with<br />an optional search_docs<br />retrieval tool.</div>"]
+    style 10 fill:#ffffff,stroke:#444444,color:#444444
+
+    subgraph 8 ["rag-pipeline"]
+      style 8 fill:#ffffff,stroke:#444444,color:#444444
+
+      9["<div style='font-weight: bold'>Express retrieval service</div><div style='font-size: 70%; margin-top: 0px'>[Container: Node.js + Express]</div><div style='font-size: 80%; margin-top:10px'>/health, /ingest, /search<br />over an in-memory vector<br />index and a BM25 lexical<br />index.</div>"]
+      style 9 fill:#ffffff,stroke:#444444,color:#444444
+    end
+
+    1-. "<div>Chats in the terminal</div><div style='font-size: 70%'></div>" .->10
+    10-. "<div>Calls POST /search via the<br />search_docs tool</div><div style='font-size: 70%'>[JSON over HTTP]</div>" .->9
+    1-. "<div>Ingests documents and<br />inspects search results</div><div style='font-size: 70%'>[HTTP]</div>" .->9
+    9-. "<div>Embeds chunks and queries</div><div style='font-size: 70%'>[POST /v1/embeddings]</div>" .->3
+
+  end

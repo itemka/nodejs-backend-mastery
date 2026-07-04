@@ -10,7 +10,9 @@ Project-specific orientation for AI agents. Keep this file easy to edit when cop
 - Apps live under `workspaces/apps/*`.
 - AI engineering learning examples live under `workspaces/ai-engineering/*`.
 - Shared packages live under `workspaces/packages/*`.
-- Docs live under `docs/*`.
+- Docs live under `docs/*`. Architecture diagrams: `docs/architecture/`
+  (Structurizr C4 model) and `docs/features/` (Mermaid workflow diagrams);
+  conventions in `docs/architecture/README.md`.
 - Shared AI-agent material lives under `.agents/*`. Tool-specific adapters live under `.claude/`, `.codex/`, `.cursor/`, or `.github/` and should stay thin (see [.agents/README.md](../README.md) for design rules).
 
 ## Context Loading Policy
@@ -75,6 +77,8 @@ and path-scoped because raw output stays in the conversation transcript.
   if sandboxed `pnpm` waits then reports `[ERROR] fetch failed`, rerun required
   `pnpm` validation commands with escalation instead of treating it as a repo
   check failure.
+- Architecture model checks: `pnpm run arch:validate` and `pnpm run arch:export`
+  (Docker-based; see `docs/architecture/README.md`). Not part of `pnpm run validate`.
 - Use pnpm filters for package-specific work, for example `pnpm --filter local-llm-playground test`.
 - `local-llm-playground` uses Vitest and has separate backend/client typecheck and build scripts.
 - `shop-mvc-express` has build and typecheck scripts but no test script in its package file.
