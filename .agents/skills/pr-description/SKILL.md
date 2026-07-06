@@ -1,6 +1,6 @@
 ---
 name: pr-description
-description: Generate concise PR titles, summaries, and logical change breakdowns from a branch diff. Use when asked to write a PR description, prepare PR text, create a pull request, or summarize branch changes for review.
+description: Generate concise PR titles, summaries, and logical change breakdowns from branch and working-tree diffs. Use when asked to write a PR description, prepare PR text, create a pull request, or summarize branch changes for review.
 metadata:
   created: '2026-07-03'
   status: 'baseline'
@@ -25,7 +25,7 @@ and logical change breakdown.
 
 - Current branch and git status.
 - Target branch or base branch when provided.
-- Branch commits and branch diff.
+- Branch commits, branch diff, staged diff, and unstaged diff.
 - Validation commands and results, when available.
 - Issue links, screenshots, migration notes, release constraints, risks, or
   rollback notes when provided.
@@ -58,8 +58,11 @@ and logical change breakdown.
 3. If the user asks for staged-only or working-tree-only PR text, honor that
    scope and say which diff was used.
 4. If a branch base is available, inspect commits with
-   `git log <base>..HEAD --oneline` and inspect the actual changes with
-   `git diff <base>...HEAD`.
+   `git log <base>..HEAD --oneline` and inspect committed branch changes with
+   `git diff <base>...HEAD`. If `git status --short` is not clean, also
+   inspect pending changes with `git diff --cached` and `git diff`; include
+   in-scope pending work in the PR text and call out unrelated local changes
+   that were excluded.
 5. If no base is available or the work is happening on the base branch, use the
    relevant staged and unstaged diffs, and state that no branch comparison base
    was available.

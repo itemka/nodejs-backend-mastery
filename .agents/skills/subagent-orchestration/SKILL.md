@@ -24,7 +24,8 @@ Coordinate multiple focused agent contexts when a task benefits from parallelism
 ## When Not To Use
 
 - A simple single-file or low-risk change is faster in the main session.
-- Subtasks need user interaction, approvals, credentials, or decisions mid-flight.
+- Subtasks require frequent user back-and-forth, credential entry, or product decisions that should stay in the main session.
+- Required approvals cannot reliably surface in the current subagent runtime.
 - Implementation subtasks would write overlapping files without worktree or branch isolation.
 - The needed tools, MCP servers, repo access, or permissions are unavailable to the subagent runtime.
 - The current tool has no callable subagent mechanism; do the work directly and report that orchestration was not available.
