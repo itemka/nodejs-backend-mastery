@@ -70,11 +70,16 @@ and path-scoped because raw output stays in the conversation transcript.
 - Aggregate gates: `pnpm run validate` (lint + format:check + typecheck + test) and
   `pnpm run validate:all` (adds `check:secrets`, `check:adapters`, and `build`).
   Use `pnpm run validate:changed` for the scoped, hook-driven path.
-- Codex sandbox note: `pnpm` is Corepack-backed here. Before running multiple
-  `pnpm` checks, make sure `pnpm --version` works in the current execution mode;
-  if sandboxed `pnpm` waits then reports `[ERROR] fetch failed`, rerun required
-  `pnpm` validation commands with escalation instead of treating it as a repo
-  check failure.
+- Codex sandbox note: `pnpm` is Corepack-backed here and may stall before
+  failing when sandboxed network access prevents Corepack from verifying the
+  pinned package manager. Prefer direct Node entry points for package scripts
+  that only wrap local scripts, for example `node scripts/check-adapters.mjs`
+  instead of `pnpm run check:adapters`. For real package-manager commands
+  (`pnpm install --lockfile-only`, filtered workspace checks, audit, build,
+  lint, typecheck, test), run with escalation as soon as sandboxed `pnpm` or
+  `pnpm --version` waits and reports `[ERROR] fetch failed`; do not retry the
+  same sandboxed `pnpm` command repeatedly. Do not use `pmOnFail=ignore` as a
+  default workaround because it bypasses package-manager verification.
 - Use pnpm filters for package-specific work, for example `pnpm --filter local-llm-playground test`.
 - `local-llm-playground` uses Vitest and has separate backend/client typecheck and build scripts.
 - `shop-mvc-express` has build and typecheck scripts but no test script in its package file.
