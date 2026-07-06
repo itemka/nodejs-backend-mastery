@@ -2,7 +2,7 @@
 name: repo-backend-architect
 description: Use for backend boundaries, TypeScript layering, validation, API/data design.
 tools: Read, Glob, Grep, Bash
-disallowedTools: Edit, MultiEdit, Write
+disallowedTools: Edit, Write
 model: inherit
 ---
 

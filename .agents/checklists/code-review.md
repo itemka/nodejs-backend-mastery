@@ -62,19 +62,7 @@ Use for diff-focused reviews. Lead with blocking issues and keep suggestions sma
 
 ## Severity & Confidence
 
-Mirrors the definitions in [code-review skill](../skills/code-review/SKILL.md#severity--confidence). Keep both in sync.
-
-Severity:
-
-- **must-fix** — bug, regression, security issue, broken contract, or data loss risk that should block merge. Requires high confidence.
-- **should-fix** — clear quality or maintainability issue with concrete impact but not blocking. The reviewer must explain why it is still worth fixing.
-- **nice-to-have** — small improvement, taste, or local cleanup. Safe to drop.
-
-Confidence:
-
-- **high** — provable from the diff alone with quoted evidence.
-- **medium** — likely from the diff plus inspected nearby context.
-- **low** — depends on unseen code, runtime behavior, or assumptions. Move to open questions instead of reporting as a finding.
+The severity and confidence definitions live in the [code-review skill](../skills/code-review/SKILL.md#severity--confidence). Apply them when labeling findings; do not restate them here.
 
 ## Self-Critique Pass
 

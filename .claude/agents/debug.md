@@ -2,7 +2,7 @@
 name: repo-debug
 description: Use to investigate failing tests, runtime errors, build errors, flaky behavior, or unclear regressions in this repo.
 tools: Read, Glob, Grep, Bash
-disallowedTools: Edit, MultiEdit, Write
+disallowedTools: Edit, Write
 model: inherit
 ---
 

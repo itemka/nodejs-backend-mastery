@@ -2,7 +2,7 @@
 name: repo-security-reviewer
 description: Use for read-only security review of auth, authorization, input validation, secrets, dependencies, MCP config, and external integrations.
 tools: Read, Glob, Grep, Bash
-disallowedTools: Edit, MultiEdit, Write
+disallowedTools: Edit, Write
 model: inherit
 ---
 

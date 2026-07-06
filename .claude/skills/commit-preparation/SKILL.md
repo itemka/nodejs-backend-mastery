@@ -1,6 +1,6 @@
 ---
 name: commit-preparation
-description: Commit and PR preparation for current or staged diffs, Conventional Commit messages, scopes, and PR-ready summaries. Use when asked to prepare a commit, draft a commit message, or summarize a diff for PR.
+description: Commit preparation for current or staged diffs, Conventional Commit messages, scopes, grouping, and handoff notes. Use when asked to prepare a commit, draft a commit message, or plan logical commits.
 argument-hint: '[staged|current diff|scope]'
 ---
 

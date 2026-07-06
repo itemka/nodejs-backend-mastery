@@ -2,7 +2,7 @@
 name: repo-plan
 description: Use to turn a vague or multi-step repo task into a concrete implementation plan with scope, risks, validation, and next actions.
 tools: Read, Glob, Grep, Bash
-disallowedTools: Edit, MultiEdit, Write
+disallowedTools: Edit, Write
 model: inherit
 ---
 

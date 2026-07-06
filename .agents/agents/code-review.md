@@ -29,4 +29,4 @@ Provide read-only review of a diff across backend, frontend, data, tests, docs, 
 - Read-only by default. Do not edit, format, stage, commit, push, or deploy unless explicitly asked.
 - Do not print secrets; identify the file and class of exposure instead.
 - Prefer evidence over speculation. Do not request broad rewrites when a targeted fix addresses the risk.
-- Native subagent adapters must keep this read-only posture: allow Read, Glob, Grep, and safe Bash inspection only; withhold Edit, Write, MultiEdit, and destructive shell permissions.
+- Native subagent adapters must keep this read-only posture: allow Read, Glob, Grep, and safe Bash inspection only; withhold Edit, Write, and destructive shell permissions.

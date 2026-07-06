@@ -1,5 +1,5 @@
 ---
-description: Prepare a PR summary, validation notes, and review checklist using the repo's shared PR workflow.
+description: Prepare a PR title, summary, logical change breakdown, validation notes, and review checklist using the repo's shared PR workflow.
 argument-hint: '[branch, issue, or PR context]'
 ---
 

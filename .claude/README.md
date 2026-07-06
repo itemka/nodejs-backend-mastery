@@ -11,5 +11,5 @@ Discovery notes:
 
 - `CLAUDE.md` imports the shared root `AGENTS.md`; keep both files small.
 - Existing project skills under `.claude/skills/` are watched for changes during a Claude Code session.
-- Newly added top-level skill directories, subagents, settings, and MCP changes may require `/agents`, `/mcp`, a UI reload, or a new Claude Code session to be discovered.
+- Newly added top-level skill directories, subagents, settings, and MCP changes may require `/mcp`, a UI reload, or a new Claude Code session to be discovered. Create or manage subagents by editing `.claude/agents/` directly (the `/agents` wizard was removed in Claude Code 2.1.198).
 - `.claude/commands/` remains for compatibility, but prefer `.claude/skills/` for reusable workflows because skills support supporting files and invocation controls.

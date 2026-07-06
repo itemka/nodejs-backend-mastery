@@ -1,7 +1,7 @@
 ---
 name: repo-implement
 description: Use to implement focused code/docs changes preserving architecture, typing, tests, and behavior.
-tools: Read, Glob, Grep, Bash, Edit, MultiEdit, Write
+tools: Read, Glob, Grep, Bash, Edit, Write
 model: inherit
 ---
 

@@ -1,4 +1,4 @@
-// PostToolUse hook: format and auto-fix TS/JS files after Edit/Write/MultiEdit.
+// PostToolUse hook: format and auto-fix TS/JS files after Edit/Write.
 // Exit 0 silent on success; exit 2 surfaces unfixable issues to the agent.
 
 import { spawnSync } from 'node:child_process';

@@ -2,7 +2,7 @@
 name: repo-tests
 description: Use to choose, run, interpret, or improve focused tests and validation.
 tools: Read, Glob, Grep, Bash
-disallowedTools: Edit, MultiEdit, Write
+disallowedTools: Edit, Write
 model: inherit
 ---
 

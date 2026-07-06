@@ -2,7 +2,7 @@
 name: repo-code-review
 description: Use for read-only review of diffs, PRs, commits, files, bugs, security, test gaps, and maintainability risk.
 tools: Read, Glob, Grep, Bash
-disallowedTools: Edit, MultiEdit, Write
+disallowedTools: Edit, Write
 model: inherit
 ---
 

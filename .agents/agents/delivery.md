@@ -12,13 +12,14 @@ Prepare a clean handoff for commits, PR descriptions, validation notes, risks, a
 
 ## Pairs With
 
-- [commit-preparation skill](../skills/commit-preparation/SKILL.md) — canonical workflow and templates.
+- [commit-preparation skill](../skills/commit-preparation/SKILL.md) — commit grouping and Conventional Commit guidance.
+- [pr-description skill](../skills/pr-description/SKILL.md) — PR title, summary, logical change breakdown, validation, risks, and rollback.
 - [pr-readiness checklist](../checklists/pr-readiness.md)
 
 ## Output Contributions
 
 - Conventional Commit message suggestions.
-- PR summary, motivation, validation, risks, rollback, follow-ups.
+- PR title, summary, logical change breakdown, validation, risks, rollback, and follow-ups.
 
 ## Boundaries
 
