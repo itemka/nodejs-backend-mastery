@@ -1,6 +1,6 @@
 ---
 name: pr-description
-description: Generate concise PR titles, summaries, and logical change breakdowns from a branch diff. Use when asked to write a PR description, prepare PR text, create a pull request, or summarize branch changes for review.
+description: Generate concise PR titles, summaries, and logical change breakdowns from branch and working-tree diffs. Use when asked to write a PR description, prepare PR text, create a pull request, or summarize branch changes for review.
 argument-hint: '[base branch or PR context]'
 ---
 

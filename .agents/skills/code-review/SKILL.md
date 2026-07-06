@@ -80,31 +80,33 @@ Only run when at least one finding survived pass 3.
 Use this shape for every concrete finding:
 
 ```text
-- [<severity>] <file>:<line> — <one-line summary>
+- [<severity emoji + label>] <file>:<line> — <one-line summary>
   Category: <correctness | architecture | typing | errors | tests | security | readability | performance | docs | agent/tooling>
   Evidence: "<verbatim quote from the diff>"
   Why it matters: <impact in one sentence>
   Recommendation: <smallest concrete change that addresses it>
-  Confidence: <high | medium | low>
+  Confidence: <confidence symbol + label>
 ```
 
-Open questions and test gaps use the same shape with severity replaced by `question` or `test-gap`, and `Recommendation` replaced by `What to verify`.
+Use the emoji/symbols defined in [Severity & Confidence](#severity--confidence), for example: `- 🔴 [must-fix] src/foo.ts:42 — ...` and `Confidence: ● high`.
+
+Open questions and test gaps use the same shape with severity replaced by `❓ question` or `🧪 test-gap`, and `Recommendation` replaced by `What to verify`.
 
 ## Severity & Confidence
 
 Single home for these definitions; the [code-review checklist](../../checklists/code-review.md#severity--confidence) links here instead of restating them.
 
-Severity:
+Severity (color-circle marks the finding for fast scanning; the word is still required):
 
-- **must-fix** — bug, regression, security issue, broken contract, data loss risk, or anything that should block merge. Requires high confidence and direct evidence.
-- **should-fix** — clear quality or maintainability issue with concrete impact, but not blocking. Author may defend it; reviewer should explain why the change is still worth it.
-- **nice-to-have** — small improvement, taste, or local cleanup. Easy to drop without harming the change.
+- 🔴 **must-fix** — bug, regression, security issue, broken contract, data loss risk, or anything that should block merge. Requires high confidence and direct evidence.
+- 🟠 **should-fix** — clear quality or maintainability issue with concrete impact, but not blocking. Author may defend it; reviewer should explain why the change is still worth it.
+- 🟡 **nice-to-have** — small improvement, taste, or local cleanup. Easy to drop without harming the change.
 
-Confidence:
+Confidence (shape symbol, distinct from severity color so the two scales are never confused on one line):
 
-- **high** — provable from the diff alone with quoted evidence.
-- **medium** — likely from the diff plus nearby context that was inspected.
-- **low** — depends on unseen code, runtime behavior, or assumptions. Move to open questions instead of reporting as a finding.
+- ● **high** — provable from the diff alone with quoted evidence.
+- ◐ **medium** — likely from the diff plus nearby context that was inspected.
+- ○ **low** — depends on unseen code, runtime behavior, or assumptions. Move to open questions instead of reporting as a finding.
 
 ## Self-Critique Checklist
 
@@ -129,12 +131,12 @@ Run during pass 3 against the draft findings. The full bullet list lives in the 
 
 Group findings under these headings, in order. Keep each entry in the [Finding Template](#finding-template) shape.
 
-- **Must-fix** — blocking issues.
-- **Should-fix** — non-blocking quality or maintainability issues.
-- **Nice-to-have** — small suggestions.
-- **Test gaps** — missing coverage or weak assertions.
-- **Open questions** — anything unprovable from the diff or dependent on unseen context.
-- **Confidence summary** — one sentence: how thoroughly the diff was reviewed, what was not inspected, and what residual risk remains.
+- 🔴 **Must-fix** — blocking issues.
+- 🟠 **Should-fix** — non-blocking quality or maintainability issues.
+- 🟡 **Nice-to-have** — small suggestions.
+- 🧪 **Test gaps** — missing coverage or weak assertions.
+- ❓ **Open questions** — anything unprovable from the diff or dependent on unseen context.
+- 📊 **Confidence summary** — one sentence: how thoroughly the diff was reviewed, what was not inspected, and what residual risk remains.
 
 If no issues are found, say so directly and still produce the confidence summary plus any test gaps and open questions.
 

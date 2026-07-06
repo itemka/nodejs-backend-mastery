@@ -6,10 +6,10 @@ settings:
 
 overrides:
   fast-uri: ^3.1.2
-  hono: '>=4.12.25'
+  hono: '>=4.12.25 <5'
   qs: ^6.15.2
   router>path-to-regexp: ^8.4.2
-  shell-quote: '>=1.8.4'
+  shell-quote: '>=1.8.4 <2'
   systeminformation: ^5.31.6
   ts-declaration-location>picomatch: ^4.0.4
   vitest>picomatch: ^4.0.4
@@ -52,7 +52,7 @@ importers:
         specifier: ^3.8.2
         version: 3.8.2
       shell-quote:
-        specifier: '>=1.8.4'
+        specifier: '>=1.8.4 <2'
         version: 1.9.0
       typescript:
         specifier: ^5.9.3
@@ -753,7 +753,7 @@ packages:
     resolution: {integrity: sha512-TsQLe4i2gvoTtrHje625ngThGBySOgSK3Xo2XRYOdqGN1teR8+I7vchQC46uLJi8OF62YTYA3AhSpumtkhsaKQ==}
     engines: {node: '>=18.14.1'}
     peerDependencies:
-      hono: '>=4.12.25'
+      hono: '>=4.12.25 <5'
 
   '@humanfs/core@0.19.1':
     resolution: {integrity: sha512-5DyQ4+1JEUzejeK1JGICcideyfUbGixgS9jNgex5nqkW+cY7WZhxBigmieN5Qnw9ZosSNVC9KQKyb+GUaGyKUA==}
