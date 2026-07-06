@@ -29,6 +29,9 @@ pnpm-debug.log*
 .codex/config.toml
 .playwright-mcp
 
+# Serena MCP local project state (machine-specific, not shared toolkit config)
+.serena/
+
 # Session-only AI-agent handoff state (kept local, never committed)
 docs/CURRENT_TASK_CONTEXT.md
 
