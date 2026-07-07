@@ -53,6 +53,9 @@ local Java needed). Note: the older `structurizr/cli` image and the Homebrew
 `structurizr-cli` formula are frozen and no longer receive updates — use the
 consolidated image.
 
+The scripts run the container as your current host user so exported files can
+overwrite the checked-out `generated/` directory on Linux and macOS.
+
 ```bash
 pnpm run arch:validate  # parse + validate workspace.dsl
 pnpm run arch:export    # export all views as Mermaid into generated/
