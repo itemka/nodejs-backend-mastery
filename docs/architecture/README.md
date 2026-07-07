@@ -79,9 +79,9 @@ diff review only; use `pnpm run arch:view` to see them rendered.
 ## CI
 
 [.github/workflows/docs-architecture.yml](../../.github/workflows/docs-architecture.yml)
-validates `workspace.dsl` on every PR that touches `docs/architecture/**`.
-The main CI workflow ignores `docs/**` entirely, so this is the only gate for
-diagram changes.
+validates `workspace.dsl` and fails if `generated/` does not match a fresh
+export, on every PR that touches `docs/architecture/**`. The main CI workflow
+ignores `docs/**` entirely, so this is the only gate for diagram changes.
 
 ## When To Update What
 

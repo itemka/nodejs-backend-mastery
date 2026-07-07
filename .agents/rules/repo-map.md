@@ -46,6 +46,7 @@ and path-scoped because raw output stays in the conversation transcript.
 
 ## AI Engineering
 
+- `workspaces/ai-engineering/claude-capabilities-lab`: argument-driven CLI lab for manually testing Claude-specific capabilities (extended thinking, images, PDFs, files, prompt caching, citations, code execution) on top of `@workspaces/packages/llm-client` and the Anthropic SDK; live runs need `ANTHROPIC_API_KEY`, tests use mocks.
 - `workspaces/ai-engineering/llm-chat`: interactive LLM chat CLI built on `@workspaces/packages/llm-client`.
 - `workspaces/ai-engineering/mcp-chat`: document-focused MCP server + CLI MCP client/chatbot using the MCP TypeScript SDK V2 alpha. In-memory documents, streaming chat, `@doc_name` mentions, MCP-prompt slash commands.
 - `workspaces/ai-engineering/prompt-eval-lab`: automated prompt-evaluation CLI (dataset → render → run → grade) on top of `@workspaces/packages/llm-client`.

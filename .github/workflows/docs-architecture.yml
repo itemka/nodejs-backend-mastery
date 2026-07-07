@@ -27,3 +27,15 @@ jobs:
         run: |
           docker run --rm -v "$PWD/docs/architecture":/usr/local/structurizr \
             structurizr/structurizr validate -workspace workspace.dsl
+
+      - name: Check generated views are fresh
+        run: |
+          docker run --rm -v "$PWD/docs/architecture":/usr/local/structurizr \
+            structurizr/structurizr export -workspace workspace.dsl \
+            -format mermaid -output /usr/local/structurizr/generated
+          if [ -n "$(git status --porcelain docs/architecture/generated)" ]; then
+            echo "::error::docs/architecture/generated/ is stale — run 'pnpm run arch' and commit the regenerated output."
+            git status --porcelain docs/architecture/generated
+            git diff -- docs/architecture/generated
+            exit 1
+          fi

@@ -8,6 +8,14 @@ graph LR
     style 1 fill:#ffffff,stroke:#444444,color:#444444
     10["<div style='font-weight: bold'>llm-chat</div><div style='font-size: 70%; margin-top: 0px'>[Software System]</div><div style='font-size: 80%; margin-top:10px'>Interactive LLM chat CLI with<br />an optional search_docs<br />retrieval tool.</div>"]
     style 10 fill:#ffffff,stroke:#444444,color:#444444
+    12["<div style='font-weight: bold'>shop-mvc-express</div><div style='font-size: 70%; margin-top: 0px'>[Software System]</div><div style='font-size: 80%; margin-top:10px'>Server-rendered product<br />catalog: create/list products<br />via HTML forms, Helmet<br />security headers, Zod<br />validation, in-memory product<br />store.</div>"]
+    style 12 fill:#ffffff,stroke:#444444,color:#444444
+    14["<div style='font-weight: bold'>mcp-chat</div><div style='font-size: 70%; margin-top: 0px'>[Software System]</div><div style='font-size: 80%; margin-top:10px'>Document-focused MCP chatbot:<br />CLI client streams Claude<br />responses, resolves @doc<br />mentions, and runs MCP<br />prompts against a stdio<br />document server.</div>"]
+    style 14 fill:#ffffff,stroke:#444444,color:#444444
+    17["<div style='font-weight: bold'>prompt-eval-lab</div><div style='font-size: 70%; margin-top: 0px'>[Software System]</div><div style='font-size: 80%; margin-top:10px'>Automated prompt-evaluation<br />CLI: runs a dataset through a<br />prompt template, grades each<br />response with a second model<br />call, and writes an HTML/JSON<br />report.</div>"]
+    style 17 fill:#ffffff,stroke:#444444,color:#444444
+    19["<div style='font-weight: bold'>claude-capabilities-lab</div><div style='font-size: 70%; margin-top: 0px'>[Software System]</div><div style='font-size: 80%; margin-top:10px'>Terminal lab for manually<br />testing Claude-specific<br />capabilities (extended<br />thinking, images, PDFs,<br />files, prompt caching,<br />citations, code execution)<br />against committed sample<br />fixtures.</div>"]
+    style 19 fill:#ffffff,stroke:#444444,color:#444444
     2["<div style='font-weight: bold'>Ollama</div><div style='font-size: 70%; margin-top: 0px'>[Software System]</div><div style='font-size: 80%; margin-top:10px'>Local LLM runtime exposing an<br />OpenAI-compatible API on<br />localhost:11434.</div>"]
     style 2 fill:#8c8c8c,stroke:#626262,color:#ffffff
     3["<div style='font-weight: bold'>VoyageAI API</div><div style='font-size: 70%; margin-top: 0px'>[Software System]</div><div style='font-size: 80%; margin-top:10px'>Hosted embeddings API<br />(voyage-3-large by default).</div>"]
@@ -26,5 +34,12 @@ graph LR
     10-. "<div>Calls POST /search via the<br />search_docs tool</div><div style='font-size: 70%'>[JSON over HTTP]</div>" .->8
     1-. "<div>Ingests documents and<br />inspects search results</div><div style='font-size: 70%'>[HTTP]</div>" .->8
     8-. "<div>Embeds chunks and queries</div><div style='font-size: 70%'>[POST /v1/embeddings]</div>" .->3
+    1-. "<div>Creates and lists products<br />via server-rendered HTML<br />forms</div><div style='font-size: 70%'>[HTTP]</div>" .->12
+    1-. "<div>Chats in the terminal,<br />mentions @docs, runs /prompt<br />commands</div><div style='font-size: 70%'></div>" .->14
+    14-. "<div>Sends messages requests with<br />tool definitions; relays<br />tool_use results back</div><div style='font-size: 70%'>[HTTPS]</div>" .->4
+    1-. "<div>Runs the eval CLI against a<br />local dataset file</div><div style='font-size: 70%'></div>" .->17
+    17-. "<div>Sends solve + model-grader<br />messages requests (grader<br />uses structured JSON output)</div><div style='font-size: 70%'>[HTTPS]</div>" .->4
+    1-. "<div>Runs individual capability<br />scenarios from the terminal</div><div style='font-size: 70%'></div>" .->19
+    19-. "<div>Sends scenario requests<br />(messages, files, code<br />execution)</div><div style='font-size: 70%'>[HTTPS]</div>" .->4
 
   end

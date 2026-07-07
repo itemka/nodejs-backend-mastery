@@ -1,0 +1,25 @@
+graph LR
+  linkStyle default fill:#ffffff
+
+  subgraph diagram ["Container View: mcp-chat"]
+    style diagram fill:#ffffff,stroke:#ffffff
+
+    1["<div style='font-weight: bold'>Developer</div><div style='font-size: 70%; margin-top: 0px'>[Person]</div><div style='font-size: 80%; margin-top:10px'>Runs the apps locally while<br />learning backend patterns.</div>"]
+    style 1 fill:#ffffff,stroke:#444444,color:#444444
+    4["<div style='font-weight: bold'>Anthropic API</div><div style='font-size: 70%; margin-top: 0px'>[Software System]</div><div style='font-size: 80%; margin-top:10px'>Hosted Claude models API.</div>"]
+    style 4 fill:#8c8c8c,stroke:#626262,color:#ffffff
+
+    subgraph 14 ["mcp-chat"]
+      style 14 fill:#ffffff,stroke:#444444,color:#444444
+
+      15["<div style='font-weight: bold'>CLI Chatbot</div><div style='font-size: 70%; margin-top: 0px'>[Container: Node.js CLI + MCP Client SDK]</div><div style='font-size: 80%; margin-top:10px'>Terminal REPL on top of<br />@workspaces/llm-client:<br />streams Claude responses,<br />resolves @doc mentions, and<br />runs MCP prompts as /slash<br />commands.</div>"]
+      style 15 fill:#ffffff,stroke:#444444,color:#444444
+      16["<div style='font-weight: bold'>Document MCP Server</div><div style='font-size: 70%; margin-top: 0px'>[Container: Node.js + MCP Server SDK (stdio)]</div><div style='font-size: 80%; margin-top:10px'>Stdio MCP server exposing<br />read_doc_contents/edit_document<br />tools, docs:// resources, and<br />a format prompt over an<br />in-memory document store.</div>"]
+      style 16 fill:#ffffff,stroke:#444444,color:#444444
+    end
+
+    1-. "<div>Chats in the terminal,<br />mentions @docs, runs /prompt<br />commands</div><div style='font-size: 70%'></div>" .->15
+    15-. "<div>Spawns as a child process and<br />connects via stdio; lists<br />tools/resources/prompts,<br />calls tools</div><div style='font-size: 70%'>[MCP over stdio]</div>" .->16
+    15-. "<div>Sends messages requests with<br />tool definitions; relays<br />tool_use results back</div><div style='font-size: 70%'>[HTTPS]</div>" .->4
+
+  end
