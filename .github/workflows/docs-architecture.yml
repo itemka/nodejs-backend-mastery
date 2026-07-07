@@ -28,14 +28,18 @@ jobs:
           docker run --rm -v "$PWD/docs/architecture":/usr/local/structurizr \
             structurizr/structurizr validate -workspace workspace.dsl
 
+      # The image runs as a non-root user (uid 65532) that cannot overwrite
+      # runner-owned checkout files, so export into a world-writable temp
+      # mount and diff against the committed output instead.
       - name: Check generated views are fresh
         run: |
-          docker run --rm -v "$PWD/docs/architecture":/usr/local/structurizr \
+          mkdir -m 777 -p "$RUNNER_TEMP/arch-generated"
+          docker run --rm \
+            -v "$PWD/docs/architecture":/usr/local/structurizr \
+            -v "$RUNNER_TEMP/arch-generated":/out \
             structurizr/structurizr export -workspace workspace.dsl \
-            -format mermaid -output /usr/local/structurizr/generated
-          if [ -n "$(git status --porcelain docs/architecture/generated)" ]; then
+            -format mermaid -output /out
+          if ! diff -ru docs/architecture/generated "$RUNNER_TEMP/arch-generated"; then
             echo "::error::docs/architecture/generated/ is stale — run 'pnpm run arch' and commit the regenerated output."
-            git status --porcelain docs/architecture/generated
-            git diff -- docs/architecture/generated
             exit 1
           fi
