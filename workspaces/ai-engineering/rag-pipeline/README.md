@@ -23,6 +23,11 @@ The service is retrieval-only: answer generation happens through the
 - Embeddings live behind an `EmbeddingProvider` interface so tests can use a
   fake provider and avoid live VoyageAI calls.
 
+## Architecture and workflows
+
+- [Ingest and retrieval workflow diagrams](./docs/retrieval-flow.md)
+- [Repository-wide C4 model](../../../docs/architecture/workspace.dsl)
+
 ## Setup
 
 Create `.env` in this folder using `.env.example` as the template:

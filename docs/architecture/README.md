@@ -6,10 +6,12 @@ they describe. Two formats, split by the question they answer:
 - **Structurizr DSL** ([workspace.dsl](./workspace.dsl)) — the C4 model:
   _which systems, containers, and external services exist and how they
   connect_. Single source of truth for architecture.
-- **Mermaid** (under [docs/features/](../features/)) — feature workflows:
-  _how a specific flow works step by step_ (request flows, call sequences,
-  state lifecycles). GitHub renders Mermaid natively in Markdown, PRs, and
-  issues, so no tooling is needed to read them.
+- **Mermaid** (under each owning workspace's `docs/` directory, for example
+  [local-llm-playground](../../workspaces/apps/local-llm-playground/docs/chat-flow.md)
+  and [rag-pipeline](../../workspaces/ai-engineering/rag-pipeline/docs/retrieval-flow.md))
+  — feature workflows: _how a specific flow works step by step_ (request
+  flows, call sequences, state lifecycles). GitHub renders Mermaid natively in
+  Markdown, PRs, and issues, so no tooling is needed to read them.
 
 Do not use Mermaid's `C4Context`/`C4Container` diagram types — Mermaid marks
 them experimental. C4 belongs in `workspace.dsl`.
@@ -22,8 +24,10 @@ docs/
     workspace.dsl   # C4 model source of truth (edit this)
     generated/      # views exported from workspace.dsl (never edit by hand)
     README.md       # this file
-  features/
-    <app>/<flow>.md # Mermaid workflow diagrams per app/feature
+workspaces/
+  <area>/<workspace>/
+    docs/
+      <flow>.md      # Mermaid workflows owned by this workspace
 ```
 
 Running the CLI or viewer also drops `workspace.json` and `.structurizr/`
@@ -73,8 +77,8 @@ overwritten on export — never edit them by hand.
 Structurizr Lite successor built into the consolidated image); then open
 <http://localhost:8080>.
 
-Feature diagrams in `docs/features/**` render directly on GitHub and in the
-VS Code Markdown preview (with built-in Mermaid support or the "Markdown
+Feature diagrams in `workspaces/**/docs/*.md` render directly on GitHub and in
+the VS Code Markdown preview (with built-in Mermaid support or the "Markdown
 Preview Mermaid Support" extension). The exported `generated/*.mmd` files do
 **not** render as diagrams on GitHub — they are committed for versioning and
 diff review only; use `pnpm run arch:view` to see them rendered.
@@ -84,7 +88,9 @@ diff review only; use `pnpm run arch:view` to see them rendered.
 [.github/workflows/docs-architecture.yml](../../.github/workflows/docs-architecture.yml)
 validates `workspace.dsl` and fails if `generated/` does not match a fresh
 export, on every PR that touches `docs/architecture/**`. The main CI workflow
-ignores `docs/**` entirely, so this is the only gate for diagram changes.
+ignores Markdown-only changes. Mermaid workflow diagrams do not have an
+automated rendering gate, so verify them in a Markdown preview or on the
+GitHub branch.
 
 ## When To Update What
 
@@ -92,7 +98,7 @@ ignores `docs/**` entirely, so this is the only gate for diagram changes.
   store, or public API boundary → update `workspace.dsl`, run `pnpm run arch`.
 - Change alters a request flow, call sequence, state transitions, or
   retry/error/async behavior → update (or create) the matching
-  `docs/features/<app>/<flow>.md`.
+  `workspaces/<area>/<workspace>/docs/<flow>.md` beside the owning code.
 
 Agent workflow details live in
 [.agents/skills/architecture-diagrams/SKILL.md](../../.agents/skills/architecture-diagrams/SKILL.md).

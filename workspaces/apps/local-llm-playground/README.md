@@ -34,6 +34,8 @@ workspaces/apps/local-llm-playground/
       components/
       hooks/
       lib/
+  docs/
+    chat-flow.md
   shared/
     api.ts
     models.ts
@@ -41,6 +43,11 @@ workspaces/apps/local-llm-playground/
   README.md
   vitest.config.ts
 ```
+
+## Architecture and workflows
+
+- [Chat, compare, and llm-checker workflow diagrams](./docs/chat-flow.md)
+- [Repository-wide C4 model](../../../docs/architecture/workspace.dsl)
 
 ## Supported models
 

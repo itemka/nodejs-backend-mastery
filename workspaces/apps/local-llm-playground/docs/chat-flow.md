@@ -1,11 +1,11 @@
 # local-llm-playground — Chat, Compare, and llm-checker Flows
 
-Workflow diagrams for [workspaces/apps/local-llm-playground](../../../workspaces/apps/local-llm-playground/).
+Workflow diagrams for the [local-llm-playground workspace](../).
 All routes are mounted under `/api`; the backend talks to Ollama through its
 OpenAI-compatible endpoint (`OLLAMA_BASE_URL`, default
 `http://localhost:11434/v1`).
 
-Structure-level view: [docs/architecture/workspace.dsl](../../architecture/workspace.dsl).
+Structure-level view: [repository C4 workspace](../../../../docs/architecture/workspace.dsl).
 
 ## Chat — `POST /api/chat`
 

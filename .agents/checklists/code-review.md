@@ -53,7 +53,7 @@ Use for diff-focused reviews. Lead with blocking issues and keep suggestions sma
 
 - Are README, API examples, migration notes, or comments updated when behavior changes?
 - If the diff adds/removes/renames an app, container, external dependency, data store, or public API boundary, is `docs/architecture/workspace.dsl` updated and re-exported (`pnpm run arch`)?
-- If the diff changes a request flow, call sequence, state transitions, or retry/error/async behavior for a feature that already has a diagram, is the matching `docs/features/<app>/<flow>.md` updated? See the [architecture-diagrams skill](../skills/architecture-diagrams/SKILL.md).
+- If the diff changes a request flow, call sequence, state transitions, or retry/error/async behavior for a feature that already has a diagram, is the matching `workspaces/<area>/<workspace>/docs/<flow>.md` updated? See the [architecture-diagrams skill](../skills/architecture-diagrams/SKILL.md).
 
 ## Agent / Tooling
 

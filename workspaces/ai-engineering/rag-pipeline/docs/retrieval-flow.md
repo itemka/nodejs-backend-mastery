@@ -1,11 +1,11 @@
 # rag-pipeline — Ingest and Retrieval Flows
 
-Workflow diagrams for [workspaces/ai-engineering/rag-pipeline](../../../workspaces/ai-engineering/rag-pipeline/).
+Workflow diagrams for the [rag-pipeline workspace](../).
 The service is retrieval-only: answer generation happens in
-[llm-chat](../../../workspaces/ai-engineering/llm-chat/) through the optional
+[`llm-chat`](../../llm-chat/) through the optional
 `search_docs` tool, which calls `POST /search` over HTTP.
 
-Structure-level view: [docs/architecture/workspace.dsl](../../architecture/workspace.dsl).
+Structure-level view: [repository C4 workspace](../../../../docs/architecture/workspace.dsl).
 
 ## Ingest Flow — `POST /ingest`
 

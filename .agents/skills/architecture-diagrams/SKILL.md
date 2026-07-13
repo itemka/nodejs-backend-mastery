@@ -5,7 +5,7 @@ metadata:
   created: '2026-07-04'
   status: 'baseline'
   portability: 'cross-tool'
-  last-reviewed: '2026-07-04'
+  last-reviewed: '2026-07-13'
 ---
 
 # Architecture Diagrams
@@ -14,7 +14,8 @@ metadata:
 
 Keep the text-based diagrams in sync with the code, in the same PR as the
 change. Structure lives in the Structurizr C4 model; feature workflows live in
-Mermaid files. Conventions (formats, layout, diagram direction) are defined in
+Mermaid files under the owning workspace's `docs/` directory. Conventions
+(formats, layout, diagram direction) are defined in
 [docs/architecture/README.md](../../../docs/architecture/README.md) — read it
 before creating or editing any diagram.
 
@@ -35,7 +36,7 @@ before creating or editing any diagram.
 
 1. Classify the change: structural (systems/containers/relationships) →
    `docs/architecture/workspace.dsl`; behavioral (step-by-step flow) →
-   `docs/features/<app>/<flow>.md`. A change can be both.
+   `workspaces/<area>/<workspace>/docs/<flow>.md`. A change can be both.
 2. Read the diagrams you are about to touch and verify them against the
    current source code, not against READMEs or memory.
 3. For `workspace.dsl` edits: keep views on `autoLayout lr`, then run

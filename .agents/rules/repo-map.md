@@ -10,9 +10,10 @@ Project-specific orientation for AI agents. Keep this file easy to edit when cop
 - Apps live under `workspaces/apps/*`.
 - AI engineering learning examples live under `workspaces/ai-engineering/*`.
 - Shared packages live under `workspaces/packages/*`.
-- Docs live under `docs/*`. Architecture diagrams: `docs/architecture/`
-  (Structurizr C4 model) and `docs/features/` (Mermaid workflow diagrams);
-  conventions in `docs/architecture/README.md`.
+- Docs live under `docs/*`. The repository-wide Structurizr C4 model lives in
+  `docs/architecture/`; Mermaid workflow diagrams live with their owning
+  workspace under `workspaces/**/docs/`. Conventions are in
+  `docs/architecture/README.md`.
 - Shared AI-agent material lives under `.agents/*`. Tool-specific adapters live under `.claude/`, `.codex/`, `.cursor/`, or `.github/` and should stay thin (see [.agents/README.md](../README.md) for design rules).
 
 ## Context Loading Policy
