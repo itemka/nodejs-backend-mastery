@@ -1,0 +1,25 @@
+graph LR
+  linkStyle default fill:#ffffff
+
+  subgraph diagram ["Container View: local-llm-playground"]
+    style diagram fill:#ffffff,stroke:#ffffff
+
+    1["<div style='font-weight: bold'>Developer</div><div style='font-size: 70%; margin-top: 0px'>[Person]</div><div style='font-size: 80%; margin-top:10px'>Runs the apps locally while<br />learning backend patterns.</div>"]
+    style 1 fill:#ffffff,stroke:#444444,color:#444444
+    2["<div style='font-weight: bold'>Ollama</div><div style='font-size: 70%; margin-top: 0px'>[Software System]</div><div style='font-size: 80%; margin-top:10px'>Local LLM runtime exposing an<br />OpenAI-compatible API on<br />localhost:11434.</div>"]
+    style 2 fill:#8c8c8c,stroke:#626262,color:#ffffff
+
+    subgraph 5 ["local-llm-playground"]
+      style 5 fill:#ffffff,stroke:#444444,color:#444444
+
+      6["<div style='font-weight: bold'>React UI</div><div style='font-size: 70%; margin-top: 0px'>[Container: Vite + React]</div><div style='font-size: 80%; margin-top:10px'>Chat, streaming, compare, and<br />llm-checker screens with<br />localStorage persistence.</div>"]
+      style 6 fill:#ffffff,stroke:#444444,color:#444444
+      7["<div style='font-weight: bold'>Express API</div><div style='font-size: 70%; margin-top: 0px'>[Container: Node.js + Express]</div><div style='font-size: 80%; margin-top:10px'>REST + SSE endpoints under<br />/api: chat, compare, models,<br />llm-checker (strict command<br />allowlist).</div>"]
+      style 7 fill:#ffffff,stroke:#444444,color:#444444
+    end
+
+    1-. "<div>Chats and compares models in<br />the browser</div><div style='font-size: 70%'></div>" .->6
+    6-. "<div>Calls REST + SSE endpoints</div><div style='font-size: 70%'>[JSON/SSE over HTTP]</div>" .->7
+    7-. "<div>Sends chat/completions<br />requests</div><div style='font-size: 70%'>[OpenAI-compatible HTTP]</div>" .->2
+
+  end

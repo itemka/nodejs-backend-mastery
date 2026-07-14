@@ -10,7 +10,10 @@ Project-specific orientation for AI agents. Keep this file easy to edit when cop
 - Apps live under `workspaces/apps/*`.
 - AI engineering learning examples live under `workspaces/ai-engineering/*`.
 - Shared packages live under `workspaces/packages/*`.
-- Docs live under `docs/*`.
+- Docs live under `docs/*`. The repository-wide Structurizr C4 model lives in
+  `docs/architecture/`; Mermaid workflow diagrams live with their owning
+  workspace under `workspaces/**/docs/`. Conventions are in
+  `docs/architecture/README.md`.
 - Shared AI-agent material lives under `.agents/*`. Tool-specific adapters live under `.claude/`, `.codex/`, `.cursor/`, or `.github/` and should stay thin (see [.agents/README.md](../README.md) for design rules).
 
 ## Context Loading Policy
@@ -44,6 +47,7 @@ and path-scoped because raw output stays in the conversation transcript.
 
 ## AI Engineering
 
+- `workspaces/ai-engineering/claude-capabilities-lab`: argument-driven CLI lab for manually testing Claude-specific capabilities (extended thinking, images, PDFs, files, prompt caching, citations, code execution) on top of `@workspaces/packages/llm-client` and the Anthropic SDK; live runs need `ANTHROPIC_API_KEY`, tests use mocks.
 - `workspaces/ai-engineering/llm-chat`: interactive LLM chat CLI built on `@workspaces/packages/llm-client`.
 - `workspaces/ai-engineering/mcp-chat`: document-focused MCP server + CLI MCP client/chatbot using the MCP TypeScript SDK V2 alpha. In-memory documents, streaming chat, `@doc_name` mentions, MCP-prompt slash commands.
 - `workspaces/ai-engineering/prompt-eval-lab`: automated prompt-evaluation CLI (dataset → render → run → grade) on top of `@workspaces/packages/llm-client`.
@@ -80,6 +84,8 @@ and path-scoped because raw output stays in the conversation transcript.
   `pnpm --version` waits and reports `[ERROR] fetch failed`; do not retry the
   same sandboxed `pnpm` command repeatedly. Do not use `pmOnFail=ignore` as a
   default workaround because it bypasses package-manager verification.
+- Architecture model checks: `pnpm run arch:validate` and `pnpm run arch:export`
+  (Docker-based; see `docs/architecture/README.md`). Not part of `pnpm run validate`.
 - Use pnpm filters for package-specific work, for example `pnpm --filter local-llm-playground test`.
 - `local-llm-playground` uses Vitest and has separate backend/client typecheck and build scripts.
 - `shop-mvc-express` has build and typecheck scripts but no test script in its package file.
