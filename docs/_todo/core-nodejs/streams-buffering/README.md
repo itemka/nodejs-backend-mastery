@@ -1,6 +1,6 @@
 # Streams & backpressure
 
-**Category:** core-nodejs · **Primary app:** media-service · **Prereqs:** event-loop · **Status:** todo
+**Category:** core-nodejs · **Primary app:** [serverless-toolkit](../../../../workspaces/apps/serverless-toolkit/) · **Prereqs:** event-loop · **Status:** todo
 
 ## Scope
 
@@ -11,7 +11,7 @@
 
 ## Sub-tasks
 
-- [ ] Build a file-upload endpoint that streams directly to S3 without buffering full request into memory.
+- [ ] Build an S3 download endpoint in serverless-toolkit that streams objects without buffering the full file in memory.
 - [ ] Demo a slow-consumer scenario; measure memory with and without `pipeline`.
 - [ ] Write a Transform stream that chunks CSV rows and emits parsed objects.
 - [ ] Document a memory regression you produced intentionally by ignoring backpressure.
@@ -25,7 +25,7 @@
 
 ## Interview questions
 
-- Explain backpressure with a streaming file upload example.
+- Explain backpressure with a streaming S3 download example.
 - Why can `.pipe()` leave resources open on error? What fixes it?
 - When would you write a custom Transform stream instead of processing in-memory?
 - How do `Buffer`, `Uint8Array`, and string interact? When does each win?

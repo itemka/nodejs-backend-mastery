@@ -1,6 +1,6 @@
 # S3 + CloudFront
 
-**Category:** cloud-services/aws · **Primary app:** [media-service](../../../../../workspaces/apps/media-service/) · **Prereqs:** aws · **Status:** todo
+**Category:** cloud-services/aws · **Primary app:** [serverless-toolkit](../../../../../workspaces/apps/serverless-toolkit/) (absorbs the `media-service` S3 scope) · **Prereqs:** aws · **Status:** todo
 
 ## Scope
 

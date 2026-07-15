@@ -1,22 +1,26 @@
-<!-- TODO: Re-evaluate scope and approach before starting implementation. -->
-
 # Chat (Realtime)
 
-Build them in one monorepo (`nodejs-backend-mastery`) and reuse shared packages (config/logger/errors/metrics/testing).
+**Status:** scaffold — planned Phase 5B (realtime systems), app order #5. No
+code yet; this is a plan brief. See
+[docs/README.md § App Order And Growth Phases](../../../docs/README.md#app-order-and-growth-phases).
 
 - Why: WebSockets at scale.
-- Covers: WS rooms, presence, typing indicators, delivery acks, rate-limit & flood control, backpressure, horizontal scale with Redis pub/sub.
+- Covers: WS rooms, presence, typing indicators, delivery acks, rate-limit &
+  flood control, backpressure, horizontal scale with Redis pub/sub.
 - Stack: ws/socket.io, Redis, Postgres for history, BullMQ for fan-out.
-- Arch: Feature-based modules.
-- Stretch: Secure rejoin with short-lived tokens, message search.
+- Arch: feature-based modules.
+- Stretch: secure rejoin with short-lived tokens, message search.
 
-## Deployment
+When implementation starts, reuse the existing shared packages
+([config](../../packages/config/), [errors](../../packages/errors/)).
+
+## Deployment (planned)
 
 - Target: AWS ECS Fargate + ALB (WebSocket) — alt: API Gateway WebSocket + Lambda
 - AWS: ECR, ECS, ALB (sticky), ElastiCache Redis (pub/sub), Route 53, CloudWatch
 
-## CI/CD (GitHub Actions)
+## CI/CD (GitHub Actions, planned)
 
 - Auth: OIDC to AWS
 - Steps (ECS): Docker build → push ECR → `aws ecs update-service`
-- Extras: Backpressure tests, rate limiting, WS health checks; consider API GW WS for comparison
+- Extras: backpressure tests, rate limiting, WS health checks; consider API GW WS for comparison

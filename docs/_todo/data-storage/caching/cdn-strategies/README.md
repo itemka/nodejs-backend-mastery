@@ -1,6 +1,6 @@
 # CDN caching strategies
 
-**Category:** data-storage/caching · **Primary app:** [media-service](../../../../../workspaces/apps/media-service/) · **Prereqs:** redis · **Status:** todo
+**Category:** data-storage/caching · **Primary app:** [serverless-toolkit](../../../../../workspaces/apps/serverless-toolkit/) (absorbs the `media-service` CDN scope) · **Prereqs:** redis · **Status:** todo
 
 ## Scope
 

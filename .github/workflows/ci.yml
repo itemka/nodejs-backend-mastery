@@ -4,14 +4,8 @@ on:
   pull_request:
     branches: [main, master]
     types: [opened, synchronize, reopened, ready_for_review]
-    paths-ignore:
-      - "docs/**"
-      - "**/*.md"
   push:
     branches: [main]
-    paths-ignore:
-      - "docs/**"
-      - "**/*.md"
 
 permissions:
   contents: read
@@ -28,6 +22,7 @@ jobs:
       workspaces: ${{ steps.detect.outputs.workspaces }}
       any: ${{ steps.detect.outputs.any }}
       root_build: ${{ steps.detect.outputs.root_build }}
+      docs_only: ${{ steps.detect.outputs.docs_only }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -55,16 +50,27 @@ jobs:
             echo "workspaces=[]" >> "$GITHUB_OUTPUT"
             echo "any=false" >> "$GITHUB_OUTPUT"
             echo "root_build=false" >> "$GITHUB_OUTPUT"
+            echo "docs_only=false" >> "$GITHUB_OUTPUT"
             exit 0
           fi
           mapfile -t files < <(git diff --name-only "$base" "$head" || true)
           uniq=()
           seen_paths=$'\n'
           root_build=false
+          docs_only=true
           for f in "${files[@]}"; do
             case "$f" in
               .github/workflows/ci.yml | package.json | pnpm-lock.yaml | pnpm-workspace.yaml | tsconfig.base.json)
                 root_build=true
+                ;;
+            esac
+
+            # docs_only: every changed file is Markdown or under docs/ (cheap quality steps only).
+            case "$f" in
+              docs/* | *.md)
+                ;;
+              *)
+                docs_only=false
                 ;;
             esac
 
@@ -80,6 +86,10 @@ jobs:
               fi
             fi
           done
+          if [[ "${#files[@]}" -eq 0 ]]; then
+            # Empty diff (edge case): run the full pipeline rather than skip it.
+            docs_only=false
+          fi
           if [[ "${#uniq[@]}" -eq 0 ]]; then
             echo "workspaces=[]" >> "$GITHUB_OUTPUT"
             echo "any=false" >> "$GITHUB_OUTPUT"
@@ -89,11 +99,21 @@ jobs:
             echo "any=true" >> "$GITHUB_OUTPUT"
           fi
           echo "root_build=$root_build" >> "$GITHUB_OUTPUT"
+          echo "docs_only=$docs_only" >> "$GITHUB_OUTPUT"
 
+  # Keep this job and check name stable: branch protection can require one quality gate
+  # for both docs-only and code changes. Heavy steps are conditional below.
   quality:
     name: Lint / Format / Types / Unit
+    needs: detect
+    if: ${{ !cancelled() }}
     runs-on: ubuntu-latest
     steps:
+      - name: Require successful change detection
+        if: needs.detect.result != 'success'
+        run: |
+          echo "Changed-workspace detection failed; refusing to pass the required quality gate."
+          exit 1
       - uses: actions/checkout@v4
       - name: Enable Corepack (pnpm)
         run: corepack enable
@@ -105,19 +125,36 @@ jobs:
           cache-dependency-path: pnpm-lock.yaml
       - name: Install deps
         run: pnpm install --frozen-lockfile
-      - name: ESLint
-        run: pnpm run lint
+      - name: Check secrets
+        run: pnpm run check:secrets
+      - name: Check agent adapters
+        run: pnpm run check:adapters
       - name: Prettier (check)
         run: pnpm run format:check
+      - name: ESLint
+        if: needs.detect.outputs.docs_only != 'true'
+        run: pnpm run lint
       - name: Type check
+        if: needs.detect.outputs.docs_only != 'true'
         run: pnpm run typecheck
       - name: Unit tests
+        if: needs.detect.outputs.docs_only != 'true'
         run: pnpm run test
+
+  dependency-review:
+    name: Dependency Review
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/dependency-review-action@v5
+        with:
+          fail-on-severity: high
 
   workspace:
     name: Check ${{ matrix.workspace.path }}
     needs: [detect, quality]
-    if: needs.detect.outputs.any == 'true'
+    if: needs.detect.outputs.docs_only != 'true' && needs.detect.outputs.any == 'true'
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -147,7 +184,7 @@ jobs:
   root-build:
     name: Build all workspaces
     needs: [detect, quality]
-    if: needs.detect.outputs.root_build == 'true'
+    if: needs.detect.outputs.docs_only != 'true' && needs.detect.outputs.root_build == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -166,8 +203,8 @@ jobs:
 
   security:
     name: Audit / Gitleaks
-    needs: quality
-    if: always() && ( github.event_name == 'pull_request' || github.ref == 'refs/heads/main' )
+    needs: [detect, quality]
+    if: always() && needs.detect.outputs.docs_only != 'true' && ( github.event_name == 'pull_request' || github.ref == 'refs/heads/main' )
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -191,8 +228,8 @@ jobs:
 
   sonarcloud:
     name: SonarCloud
-    needs: quality
-    if: always() && ( github.event_name == 'pull_request' || github.ref == 'refs/heads/main' )
+    needs: [detect, quality]
+    if: always() && needs.detect.outputs.docs_only != 'true' && ( github.event_name == 'pull_request' || github.ref == 'refs/heads/main' )
     runs-on: ubuntu-latest
     permissions:
       contents: read

@@ -16,6 +16,9 @@
 - [ ] Implement product CRUD with Zod validation + 4xx/5xx mapping through HttpError (shop-mvc-express).
 - [ ] Add cursor-based pagination for product listing; reject invalid cursors with 400.
 - [ ] Pick a versioning strategy and write a one-page ADR in this folder.
+- [ ] Author an OpenAPI 3.1 spec for shop-mvc-express's product endpoints from the Zod schemas.
+- [ ] Serve the shop-mvc-express OpenAPI spec at `/docs`.
+- [ ] Lint the shop-mvc-express OpenAPI spec in CI.
 - [ ] Generate OpenAPI from Zod via `fastify-type-provider-zod` in shop-feature-fastify; serve `/docs`.
 - [ ] Add idempotency-key support on `POST /orders` (link to [microservices/idempotency-retries](../../microservices/idempotency-retries/)).
 

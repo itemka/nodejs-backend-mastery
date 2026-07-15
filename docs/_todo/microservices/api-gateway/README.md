@@ -1,6 +1,6 @@
 # API gateway / BFF
 
-**Category:** microservices · **Primary app:** [bff-gateway](../../../../workspaces/apps/bff-gateway/) · **Prereqs:** rest · **Status:** todo
+**Category:** microservices · **Primary app:** [bff-gateway](../../../../workspaces/apps/_todo/bff-gateway/) (deferred brief) · **Prereqs:** rest · **Status:** todo
 
 ## Scope
 

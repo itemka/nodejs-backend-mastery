@@ -12,10 +12,12 @@
 ## Sub-tasks
 
 - [ ] Audit current [src/middleware/](../../../../workspaces/apps/shop-mvc-express/src/middleware/) for order correctness (parsers → auth → routes → error).
-- [ ] Add a request-ID middleware; attach to `req.id` and include in every log line.
 - [ ] Wrap all async route handlers with [wrapAsync](../../../../workspaces/apps/shop-mvc-express/src/utils/wrapAsync.ts) (or `express-async-errors`).
-- [ ] Add `/health` and `/readiness` endpoints bypassing auth.
+- [ ] Add `/health` and `/ready` endpoints bypassing auth, wired to the existing shutdown drain in [src/infra/shutdown.ts](../../../../workspaces/apps/shop-mvc-express/src/infra/shutdown.ts).
+- [ ] Declare [packages/config](../../../../workspaces/packages/config/) and [packages/errors](../../../../workspaces/packages/errors/) as workspace dependencies of shop-mvc-express, matching its existing imports.
 - [ ] Document the final middleware chain in this file once stable.
+
+(Request-ID middleware lives in [observability/logging](../../observability/logging/) — one owner per sub-task.)
 
 ## Concepts to know
 
