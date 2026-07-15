@@ -1,6 +1,6 @@
 # Fastify plugins & type providers
 
-**Category:** frameworks · **Primary app:** [shop-feature-fastify](../../../../workspaces/apps/shop-feature-fastify/) · **Prereqs:** express · **Status:** todo
+**Category:** frameworks · **Primary app:** [auth-service](../../../../workspaces/apps/auth-service/), [shop-feature-fastify](../../../../workspaces/apps/shop-feature-fastify/) · **Prereqs:** express · **Status:** todo
 
 ## Scope
 
@@ -11,11 +11,16 @@
 
 ## Sub-tasks
 
-- [ ] Scaffold the app using [@workspaces/packages/config](../../../../workspaces/packages/config/) and the esbuild workspace onResolve plugin.
-- [ ] Wire `fastify-type-provider-zod` and generate OpenAPI from route schemas.
-- [ ] Create `src/modules/{products,users,orders,cart}`; each a Fastify plugin.
-- [ ] Add `@fastify/helmet`, `@fastify/cors`, `@fastify/rate-limit`.
-- [ ] Integrate Pino with request IDs; propagate to services via `onRequest` hook.
+- [ ] Scaffold auth-service with Fastify, the shared [config](../../../../workspaces/packages/config/) and [errors](../../../../workspaces/packages/errors/) packages, and the esbuild workspace `onResolve` plugin.
+- [ ] Wire `fastify-type-provider-zod` into auth-service route schemas.
+- [ ] Generate the auth-service OpenAPI contract from its route schemas.
+- [ ] Register auth-service HTTP adapters as encapsulated Fastify plugins around its hexagonal application ports.
+- [ ] Add `@fastify/helmet`, `@fastify/cors`, and `@fastify/rate-limit` to auth-service.
+- [ ] Integrate Pino request IDs into auth-service and propagate its request logger through `onRequest`.
+- [ ] Scaffold shop-feature-fastify with Fastify, the shared config/errors packages, and the esbuild workspace `onResolve` plugin.
+- [ ] Create `src/modules/{products,users,orders,cart}` in shop-feature-fastify, with each module registered as a Fastify plugin.
+- [ ] Add `@fastify/helmet`, `@fastify/cors`, and `@fastify/rate-limit` to shop-feature-fastify.
+- [ ] Integrate Pino request IDs into shop-feature-fastify and propagate its request logger through `onRequest`.
 
 ## Concepts to know
 

@@ -1,22 +1,39 @@
-<!-- TODO: Re-evaluate scope and approach before starting implementation. -->
+# Event-Driven Order System
 
-# Event-Driven Order System (Mini-Microservices)
+**Status:** scaffold — planned Phase 4 (async processing and reliability),
+app order #3. No code yet; this is a plan brief that absorbs the former
+`jobs-workflows` brief. See
+[docs/README.md § App Order And Growth Phases](../../../docs/README.md#app-order-and-growth-phases).
 
-Build them in one monorepo (`nodejs-backend-mastery`) and reuse shared packages (config/logger/errors/metrics/testing).
+One reliability-focused service, not two:
 
-- Why: Practice consistency & integration at scale.
-- Covers: Services: Orders, Payments, Inventory; events/commands, eventual consistency, Sagas, outbox/inbox, schema registry, consumer groups.
-- Stack: Kafka (or SQS/SNS), Postgres per service, OpenTelemetry + Prometheus.
-- Arch: Modular monolith first → split into services.
-- Stretch: Blue/green deploy of one service, contract testing (Pact).
+- Why: practice consistency, integration, and reliability patterns at scale.
+- Covers (start here, from the absorbed `jobs-workflows` scope): BullMQ task
+  queues on Redis, retries + backoff, dead-letter queues, idempotency keys,
+  Postgres outbox, cron jobs; timeouts + circuit breaker on the shop→auth
+  call.
+- Covers (later, event-driven depth): Orders/Payments/Inventory services,
+  events vs commands, eventual consistency, sagas, outbox/inbox, consumer
+  groups; Kafka or SNS/SQS as the bus comparison.
+- Stack: Redis + BullMQ, Postgres (outbox), then Kafka or SQS/SNS;
+  OpenTelemetry + Prometheus.
+- Arch: modular monolith first → split into services.
+- Stretch: blue/green deploy of one service, contract testing (Pact), email
+  pipeline, webhooks with signature verification.
 
-## Deployment
+Done-bar for the phase: killing a worker mid-job retries without duplicate
+side effects.
 
-- Target: ECS Fargate micro-services + SNS/SQS (or MSK)
-- AWS: SNS topics, SQS queues, EventBridge, RDS per service, CloudWatch
+When implementation starts, reuse the existing shared packages
+([config](../../packages/config/), [errors](../../packages/errors/)).
 
-## CI/CD (GitHub Actions)
+## Deployment (planned)
+
+- Target: ECS Fargate services/workers + SNS/SQS (or MSK)
+- AWS: SNS topics, SQS queues + DLQ, EventBridge, RDS per service, CloudWatch Alarms
+
+## CI/CD (GitHub Actions, planned)
 
 - Auth: OIDC to AWS
-- Steps: Build/push per service → update ECS services; migrations per service
-- Extras: Outbox/inbox, consumer groups, contract tests
+- Steps: build/push per service → update ECS services; migrations per service
+- Extras: outbox/inbox, consumer groups, retries/backoff policies, contract tests

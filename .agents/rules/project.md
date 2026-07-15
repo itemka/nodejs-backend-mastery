@@ -4,6 +4,9 @@ Always-on rules for AI agents working in this repository.
 
 - Work in small, safe steps. Prefer a focused diff that can be reviewed quickly.
 - Understand existing code before editing. Inspect nearby files, tests, scripts, and established patterns first.
+- Resolve material ambiguity before editing. Use repository evidence first and state any remaining assumptions.
+- For non-trivial work, identify the intended outcome and the smallest check that will demonstrate it.
+- Choose the least complex approach that meets the request; avoid speculative behavior, configuration, or abstractions.
 - Follow the current architecture and style. Do not invent a new layering pattern when the repo already has one.
 - Prefer TypeScript strictness and strong typing. Model data with precise types, schemas, and narrow interfaces.
 - Avoid `any` unless there is a clear reason. If `any` is necessary, keep it local and explain why.

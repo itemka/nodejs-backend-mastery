@@ -87,10 +87,11 @@ diff review only; use `pnpm run arch:view` to see them rendered.
 
 [.github/workflows/docs-architecture.yml](../../.github/workflows/docs-architecture.yml)
 validates `workspace.dsl` and fails if `generated/` does not match a fresh
-export, on every PR that touches `docs/architecture/**`. The main CI workflow
-ignores Markdown-only changes. Mermaid workflow diagrams do not have an
-automated rendering gate, so verify them in a Markdown preview or on the
-GitHub branch.
+export, on every PR that touches `docs/architecture/**`. For Markdown-only
+changes, the main CI workflow still runs its stable quality gate with
+Prettier, adapter, and secret checks while skipping its heavier code jobs.
+Mermaid workflow diagrams do not have an automated rendering gate, so verify
+them in a Markdown preview or on the GitHub branch.
 
 ## When To Update What
 

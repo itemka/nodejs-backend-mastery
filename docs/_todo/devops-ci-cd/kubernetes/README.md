@@ -13,7 +13,7 @@
 ## Sub-tasks
 
 - [ ] Port one shop service to a local kind cluster; author a minimal Helm chart.
-- [ ] Add liveness + readiness probes that match the app's `/health` and `/readiness`.
+- [ ] Add liveness + readiness probes that match the app's `/health` and `/ready`.
 - [ ] Document when EKS earns its complexity vs ECS Fargate.
 
 ## Concepts to know

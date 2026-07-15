@@ -46,8 +46,8 @@ Use for diff-focused reviews. Lead with blocking issues and keep suggestions sma
 
 ## Performance
 
-- Are hot paths, N+1 queries, large payloads, and unnecessary renders avoided?
-- Are timeouts, pagination, caching, or batching considered where relevant?
+- Are hot paths, N+1 queries, unbounded queries (no LIMIT or pagination cap), large payloads, and unnecessary renders avoided?
+- Are timeouts on outbound calls, pagination, caching, or batching considered where relevant?
 
 ## Docs
 

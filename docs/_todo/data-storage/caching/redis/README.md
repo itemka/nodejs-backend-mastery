@@ -1,6 +1,6 @@
 # Redis (cache + pub/sub)
 
-**Category:** data-storage/caching · **Primary app:** [shop-feature-fastify](../../../../../workspaces/apps/shop-feature-fastify/), [chat-ws](../../../../../workspaces/apps/chat-ws/) · **Prereqs:** postgresql · **Status:** todo
+**Category:** data-storage/caching · **Primary app:** [auth-service](../../../../../workspaces/apps/auth-service/), [orders-event-driven](../../../../../workspaces/apps/orders-event-driven/), [shop-feature-fastify](../../../../../workspaces/apps/shop-feature-fastify/), [chat-ws](../../../../../workspaces/apps/chat-ws/) · **Prereqs:** postgresql · **Status:** todo
 
 ## Scope
 
@@ -16,7 +16,7 @@
 - [ ] Invalidate keys on product create/update/delete; write a test that proves invalidation.
 - [ ] Benchmark product list with/without cache using autocannon; record numbers in [../../../performance-optimization/benchmarking-autocannon/](../../../performance-optimization/benchmarking-autocannon/).
 - [ ] Wire Redis pub/sub for cross-instance messages in chat-ws.
-- [ ] Use Redis as a token blacklist keyed by JWT `jti` with TTL == access token expiry.
+- [ ] In auth-service, use Redis as a token blacklist keyed by JWT `jti` with TTL equal to the access-token lifetime.
 
 ## Concepts to know
 

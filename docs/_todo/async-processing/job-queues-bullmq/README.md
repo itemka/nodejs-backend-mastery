@@ -1,6 +1,6 @@
 # Job queues (BullMQ)
 
-**Category:** async-processing · **Primary app:** [jobs-workflows](../../../../workspaces/apps/_todo/jobs-workflows/) · **Prereqs:** redis · **Status:** todo
+**Category:** async-processing · **Primary app:** [orders-event-driven](../../../../workspaces/apps/orders-event-driven/) (absorbed the `jobs-workflows` brief) · **Prereqs:** redis · **Status:** todo
 
 ## Scope
 

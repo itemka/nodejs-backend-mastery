@@ -7,6 +7,8 @@
 - Stale or conflicting statements were removed.
 - Links point to existing files or stable external references.
 - No secrets, private URLs, local absolute paths, or personal environment details are included.
+- Substantial copied or adapted third-party material (vendored files, whole sections, templates) records its canonical source, exact revision, original path, import date, complete upstream license and attribution notices, and local modifications; a brief adapted excerpt records at least its source and license.
+- Third-party material is not imported when required redistribution terms or notices are unavailable or unclear; missing copyright or license data is never guessed.
 - The update is scoped to the change and avoids broad unrelated rewrites.
 - Root AI instruction files stay thin; detailed workflows live in skills, while commands and tool adapters stay short and route to the shared source.
 - Tool-specific adapters link back to shared guidance instead of duplicating it.
