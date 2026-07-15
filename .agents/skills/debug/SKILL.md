@@ -5,14 +5,14 @@ metadata:
   created: '2026-04-25'
   status: 'baseline'
   portability: 'cross-tool'
-  last-reviewed: '2026-05-05'
+  last-reviewed: '2026-07-15'
 ---
 
 # Debug
 
 ## Purpose
 
-Find a reproducible root cause and apply the smallest credible fix.
+Find a reproducible root cause and, when implementation is requested, apply the smallest credible fix.
 
 ## When To Use
 
@@ -40,8 +40,8 @@ Find a reproducible root cause and apply the smallest credible fix.
 3. Inspect recent changes and nearby code.
 4. Form 2-3 plausible hypotheses.
 5. Test hypotheses one by one.
-6. Fix the minimal root cause.
-7. Add or update a regression test when practical.
+6. If implementation is requested, fix the minimal root cause.
+7. When a fix is made, add or update a regression test when practical.
 8. Report the root cause and validation.
 
 ## Output Format
@@ -49,8 +49,8 @@ Find a reproducible root cause and apply the smallest credible fix.
 - Symptom.
 - Reproduction.
 - Root cause.
-- Fix.
-- Regression coverage.
+- Fix, when implemented.
+- Regression coverage, when implemented.
 - Validation.
 - Remaining risk.
 
@@ -59,6 +59,7 @@ Find a reproducible root cause and apply the smallest credible fix.
 - Do not mask failures by weakening tests or swallowing errors.
 - Do not add noisy logs unless they are removed or intentionally structured.
 - Avoid broad rewrites during debugging.
+- Keep diagnosis-only requests read-only; apply a fix only when the user requests implementation or the request otherwise clearly includes it.
 
 ## When Not To Use
 

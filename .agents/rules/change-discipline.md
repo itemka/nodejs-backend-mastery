@@ -3,6 +3,7 @@
 Use this rule when editing code, docs, tests, config, or automation.
 
 - Keep the diff focused on the requested task.
+- Limit incidental cleanup to artifacts made obsolete by the current change. When cleanup is the requested outcome, keep it within that explicit scope and report other cleanup separately.
 - Do not make unrelated refactors, renames, formatting sweeps, or dependency changes.
 - Do not upgrade dependencies unless the task requires it or the current version blocks the work.
 - Do not perform large rewrites without an explicit request.

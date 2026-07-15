@@ -8,3 +8,4 @@ Before working in this repo:
 - Follow [.agents/rules/project.md](.agents/rules/project.md).
 - Use [.agents/rules/repo-map.md](.agents/rules/repo-map.md) for repo orientation.
 - Follow [.agents/rules/change-discipline.md](.agents/rules/change-discipline.md) when editing files.
+- For non-trivial implementation, debugging, refactoring, or code review, use [.agents/skills/coding-discipline/SKILL.md](.agents/skills/coding-discipline/SKILL.md).
