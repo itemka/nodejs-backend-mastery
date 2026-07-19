@@ -7,10 +7,11 @@ import { readStdin, readStdinJson, repoRoot, runNodeHook } from './lib/hook-util
 
 const hookDir = dirname(fileURLToPath(import.meta.url));
 // Adapter caps after-edit at 120s. Split that budget so a hung format pass
-// cannot eat the entire test budget (and vice versa).
+// cannot eat the entire test budget (and vice versa): 35s + 75s = 110s,
+// under the 120s outer cap.
 const HOOKS = [
-  { name: 'format-and-lint.mjs', timeout: 45_000 },
-  { name: 'test-changed.mjs', timeout: 90_000 },
+  { name: 'format-and-lint.mjs', timeout: 35_000 },
+  { name: 'test-changed.mjs', timeout: 75_000 },
 ];
 
 const raw = readStdin();

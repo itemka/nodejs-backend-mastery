@@ -5,6 +5,10 @@ node_modules/
 # Build outputs
 dist/
 build/
+coverage/
+
+# Stryker mutation-testing scratch dir
+.stryker-tmp/
 
 # Logs
 *.log

@@ -1,10 +1,11 @@
 # Shop MVC (Express)
 
 **Status:** active — the backend flagship, earliest stage. Express 5 MVC with
-server-rendered views and an in-memory product model. Next up: the Phase 1
-production baseline (tests, logging + request IDs, health/readiness, and
-formal workspace dependencies on the shared config and errors packages), then
-Phase 2 (Postgres, migrations, Docker). See
+server-rendered views and an in-memory product model. Has a first Vitest
+regression suite (validation, escaping, central error handling, and Helmet
+headers) and declares its shared `config`/`errors` dependencies. Next up: the
+rest of the Phase 1 production baseline (logging + request IDs,
+health/readiness), then Phase 2 (Postgres, migrations, Docker). See
 [docs/README.md § App Order And Growth Phases](../../../docs/README.md#app-order-and-growth-phases).
 
 ## What it demonstrates today
@@ -26,16 +27,16 @@ Phase 2 (Postgres, migrations, Docker). See
 
 ## Not here yet
 
-Tests (no `test` script), structured logger, request IDs, `/health` +
-`/ready`, any database, Docker. These are Phase 1–2 work, tracked as
-sub-tasks in the matching topic READMEs under `docs/_todo/` (express,
-logging, unit-testing, postgresql, docker).
+Structured logger, request IDs, `/health` + `/ready`, any database, Docker.
+These are Phase 1–2 work, tracked as sub-tasks in the matching topic READMEs
+under `docs/_todo/` (express, logging, unit-testing, postgresql, docker).
 
 ## Scripts
 
 ```bash
 pnpm --filter shop-mvc-express dev        # tsx watch
 pnpm --filter shop-mvc-express typecheck
+pnpm --filter shop-mvc-express test       # vitest run
 pnpm --filter shop-mvc-express build      # esbuild
 pnpm --filter shop-mvc-express start      # node dist/server.js
 ```

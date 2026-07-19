@@ -232,10 +232,10 @@ are done.
 
 ### Testing & Quality
 
-- [\_todo/testing-quality/unit-testing/](./_todo/testing-quality/unit-testing/) — Vitest units. Prereq: —. App: all. **todo** · core
+- [\_todo/testing-quality/unit-testing/](./_todo/testing-quality/unit-testing/) — Vitest units. Prereq: —. App: all. **partial** · core
 - [\_todo/testing-quality/integration-testing/](./_todo/testing-quality/integration-testing/) — real DB tests. Prereq: unit-testing. App: shop-mvc-express. **todo** · core
 - [\_todo/testing-quality/contract-testing/](./_todo/testing-quality/contract-testing/) — Pact. Prereq: integration. App: shop-feature-fastify ↔ auth-service. **todo** · core
-- [\_todo/testing-quality/mutation-testing/](./_todo/testing-quality/mutation-testing/) — Stryker. Prereq: unit-testing. App: —. **todo** · elective
+- [\_todo/testing-quality/mutation-testing/](./_todo/testing-quality/mutation-testing/) — Stryker. Prereq: unit-testing. App: —. **partial** · elective
 - [\_todo/testing-quality/static-analysis/](./_todo/testing-quality/static-analysis/) — ESLint typed, Sonar. Prereq: —. App: all. **partial** · core
 
 ### Compliance & Governance

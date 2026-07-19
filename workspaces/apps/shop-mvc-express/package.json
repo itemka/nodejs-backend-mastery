@@ -8,10 +8,13 @@
     "dev": "tsx watch --tsconfig tsconfig.json src/server.ts",
     "build": "node esbuild.config.mjs",
     "start": "node dist/server.js",
-    "typecheck": "tsc -p tsconfig.json --noEmit"
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run"
   },
   "dependencies": {
     "@workspaces/cli-output": "workspace:*",
+    "@workspaces/packages/config": "workspace:*",
+    "@workspaces/packages/errors": "workspace:*",
     "dotenv": "^17.2.3",
     "escape-html": "^1.0.3",
     "express": "^5.2.1",
@@ -25,6 +28,7 @@
     "@types/node": "^25.0.0",
     "esbuild": "^0.25.11",
     "tsx": "^4.20.6",
-    "typescript": "^5.6.3"
+    "typescript": "^5.6.3",
+    "vitest": "^4.1.5"
   }
 }

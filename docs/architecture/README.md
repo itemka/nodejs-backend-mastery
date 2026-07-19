@@ -52,10 +52,21 @@ past ~15 nodes.
 
 ## Commands
 
-All scripts run the consolidated `structurizr/structurizr` Docker image (no
-local Java needed). Note: the older `structurizr/cli` image and the Homebrew
-`structurizr-cli` formula are frozen and no longer receive updates — use the
-consolidated image.
+All scripts and the `docs-architecture.yml` CI workflow run the consolidated
+`structurizr/structurizr` Docker image pinned to an explicit, audited
+multi-architecture version tag (currently `2026.06.28`) so the same commit
+validates and exports identically locally and in CI, instead of drifting with
+whatever `structurizr/structurizr:latest` happens to be on a given day. Note:
+the older `structurizr/cli` image and the Homebrew `structurizr-cli` formula
+are frozen and no longer receive updates — use the consolidated image.
+
+To roll the pin forward: check the
+[official image tags](https://hub.docker.com/r/structurizr/structurizr/tags)
+for a newer dated tag with both `amd64` and `arm64` images, update the tag in
+`package.json` (`arch:validate`, `arch:export`, `arch:view`) and
+`.github/workflows/docs-architecture.yml` together, then run `pnpm run arch`
+and confirm `docs/architecture/generated/` is unchanged or has an explained,
+versioned diff.
 
 The scripts run the container as your current host user so exported files can
 overwrite the checked-out `generated/` directory on Linux and macOS.
