@@ -90,7 +90,7 @@ export function createDocumentStore(seed: Readonly<Record<string, string>>): Doc
       return { docId, replacements: 1 };
     },
     listDocumentIds() {
-      return [...documents.keys()].toSorted();
+      return [...documents.keys()].toSorted((a, b) => a.localeCompare(b));
     },
     readDocument(docId) {
       const content = documents.get(docId);
