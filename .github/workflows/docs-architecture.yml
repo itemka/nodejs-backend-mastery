@@ -26,7 +26,7 @@ jobs:
       - name: Validate workspace.dsl
         run: |
           docker run --rm -v "$PWD/docs/architecture":/usr/local/structurizr \
-            structurizr/structurizr validate -workspace workspace.dsl
+            structurizr/structurizr:2026.06.28 validate -workspace workspace.dsl
 
       # The image runs as a non-root user (uid 65532) that cannot overwrite
       # runner-owned checkout files, so export into a world-writable temp
@@ -37,7 +37,7 @@ jobs:
           docker run --rm \
             -v "$PWD/docs/architecture":/usr/local/structurizr \
             -v "$RUNNER_TEMP/arch-generated":/out \
-            structurizr/structurizr export -workspace workspace.dsl \
+            structurizr/structurizr:2026.06.28 export -workspace workspace.dsl \
             -format mermaid -output /out
           if ! diff -ru docs/architecture/generated "$RUNNER_TEMP/arch-generated"; then
             echo "::error::docs/architecture/generated/ is stale — run 'pnpm run arch' and commit the regenerated output."

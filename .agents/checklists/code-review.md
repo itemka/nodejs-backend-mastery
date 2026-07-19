@@ -13,6 +13,7 @@ Use for diff-focused reviews. Lead with blocking issues and keep suggestions sma
 - Does the code follow existing layering and module boundaries?
 - Are route handlers thin where the repo expects service or repository layers?
 - Is new abstraction justified by real duplication or complexity?
+- Does every workspace package imported by the diff (`@workspaces/...`) appear as a declared `workspace:*` dependency in the consuming package's manifest, not just a resolvable TypeScript path alias?
 
 ## Typing
 

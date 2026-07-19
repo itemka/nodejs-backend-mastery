@@ -60,7 +60,10 @@ jobs:
           docs_only=true
           for f in "${files[@]}"; do
             case "$f" in
-              .github/workflows/ci.yml | package.json | pnpm-lock.yaml | pnpm-workspace.yaml | tsconfig.base.json)
+              .github/workflows/ci.yml | package.json | pnpm-lock.yaml | pnpm-workspace.yaml | tsconfig.base.json | workspaces/packages/*)
+                # Shared packages (workspaces/packages/**) can break any consumer's build, and
+                # the per-workspace matrix below only builds directly changed workspaces — so
+                # route shared-package changes through the coarse all-workspace build too.
                 root_build=true
                 ;;
             esac

@@ -88,12 +88,18 @@ and path-scoped because raw output stays in the conversation transcript.
   (Docker-based; see `docs/architecture/README.md`). Not part of `pnpm run validate`.
 - Use pnpm filters for package-specific work, for example `pnpm --filter local-llm-playground test`.
 - `local-llm-playground` uses Vitest and has separate backend/client typecheck and build scripts.
-- `shop-mvc-express` has build and typecheck scripts but no test script in its package file.
+- `shop-mvc-express` has build, typecheck, and test (Vitest) scripts.
 
 ## Config And CI
 
 - TypeScript base config: `tsconfig.base.json`.
 - ESLint config: `eslint.config.mjs`.
-- GitHub workflows: `.github/workflows/ci.yml` and `.github/workflows/claude.yml`.
-- CI runs lint, format check, typecheck, tests, app builds for changed apps, audit, secret scanning, and SonarCloud when available.
+- GitHub workflows: `.github/workflows/ci.yml`, `.github/workflows/claude.yml`, and
+  `.github/workflows/docs-architecture.yml` (path-scoped: validates the Structurizr DSL
+  under `docs/architecture/**` and diffs the committed generated Mermaid output).
+- CI runs lint, format check, typecheck, tests, and per-workspace builds for directly changed
+  workspaces; a change under `workspaces/packages/**` (or a root config file) also triggers the
+  all-workspace `root-build` job, since a shared-package change can break a consumer's build
+  even when the package's own checks pass. CI also runs audit (Dependency Review), secret
+  scanning (Gitleaks), and SonarCloud when available (token/fork conditions apply).
 - When `.agents/skills/` changes, keep [.agents/README.md](../README.md) and tool-specific skill adapters in sync.

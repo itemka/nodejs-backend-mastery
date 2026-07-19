@@ -169,6 +169,26 @@ needs `VOYAGE_API_KEY`.
 - Answer generation is intentionally out of scope. Use `llm-chat` with
   `search_docs` for the user-facing answer flow.
 
+## Test coverage (report-only pilot)
+
+`pnpm --filter rag-pipeline test:coverage` runs Vitest with the V8 provider
+over all of `src/**/*.ts` (not just imported-and-tested files) and prints a
+text summary plus `coverage/lcov.info` (gitignored). This is a maintainability
+sensor pilot — see
+[docs/\_todo/testing-quality/unit-testing/README.md](../../../docs/_todo/testing-quality/unit-testing/README.md) —
+with no threshold and no CI/Sonar wiring.
+
+First observation: overall statement coverage is ~87%. The two low-coverage
+files are `src/server.ts` (0% — process bootstrap: loads env, constructs the
+real embedding provider, calls `listen`; exercised in practice by `pnpm dev`,
+not unit tests, since `tests/routes/api.test.ts` builds the app directly via
+`createApp` with a fake embedding provider) and `src/shared/logger.ts` (11% —
+a thin `console` wrapper; tests inject a no-op logger). Both are expected
+framework-glue gaps, not missing behavioral coverage, so no test was added
+from this first pass. Re-run after meaningful test changes and re-evaluate
+whether the report keeps changing testing decisions; if it doesn't, remove the
+pilot per its removal criteria in the plan.
+
 ## Source map
 
 - `src/server.ts` - entrypoint that loads `.env`, constructs the Voyage

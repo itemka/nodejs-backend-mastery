@@ -1,0 +1,9 @@
+{
+  "$schema": "./node_modules/@stryker-mutator/core/schema/stryker-schema.json",
+  "_comment": "One-file mutation pilot (docs/_todo/testing-quality/mutation-testing/README.md). Scoped to rrf.ts only; console-only reporters avoid the default HTML report under an unignored reports/ directory; no score threshold — this is a manual learning run, not a gate.",
+  "packageManager": "pnpm",
+  "testRunner": "vitest",
+  "plugins": ["@stryker-mutator/vitest-runner"],
+  "mutate": ["src/retrieval/rrf.ts"],
+  "reporters": ["clear-text", "progress"]
+}
