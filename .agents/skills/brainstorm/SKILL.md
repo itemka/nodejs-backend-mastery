@@ -5,7 +5,7 @@ metadata:
   created: '2026-07-03'
   status: 'baseline'
   portability: 'cross-tool'
-  last-reviewed: '2026-07-03'
+  last-reviewed: '2026-07-20'
 ---
 
 # Brainstorm
@@ -49,10 +49,11 @@ Brainstorming is not implementation. It is the collaborative step before an impl
 3. Ask targeted clarifying questions only when the answer would materially change the direction. Prefer one question at a time; use multiple-choice options when the reasonable options are knowable.
 4. Identify scope boundaries early. If the idea spans independent subsystems, recommend decomposing it before comparing solutions.
 5. Propose 2-3 viable approaches with the recommended option first. For each approach, cover trade-offs, risks, fit with existing architecture, validation implications, and what would be deferred.
-6. Challenge unnecessary features, broad rewrites, premature abstractions, dependency additions, and speculative "nice to have" scope.
-7. Once the user chooses or accepts a direction, present the design in sections scaled to the complexity of the task. For complex designs, ask for approval before moving to the next section.
-8. Finish with a concise task brief: goal, chosen approach, scope, non-goals, key trade-offs, assumptions, risks, affected areas, and open questions.
-9. Hand off to [plan](../plan/SKILL.md) when the user wants implementation steps or a `docs/plan-*.md` artifact.
+6. When an approach depends on external technologies, libraries, or vendor claims rather than repo-internal design: make the comparison criteria explicit before comparing; ground load-bearing claims in 2-3 independent source types, official docs first, noting each source and its date; verify any claim that would change the recommendation instead of trusting a single AI summary; and state a confidence level with the recommendation.
+7. Challenge unnecessary features, broad rewrites, premature abstractions, dependency additions, and speculative "nice to have" scope.
+8. Once the user chooses or accepts a direction, present the design in sections scaled to the complexity of the task. For complex designs, ask for approval before moving to the next section.
+9. Finish with a concise task brief: goal, chosen approach, scope, non-goals, key trade-offs, assumptions, risks, affected areas, and open questions.
+10. Hand off to [plan](../plan/SKILL.md) when the user wants implementation steps or a `docs/plan-*.md` artifact.
 
 ## Output Format
 
@@ -66,6 +67,7 @@ For an in-chat brief, include:
 - Scope and non-goals.
 - Constraints and assumptions.
 - Risks and validation needs.
+- Sources and confidence — when external research informed the comparison: source types used, their dates, and a stated confidence level.
 - Open questions.
 - Recommended next step.
 
@@ -76,6 +78,7 @@ If the user asks for a written artifact, use the [plan file template](../plan/SK
 - Do not write code or edit implementation files while brainstorming.
 - Do not skip repo inspection when existing architecture or current behavior matters.
 - Do not present a single path as the only option when meaningful alternatives exist.
+- Do not base a recommendation on a single unverified summary when external claims are load-bearing.
 - Do not ask broad preference questions when a reasonable default can be recommended with trade-offs.
 - Do not make the brainstorm output more detailed than the uncertainty justifies.
 - Do not create a plan file unless the user asks for a written artifact or moves into planning.

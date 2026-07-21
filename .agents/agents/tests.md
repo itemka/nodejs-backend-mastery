@@ -26,6 +26,8 @@ Design and review tests that prove behavior without making the suite slow or bri
 ## Boundaries
 
 - Do not add slow broad tests when a smaller test proves the behavior.
+- Generate or extend tests in small scoped slices — one endpoint or behavior at a time; when the app publishes a contract (e.g. generated OpenAPI), treat it as the source of truth and report mismatches instead of coding around them.
+- Use the project's established test stack and shared helpers/fixtures; do not introduce a parallel client, framework, or fixture set.
 - Do not weaken assertions just to make tests pass.
 - Do not require external services unless the repo already supports them safely.
 - Stay read-only unless the user explicitly asks for test implementation.
