@@ -16,7 +16,14 @@ health/readiness), then Phase 2 (Postgres, migrations, Docker). See
 - XSS-safe rendering: `escape-html` escapes product titles, validation
   messages, and error-page values; the branded `SafeHtml` type prevents raw
   strings from entering view renderers.
-- Zod input validation at the form boundary.
+- Zod input validation at the form boundary: `src/schemas/product.schema.ts`
+  is the single source for runtime validation and for the generated OpenAPI
+  contract.
+- OpenAPI 3.1 contract generated from those schemas
+  (`src/openapi/document.ts` → `docs/openapi.json`), served as JSON at
+  `/openapi.json` and as Swagger UI at `/docs`. Both routes are mounted only
+  when `NODE_ENV !== 'production'`. CI fails if the committed
+  `docs/openapi.json` is stale or does not lint.
 - Security headers: helmet with explicit CSP, HSTS in prod, referrer policy.
 - Central error middleware
   (`src/middleware/registerErrorHandlingMiddleware.ts`) translating shared
@@ -38,6 +45,8 @@ pnpm --filter shop-mvc-express dev        # tsx watch
 pnpm --filter shop-mvc-express typecheck
 pnpm --filter shop-mvc-express test       # vitest run
 pnpm --filter shop-mvc-express build      # esbuild
+pnpm --filter shop-mvc-express openapi:generate  # rewrite docs/openapi.json
+pnpm --filter shop-mvc-express openapi:check     # drift check + redocly lint
 pnpm --filter shop-mvc-express start      # node dist/server.js
 ```
 

@@ -1,0 +1,297 @@
+{
+  "info": {
+    "description": "Contract for the product routes implemented by shop-mvc-express.",
+    "title": "Shop MVC Express API",
+    "version": "1.0.0"
+  },
+  "openapi": "3.1.0",
+  "security": [],
+  "servers": [
+    {
+      "description": "Current server",
+      "url": "/"
+    }
+  ],
+  "tags": [
+    {
+      "description": "Server-rendered product catalog routes.",
+      "name": "Products"
+    },
+    {
+      "description": "Contract and Swagger UI routes (non-production).",
+      "name": "Documentation"
+    }
+  ],
+  "paths": {
+    "/docs": {
+      "get": {
+        "description": "Available outside production only. Redirects to the trailing-slash form, which serves the Swagger UI page and its assets.",
+        "operationId": "getDocsUi",
+        "summary": "Browse the API contract in Swagger UI",
+        "tags": ["Documentation"],
+        "responses": {
+          "302": {
+            "description": "Redirect to the Swagger UI entry point.",
+            "headers": {
+              "Location": {
+                "required": true,
+                "description": "Swagger UI entry point, where relative asset URLs resolve.",
+                "schema": {
+                  "description": "Swagger UI entry point, where relative asset URLs resolve.",
+                  "type": "string",
+                  "const": "/docs/"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An error rendered as HTML or as the shared JSON error envelope.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpErrorResponse"
+                }
+              },
+              "text/html": {
+                "schema": {
+                  "description": "A server-rendered HTML page.",
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/openapi.json": {
+      "get": {
+        "description": "Available outside production only.",
+        "operationId": "getOpenApiDocument",
+        "summary": "Fetch this OpenAPI document",
+        "tags": ["Documentation"],
+        "responses": {
+          "200": {
+            "description": "This OpenAPI document.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "propertyNames": {
+                    "type": "string"
+                  },
+                  "additionalProperties": {}
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An error rendered as HTML or as the shared JSON error envelope.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpErrorResponse"
+                }
+              },
+              "text/html": {
+                "schema": {
+                  "description": "A server-rendered HTML page.",
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/products": {
+      "get": {
+        "operationId": "listProducts",
+        "summary": "List products",
+        "tags": ["Products"],
+        "responses": {
+          "200": {
+            "description": "Product listing page.",
+            "content": {
+              "text/html": {
+                "schema": {
+                  "description": "A server-rendered HTML page.",
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An error rendered as HTML or as the shared JSON error envelope.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpErrorResponse"
+                }
+              },
+              "text/html": {
+                "schema": {
+                  "description": "A server-rendered HTML page.",
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "operationId": "createProduct",
+        "summary": "Create a product",
+        "tags": ["Products"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateProductInput"
+              }
+            },
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateProductInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "302": {
+            "description": "Product created; redirect to the product listing. The body is empty when the client accepts neither text format.",
+            "headers": {
+              "Location": {
+                "required": true,
+                "description": "Location of the product listing.",
+                "schema": {
+                  "description": "Location of the product listing.",
+                  "type": "string",
+                  "const": "/products"
+                }
+              }
+            },
+            "content": {
+              "text/html": {
+                "schema": {
+                  "description": "A server-rendered HTML page.",
+                  "type": "string"
+                }
+              },
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Product validation failed.",
+            "content": {
+              "text/html": {
+                "schema": {
+                  "description": "A server-rendered HTML page.",
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An error rendered as HTML or as the shared JSON error envelope.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpErrorResponse"
+                }
+              },
+              "text/html": {
+                "schema": {
+                  "description": "A server-rendered HTML page.",
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/products/new": {
+      "get": {
+        "operationId": "renderCreateProductForm",
+        "summary": "Show the create-product form",
+        "tags": ["Products"],
+        "responses": {
+          "200": {
+            "description": "Create-product HTML form.",
+            "content": {
+              "text/html": {
+                "schema": {
+                  "description": "A server-rendered HTML page.",
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An error rendered as HTML or as the shared JSON error envelope.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpErrorResponse"
+                }
+              },
+              "text/html": {
+                "schema": {
+                  "description": "A server-rendered HTML page.",
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "CreateProductInput": {
+        "description": "Fields accepted when creating a product.",
+        "type": "object",
+        "properties": {
+          "title": {
+            "description": "Product title shown in the shop catalog.",
+            "example": "Espresso Machine",
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100
+          }
+        },
+        "required": ["title"]
+      },
+      "HttpErrorResponse": {
+        "description": "Shared JSON envelope returned for negotiated HTTP errors.",
+        "type": "object",
+        "properties": {
+          "error": {
+            "type": "object",
+            "properties": {
+              "code": {
+                "example": "INTERNAL_SERVER_ERROR",
+                "type": "string"
+              },
+              "details": {},
+              "message": {
+                "example": "An unexpected error occurred.",
+                "type": "string"
+              }
+            },
+            "required": ["code", "message"],
+            "additionalProperties": false
+          }
+        },
+        "required": ["error"],
+        "additionalProperties": false
+      }
+    }
+  }
+}

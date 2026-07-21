@@ -21,7 +21,7 @@ workspace "nodejs-backend-mastery" "C4 model of the runnable apps in this monore
         }
 
         shopMvc = softwareSystem "shop-mvc-express" "Server-rendered product catalog: create/list products via HTML forms, Helmet security headers, Zod validation, in-memory product store." {
-            shopMvcApp = container "Express MVC app" "Routes + controllers render server-side HTML views; no separate frontend or API layer." "Node.js + Express"
+            shopMvcApp = container "Express MVC app" "Routes + controllers render server-side HTML views; no separate frontend. Publishes an OpenAPI 3.1 contract generated from the boundary Zod schemas at /openapi.json + Swagger UI at /docs (non-production only)." "Node.js + Express"
         }
 
         mcpChat = softwareSystem "mcp-chat" "Document-focused MCP chatbot: CLI client streams Claude responses, resolves @doc mentions, and runs MCP prompts against a stdio document server." {

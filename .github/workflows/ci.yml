@@ -177,6 +177,10 @@ jobs:
         run: pnpm install --frozen-lockfile
       - name: Lint ${{ matrix.workspace.path }}
         run: pnpm --filter "${{ matrix.workspace.name }}" run --if-present lint
+      # Drift + lint gate for workspaces that commit a generated API contract.
+      # Runs only for changed workspaces that define the script.
+      - name: Check generated OpenAPI for ${{ matrix.workspace.path }}
+        run: pnpm --filter "${{ matrix.workspace.name }}" run --if-present openapi:check
       - name: Typecheck ${{ matrix.workspace.path }}
         run: pnpm --filter "${{ matrix.workspace.name }}" run --if-present typecheck
       - name: Test ${{ matrix.workspace.path }}
