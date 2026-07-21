@@ -20,7 +20,7 @@ workspace "nodejs-backend-mastery" "C4 model of the runnable apps in this monore
             llmChatCli = container "Chat CLI" "Terminal chat loop built on @workspaces/llm-client (provider-neutral, Anthropic adapter)." "Node.js CLI"
         }
 
-        shopMvc = softwareSystem "shop-mvc-express" "Server-rendered product catalog: create/list products via HTML forms, Helmet security headers, Zod validation, in-memory product store." {
+        shopMvc = softwareSystem "shop-mvc-express" "Server-rendered product catalog with Helmet security headers, Zod validation, an in-memory product store, and a non-production OpenAPI 3.1 contract at /openapi.json with Swagger UI at /docs." {
             shopMvcApp = container "Express MVC app" "Routes + controllers render server-side HTML views; no separate frontend. Publishes an OpenAPI 3.1 contract generated from the boundary Zod schemas at /openapi.json + Swagger UI at /docs (non-production only)." "Node.js + Express"
         }
 
