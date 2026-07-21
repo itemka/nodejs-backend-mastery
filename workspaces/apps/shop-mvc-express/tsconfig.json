@@ -12,5 +12,5 @@
       "@workspaces/packages/errors": ["../../packages/errors/src/index.ts"]
     }
   },
-  "include": ["src/**/*.ts", "tests/**/*.ts", "vitest.config.ts"]
+  "include": ["scripts/**/*.ts", "src/**/*.ts", "tests/**/*.ts", "vitest.config.ts"]
 }

@@ -5,7 +5,7 @@ metadata:
   created: '2026-07-03'
   status: 'baseline'
   portability: 'cross-tool'
-  last-reviewed: '2026-07-03'
+  last-reviewed: '2026-07-20'
 ---
 
 # Maintain Agent Docs
@@ -87,6 +87,17 @@ Run this when the change touches AI-agent guidance (`.agents/`, `.claude/`, `.co
    - Claude slash-skill command names come from adapter directories, not from portable frontmatter alone.
 10. Keep `SKILL.md` bodies concise. Move large references, examples, or templates into supporting files when a skill grows too large.
 
+## Skill Behavior Validation
+
+Run this for new or materially changed skills, including changes to the description, trigger conditions, or workflow.
+
+1. Write two or three realistic prompts that should trigger the skill and one near-miss prompt that should not.
+2. Run each should-trigger prompt in a fresh, isolated session with the skill available and compare its output with another fresh session using the complete previous skill version or no skill. Confirm the skill is selected and visibly improves the output.
+3. Run the near-miss prompt in its own fresh, isolated session and confirm the skill is not selected.
+4. Record the prompts, selection results, and observed uplift in the change summary.
+
+Skip only for cosmetic edits such as typo or link fixes, and state why validation was skipped.
+
 ## Safety Rules
 
 - Do not copy large official-doc examples into repo guidance; summarize and link.
@@ -103,4 +114,5 @@ Run this when the change touches AI-agent guidance (`.agents/`, `.claude/`, `.co
 - Freshness changes adopted or intentionally skipped.
 - Structural review findings: duplicates removed, stale links fixed, overgrown files trimmed.
 - Structure recommendation, with trade-off, when official docs suggest a materially better layout.
+- Trigger-validation evidence (prompts run, selection result, uplift) for new or materially changed skills, or the stated reason it was skipped.
 - Remaining gaps.

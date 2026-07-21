@@ -1,9 +1,9 @@
 import * as ui from '@workspaces/cli-output';
 import escapeHtml from 'escape-html';
 import type { Request, Response, NextFunction } from 'express';
-import { z } from 'zod';
 
 import type { Product } from '@/models/product';
+import { createProductSchema } from '@/schemas/product.schema';
 import { generateId } from '@/utils/id';
 import { createProductFormPage } from '@/views/products/createProductFormPage';
 import { createProductValidationErrorPage } from '@/views/products/createProductValidationErrorPage';
@@ -12,10 +12,6 @@ import type { SafeHtml } from '@/views/safeHtml';
 
 // TODO: In-memory store for products (replace with DB later)
 const products: Product[] = [];
-
-const createProductSchema = z.object({
-  title: z.string().min(1, 'Title is required').max(100, 'Title is too long').trim(),
-});
 
 export function renderCreateProductForm(_req: Request, res: Response) {
   res.type('html').end(createProductFormPage());

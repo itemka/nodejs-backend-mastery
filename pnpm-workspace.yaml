@@ -4,6 +4,7 @@ packages:
   - workspaces/packages/*
 
 ignoredBuiltDependencies:
+  - "@scarf/scarf"
   - esbuild
   - llm-checker
 

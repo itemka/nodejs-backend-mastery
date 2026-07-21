@@ -5,14 +5,14 @@ metadata:
   created: '2026-07-03'
   status: 'baseline'
   portability: 'cross-tool'
-  last-reviewed: '2026-07-03'
+  last-reviewed: '2026-07-20'
 ---
 
 # Subagent Orchestration
 
 ## Purpose
 
-Coordinate multiple focused agent contexts when a task benefits from parallelism, isolated research, or a worker-reviewer loop, while keeping final integration and validation in the main session.
+Coordinate multiple focused agent contexts when a task benefits from parallelism, isolated research, or a worker-reviewer loop, while keeping final integration and validation in the main session. Specialized subagents can keep accuracy higher on complex tasks than one context that must plan, implement, verify, and retain all task state at once.
 
 ## When To Use
 
@@ -20,6 +20,8 @@ Coordinate multiple focused agent contexts when a task benefits from parallelism
 - Running parallel research, audit, test-design, or code-review passes.
 - Building implement -> review -> revise loops for multi-file or high-risk changes.
 - Delegating noisy exploration so the main context stays focused on decisions and final synthesis.
+
+Decision rule: steps known in advance -> run them as a predefined pipeline; steps unknown -> decompose at runtime with an orchestrator; simple task -> stay in the main session.
 
 ## When Not To Use
 
@@ -64,13 +66,14 @@ Coordinate multiple focused agent contexts when a task benefits from parallelism
    - Required validation or evidence.
    - Expected output marker and format.
 5. Launch independent read-only or disjoint-write tasks in parallel through the current tool's native mechanism. Do not invent commands from another tool.
-6. For review loops, cap default iteration at two worker-reviewer cycles. Use more only when the remaining findings are concrete and progress is visible; do not exceed five cycles without a clear reason.
-7. Aggregate results in the main session:
+6. Before launching a task that depends on an earlier subagent's output, check that output in the main session first. An unchecked early error propagates into every downstream subtask, and final review may never expose the original mistake.
+7. For review loops, cap default iteration at two worker-reviewer cycles. Use more only when the remaining findings are concrete and progress is visible; do not exceed five cycles without a clear reason.
+8. Aggregate results in the main session:
    - Read each subagent result.
    - Resolve contradictions and dropped assumptions.
    - Inspect the combined diff when files changed.
    - Run the repo's smallest relevant validation, then broader checks when risk warrants.
-8. Report what was delegated, what changed, validation evidence, and any unresolved risks.
+9. Report what was delegated, what changed, validation evidence, and any unresolved risks.
 
 ## Prompt Template
 
@@ -105,3 +108,4 @@ Workers should revise only the scoped files needed to address `NEEDS_CHANGES`, t
 - Prompts copy long repo rules instead of task-specific context.
 - The workflow depends on tool-specific commands, roles, or pipeline APIs that are not available in the current environment.
 - A reviewer is used for a trivial change where a direct self-check is enough.
+- A dependent task consumes an earlier subagent's output that was never checked in the main session.
