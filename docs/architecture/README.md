@@ -16,6 +16,9 @@ they describe. Two formats, split by the question they answer:
 Do not use Mermaid's `C4Context`/`C4Container` diagram types — Mermaid marks
 them experimental. C4 belongs in `workspace.dsl`.
 
+The reasoning behind this split, and the alternatives rejected, is recorded in
+[ADR-0001](../adr/0001-architecture-as-code-format.md).
+
 ## Layout
 
 ```text

@@ -1,6 +1,6 @@
 ---
 name: data-storage-change
-description: Data storage and persistence changes for schemas, migrations, indexes, queries, caching, repositories, transactions, and data access. Use when changing how data is stored or retrieved.
+description: Data storage and persistence changes for databases, tables, columns, schemas, migrations, indexes, queries, caching, repositories, transactions, and data access. Use when changing how data is stored or retrieved.
 argument-hint: '[schema, query, migration, or repository change]'
 ---
 

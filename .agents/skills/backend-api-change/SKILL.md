@@ -1,11 +1,11 @@
 ---
 name: backend-api-change
-description: Backend API route and contract changes for HTTP handlers, controllers, services, middleware, request/response schemas, validation, status codes, and API errors. Use when adding or changing backend API behavior.
+description: Backend API route, endpoint, and contract changes for HTTP handlers, controllers, services, middleware, request/response schemas, OpenAPI/contract specs, validation, status codes, and API errors. Use when adding or changing backend API behavior.
 metadata:
   created: '2026-04-25'
   status: 'baseline'
   portability: 'cross-tool'
-  last-reviewed: '2026-05-05'
+  last-reviewed: '2026-07-22'
 ---
 
 # Backend API Change
@@ -42,7 +42,8 @@ Implement backend API changes while preserving contracts, validation, layering, 
 5. Keep business logic out of route handlers where possible.
 6. Add or update unit/integration tests for normal and edge cases.
 7. Update docs, examples, or API notes when behavior changes.
-8. Report status codes, edge cases, and validation performed.
+8. When the app publishes a contract spec, regenerate it from the boundary schemas through its owning command instead of editing the generated file, and review the regenerated diff against the [backend-api checklist](../../checklists/backend-api.md) for breaking changes.
+9. Report status codes, edge cases, and validation performed.
 
 ## Output Format
 

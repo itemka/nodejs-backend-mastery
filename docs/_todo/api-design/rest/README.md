@@ -15,7 +15,7 @@
 
 - [ ] Implement product CRUD with Zod validation + 4xx/5xx mapping through HttpError (shop-mvc-express).
 - [ ] Add cursor-based pagination for product listing; reject invalid cursors with 400.
-- [ ] Pick a versioning strategy and write a one-page ADR in this folder.
+- [ ] Pick a versioning strategy and write a one-page ADR following the [repository ADR practice](../../../adr/).
 - [x] Author an OpenAPI 3.1 spec for shop-mvc-express's product endpoints from the Zod schemas ([document builder](../../../../workspaces/apps/shop-mvc-express/src/openapi/document.ts), [generated contract](../../../../workspaces/apps/shop-mvc-express/docs/openapi.json)).
 - [x] Serve the shop-mvc-express OpenAPI spec at `/docs`, mounted outside production only ([docs router](../../../../workspaces/apps/shop-mvc-express/src/routes/docs.routes.ts)).
 - [x] Lint and drift-check the shop-mvc-express OpenAPI spec in CI ([workspace scripts](../../../../workspaces/apps/shop-mvc-express/package.json), [CI gate](../../../../.github/workflows/ci.yml)).
