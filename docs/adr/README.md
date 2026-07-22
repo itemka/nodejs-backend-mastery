@@ -7,8 +7,8 @@ choices. Keep each ADR short, evidence-based, and linked from this index.
 
 | Number | Decision                                                             | Status   | Date       |
 | ------ | -------------------------------------------------------------------- | -------- | ---------- |
-| 0001   | [Architecture-as-code format](./0001-architecture-as-code-format.md) | Proposed | 2026-07-15 |
-| 0002   | [API contract generation](./0002-api-contract-generation.md)         | Proposed | 2026-07-22 |
+| 0001   | [Architecture-as-code format](./0001-architecture-as-code-format.md) | Accepted | 2026-07-15 |
+| 0002   | [API contract generation](./0002-api-contract-generation.md)         | Accepted | 2026-07-22 |
 
 ## When An ADR Is Required
 
