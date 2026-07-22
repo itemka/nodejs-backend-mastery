@@ -14,6 +14,9 @@ Project-specific orientation for AI agents. Keep this file easy to edit when cop
   `docs/architecture/`; Mermaid workflow diagrams live with their owning
   workspace under `workspaces/**/docs/`. Conventions are in
   `docs/architecture/README.md`.
+- Architecture decision records live under `docs/adr/`. Read
+  `docs/adr/README.md` before recording a decision; it owns the numbering,
+  required sections, and status lifecycle.
 - Shared AI-agent material lives under `.agents/*`. Tool-specific adapters live under `.claude/`, `.codex/`, `.cursor/`, or `.github/` and should stay thin (see [.agents/README.md](../README.md) for design rules).
 
 ## Context Loading Policy

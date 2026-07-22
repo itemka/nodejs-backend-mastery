@@ -14,7 +14,7 @@
 - [ ] Keep shop-mvc-express on layered MVC; document the final module boundaries.
 - [ ] In shop-feature-fastify, create `src/modules/{products,users,orders,cart}` as Fastify plugins.
 - [ ] Add a `Repository` interface per module; inject implementation in the plugin root.
-- [ ] Write a short ADR in this file comparing MVC vs feature-based for the shop.
+- [ ] Write a short ADR comparing MVC vs feature-based for the shop, following the [repository ADR practice](../../../adr/).
 
 ## Concepts to know
 

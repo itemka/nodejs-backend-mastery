@@ -15,6 +15,8 @@ All topic content is sharded into per-topic folders under [\_todo/](./_todo/). E
 
 ## Repo Pointers
 
+- Architecture decisions: [docs/adr/](./adr/) — numbered records of consequential choices and
+  their trade-offs.
 - Real apps: [workspaces/apps/shop-mvc-express/](../workspaces/apps/shop-mvc-express/), [workspaces/apps/local-llm-playground/](../workspaces/apps/local-llm-playground/)
 - Scaffold apps (committed order below): `auth-service`, `orders-event-driven`, `shop-feature-fastify`, `chat-ws`, `serverless-toolkit`
 - Scratch app briefs (deferred): `workspaces/apps/_todo/*` — `analytics-pipeline`, `bff-gateway`, `blog-graphql`, `iot-telemetry`, `media-service`, `payments-billing`, `shop-clean`, `shop-nest`.
@@ -109,10 +111,10 @@ milestones because realtime needs a separate app):
   `serverless-toolkit` vertical slice with API Gateway + Lambda, DynamoDB, S3
   presigned uploads, streaming downloads with backpressure, CloudFront
   delivery, and CDK-managed infrastructure.
-- **Phase 7 — system design and portfolio polish:** `docs/adr/` with the
-  first real ADRs; extend the C4 model and per-app workflow docs with the
-  backend apps; per-app "Interview story" README sections; verify every
-  `done` topic has code link + test link + interview answer.
+- **Phase 7 — system design and portfolio polish:** extend the C4 model and
+  per-app workflow docs with the backend apps; per-app "Interview story"
+  README sections; verify every `done` topic has code link + test link +
+  interview answer.
 
 ## Topic Index
 
