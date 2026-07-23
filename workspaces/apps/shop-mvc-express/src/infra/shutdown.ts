@@ -32,7 +32,7 @@ export function registerGracefulShutdown(
       const message = `Forcing shutdown after ${timeoutMs}ms. Exit 1 (forced-timeout): shutdown exceeded ${timeoutMs}ms (elapsed=${elapsed}ms, signal=${signal}, pid=${pid}, uptime=${process.uptime().toFixed(1)}s)`;
 
       console.warn(gracefulLine(ui.warn(message)));
-      // eslint-disable-next-line n/no-process-exit, unicorn/no-process-exit
+      // eslint-disable-next-line n/no-process-exit, unicorn/no-process-exit -- Explicit exit codes are required by the shutdown path.
       process.exit(1);
     }, timeoutMs);
 
@@ -58,7 +58,7 @@ export function registerGracefulShutdown(
       console.log(gracefulLine(ui.success(message)));
 
       // Exit cleanly
-      // eslint-disable-next-line n/no-process-exit, unicorn/no-process-exit
+      // eslint-disable-next-line n/no-process-exit, unicorn/no-process-exit -- Explicit exit codes are required by the shutdown path.
       process.exit(0);
     } catch (error) {
       const elapsed = Date.now() - start;
@@ -67,7 +67,7 @@ export function registerGracefulShutdown(
       console.error(gracefulLine(ui.error(message)));
       console.error(gracefulLine(ui.error('Error details:')), error);
       // Non-zero exit on failure
-      // eslint-disable-next-line n/no-process-exit, unicorn/no-process-exit
+      // eslint-disable-next-line n/no-process-exit, unicorn/no-process-exit -- Explicit exit codes are required by the shutdown path.
       process.exit(1);
     } finally {
       clearTimeout(hard);

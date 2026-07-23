@@ -126,7 +126,7 @@ export interface ValidationErrorDetails {
   }[];
 }
 
-// eslint-disable-next-line @typescript-eslint/no-empty-object-type
+// eslint-disable-next-line @typescript-eslint/no-empty-object-type -- Keep a named public options type for this error while it matches the shared base.
 export interface ValidationErrorOptions extends Omit<
   HttpErrorOptions<ValidationErrorDetails>,
   'statusCode'
@@ -159,7 +159,7 @@ export interface UnauthorizedErrorDetails {
   reason?: string;
 }
 
-// eslint-disable-next-line @typescript-eslint/no-empty-object-type
+// eslint-disable-next-line @typescript-eslint/no-empty-object-type -- Keep a named public options type for this error while it matches the shared base.
 export interface UnauthorizedErrorOptions extends Omit<
   HttpErrorOptions<UnauthorizedErrorDetails>,
   'statusCode'
@@ -193,7 +193,7 @@ export interface ForbiddenErrorDetails {
   reason?: string;
 }
 
-// eslint-disable-next-line @typescript-eslint/no-empty-object-type
+// eslint-disable-next-line @typescript-eslint/no-empty-object-type -- Keep a named public options type for this error while it matches the shared base.
 export interface ForbiddenErrorOptions extends Omit<
   HttpErrorOptions<ForbiddenErrorDetails>,
   'statusCode'
@@ -227,7 +227,7 @@ export interface ConflictErrorDetails {
   constraint?: string;
 }
 
-// eslint-disable-next-line @typescript-eslint/no-empty-object-type
+// eslint-disable-next-line @typescript-eslint/no-empty-object-type -- Keep a named public options type for this error while it matches the shared base.
 export interface ConflictErrorOptions extends Omit<
   HttpErrorOptions<ConflictErrorDetails>,
   'statusCode'
@@ -260,7 +260,7 @@ export interface TooManyRequestsErrorDetails {
   retryAfterSeconds?: number;
 }
 
-// eslint-disable-next-line @typescript-eslint/no-empty-object-type
+// eslint-disable-next-line @typescript-eslint/no-empty-object-type -- Keep a named public options type for this error while it matches the shared base.
 export interface TooManyRequestsErrorOptions extends Omit<
   HttpErrorOptions<TooManyRequestsErrorDetails>,
   'statusCode'
