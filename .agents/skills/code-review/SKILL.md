@@ -5,7 +5,7 @@ metadata:
   created: '2026-04-25'
   status: 'baseline'
   portability: 'cross-tool'
-  last-reviewed: '2026-07-03'
+  last-reviewed: '2026-07-22'
 ---
 
 # Code Review
@@ -36,6 +36,16 @@ Review code changes and report actionable, evidence-grounded findings before mer
 - [security-reviewer](../../agents/security-reviewer.md): load for security-sensitive diffs or dedicated security review.
 - [backend-architect](../../agents/backend-architect.md): load for backend architecture, service boundary, data flow, or cross-module design review.
 - [tests](../../agents/tests.md): load when test quality, missing coverage, or flaky validation is a major review concern.
+
+## Parallel Specialist Review
+
+Stay single-context for small diffs. Fan out when the diff exceeds roughly 400 changed lines, spans at least three review axes, or one axis needs more depth than the generalist pass will reach.
+
+Use a fast, lower-cost model for bounded read-only evidence collection. Use a higher-capability model for security, architecture, cross-module correctness, and final synthesis. Escalate uncertain high-impact findings to the higher-capability model.
+
+Route security to the [security-reviewer role](../../agents/security-reviewer.md) plus [security-review checklist](../../checklists/security-review.md), tests to the [tests role](../../agents/tests.md) plus [tests checklist](../../checklists/tests.md), and architecture to the [backend-architect role](../../agents/backend-architect.md). Correctness, performance, and intent have no dedicated role; scope correctness and performance with the matching [Correctness](../../checklists/code-review.md#correctness) and [Performance](../../checklists/code-review.md#performance) sections. For intent, use the linked issue or PR description plus the description-matches-diff item in the [PR-readiness checklist](../../checklists/pr-readiness.md).
+
+Use [subagent-orchestration](../subagent-orchestration/SKILL.md) for launch mechanics, parallelism, and the read-only posture. Each specialist returns findings in the [Finding Template](#finding-template) shape; the main session runs passes 3 and 4 over their union, merges shared root causes, drops anchors it cannot re-locate, and emits one ranked list through the existing [Output Format](#output-format). Never post separate specialist outputs.
 
 ## Workflow
 

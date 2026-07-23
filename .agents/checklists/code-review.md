@@ -13,6 +13,7 @@ Use for diff-focused reviews. Lead with blocking issues and keep suggestions sma
 - Does the code follow existing layering and module boundaries?
 - Are route handlers thin where the repo expects service or repository layers?
 - Is new abstraction justified by real duplication or complexity?
+- Does any function, class, or module accumulate unrelated responsibilities, or reach repeatedly into another object's internals instead of asking it for behavior?
 - Does every workspace package imported by the diff (`@workspaces/...`) appear as a declared `workspace:*` dependency in the consuming package's manifest, not just a resolvable TypeScript path alias?
 
 ## Typing
@@ -20,11 +21,14 @@ Use for diff-focused reviews. Lead with blocking issues and keep suggestions sma
 - Are TypeScript types precise and narrow?
 - Are schemas used at external boundaries?
 - Is `any` avoided or clearly contained?
+- Are magic numbers and magic strings replaced by named constants, enums, or domain types when the value carries domain meaning?
+- Are lint and type suppressions (`eslint-disable*`, `@ts-expect-error`, `@ts-ignore`) justified in writing and scoped as narrowly as possible?
 
 ## Errors
 
 - Are typed errors mapped to correct outcomes?
 - Are internal errors hidden from clients?
+- Does the change fix the failure or only silence it? Flag broadened `catch` blocks, swallowed errors, new fallback defaults, removed validation, and relaxed assertions when they make a symptom disappear without addressing the cause.
 - Are logs useful without exposing secrets or sensitive data?
 
 ## Tests

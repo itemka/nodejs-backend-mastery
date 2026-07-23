@@ -5,7 +5,7 @@ metadata:
   created: '2026-04-25'
   status: 'baseline'
   portability: 'cross-tool'
-  last-reviewed: '2026-05-05'
+  last-reviewed: '2026-07-22'
 ---
 
 # Refactor
@@ -33,16 +33,21 @@ Improve structure while preserving behavior.
 - [backend-architect](../../agents/backend-architect.md): load for boundary-level refactors, service/repository restructuring, or architectural trade-offs.
 - [tests](../../agents/tests.md): load when behavior-preservation evidence or characterization coverage is unclear.
 
+## Related Workflows
+
+- [plan](../plan/SKILL.md): use when the decomposition is large enough to need a written plan file rather than an inline proposal.
+
 ## Workflow
 
 1. Identify current behavior and public contracts.
 2. Find existing tests or add characterization tests when useful.
 3. Confirm non-goals and behavior that must not change.
-4. Make small mechanical changes.
-5. Preserve public APIs unless explicitly requested.
-6. Avoid mixing refactor with feature work.
-7. Run validation after meaningful steps.
-8. Report before/after structure and behavior-preservation evidence.
+4. For a structural smell — a function or class with accumulated responsibilities, behavior sitting away from its data, or a change that would ripple across unrelated files — state the target decomposition first: responsibilities to extract, modules or methods to create, dependencies to move, and what stays. Get agreement before editing only when the decomposition materially expands scope, changes public contracts, or leaves an ambiguity that prevents a safe choice. Small local extractions do not need this.
+5. Make small mechanical changes.
+6. Preserve public APIs unless explicitly requested.
+7. Avoid mixing refactor with feature work.
+8. Run validation after meaningful steps.
+9. Report before/after structure and behavior-preservation evidence.
 
 ## Output Format
 
