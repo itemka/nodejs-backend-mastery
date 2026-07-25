@@ -5,7 +5,7 @@ metadata:
   created: '2026-07-15'
   status: 'baseline'
   portability: 'cross-tool'
-  last-reviewed: '2026-07-15'
+  last-reviewed: '2026-07-25'
 ---
 
 # Coding Discipline
@@ -46,6 +46,7 @@ Pair this cross-cutting workflow with the task-specific skill that owns the deta
 ### 5. Demonstrate The Result
 
 - Run the selected check first, then broaden validation according to impact and risk.
+- After three failed attempts at the same failing check, stop and report instead of trying again. Summarize what was tried, what the failure says, and the two most likely causes; repeated attempts are where a fix can turn into silencing the symptom through broader error handling, relaxed assertions, or new fallback defaults.
 - Inspect the final diff for accidental scope growth, stale references, and unsupported claims.
 - Report the commands run, their results, and anything that remains unverified.
 

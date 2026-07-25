@@ -8,7 +8,7 @@ import {
   renderHtmlReport,
   writeHtmlReport,
 } from '../../src/reports/write-html-report.js';
-import { buildPayload, makeResult } from './report-fixtures.js';
+import { buildPayload, makeResult, makeResultWithUsage } from './report-fixtures.js';
 
 describe('writeHtmlReport', () => {
   let tempDir: string;
@@ -64,6 +64,18 @@ describe('renderHtmlReport', () => {
 
     expect(html).toContain('0.0%');
     expect(html).toContain(`Pass Rate (&ge;${PASS_SCORE})`);
+    expect(html).toContain('Tokens Per Passing Case');
+    expect(html).toContain('not reported');
     expect(html).not.toContain('<td>');
+  });
+
+  it('renders token totals and tokens per passing case', () => {
+    const html = renderHtmlReport(buildPayload([makeResultWithUsage()]));
+
+    expect(html).toContain('Generation Tokens');
+    expect(html).toContain('100 input / 20 output');
+    expect(html).toContain('50 input / 10 output');
+    expect(html).toContain('150 input / 30 output');
+    expect(html).toContain('180.00');
   });
 });

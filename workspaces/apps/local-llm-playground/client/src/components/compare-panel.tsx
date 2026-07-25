@@ -52,12 +52,16 @@ export function ComparePanel({
   return (
     <div className="space-y-6">
       <SectionCard
-        actions={<StatusPill tone={statusTone}>{statusLabel}</StatusPill>}
+        actions={
+          <StatusPill live tone={statusTone}>
+            {statusLabel}
+          </StatusPill>
+        }
         description="Run the current prompt against a small set of local models and compare the outputs."
         title="Selection"
       >
         <div className="space-y-5">
-          <div className="rounded-2xl border border-slate-200 bg-[#f8fafc] px-4 py-4">
+          <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4">
             <div className="text-xs font-medium uppercase tracking-[0.18em] text-slate-400">
               Prompt preview
             </div>
@@ -151,7 +155,7 @@ export function ComparePanel({
       >
         <div className="space-y-4">
           {compareState.results.length === 0 ? (
-            <div className="rounded-2xl border border-dashed border-slate-300 bg-[#f8fafc] px-5 py-8 text-sm leading-6 text-slate-500">
+            <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 px-5 py-8 text-sm leading-6 text-slate-500">
               Comparison results will appear here once you run at least two models with the same
               prompt.
             </div>

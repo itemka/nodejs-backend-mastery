@@ -4,7 +4,7 @@ import { createProvider } from '@workspaces/packages/llm-client';
 import { loadConfig, loadEnvironment } from '../config/env.js';
 import { loadDataset } from '../datasets/load-dataset.js';
 import { runEval } from '../eval/runner.js';
-import { formatSummaryLines, summarize } from '../eval/summary.js';
+import { formatSummaryLines, measurePassingCaseTokens, summarize } from '../eval/summary.js';
 import { loadTemplate } from '../prompts/templates.js';
 import {
   defaultReportPath,
@@ -45,11 +45,12 @@ export async function runEvalCli(options: CliOptions, io: RunEvalIo = {}): Promi
 
   const finishedAt = new Date();
   const summary = summarize(results);
+  const tokenMetrics = measurePassingCaseTokens(results, summary, PASS_SCORE);
 
   // Color the summary at the display boundary only — `formatSummaryLines` stays
   // plain so its content assertions remain stable. Structural lines start at
   // column 0 (heading); indented per-format detail lines are muted.
-  for (const line of formatSummaryLines(summary)) {
+  for (const line of formatSummaryLines(summary, tokenMetrics)) {
     log(line.startsWith('  ') ? ui.muted(line) : ui.heading(line));
   }
 
@@ -65,6 +66,7 @@ export async function runEvalCli(options: CliOptions, io: RunEvalIo = {}): Promi
     passScore: PASS_SCORE,
     results,
     summary,
+    tokenMetrics,
   };
 
   const filePath = options.outPath ?? defaultReportPath('reports', finishedAt);

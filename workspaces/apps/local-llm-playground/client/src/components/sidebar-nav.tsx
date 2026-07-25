@@ -52,7 +52,7 @@ export function SidebarNav({
   onViewChange,
 }: Readonly<SidebarNavProps>) {
   return (
-    <aside className="border-b border-slate-200 bg-[#f8f8f8] lg:sticky lg:top-0 lg:h-screen lg:border-b-0 lg:border-r">
+    <aside className="border-b border-slate-200 bg-surface-raised lg:sticky lg:top-0 lg:h-screen lg:border-b-0 lg:border-r">
       <div className="flex h-full flex-col gap-5 p-4">
         <div className="flex items-center gap-3">
           <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-slate-900 text-sm font-semibold text-white">
@@ -66,7 +66,11 @@ export function SidebarNav({
 
         <section className="hidden border-y border-slate-200 py-4 lg:block">
           <div className="space-y-3">
-            <div className="flex items-center gap-2 text-sm text-slate-700">
+            <div
+              aria-live="polite"
+              className="flex items-center gap-2 text-sm text-slate-700"
+              role="status"
+            >
               <span className={`h-2 w-2 rounded-full ${getHealthDotColor(healthTone)}`} />
               <span>{healthLabel}</span>
             </div>

@@ -1,4 +1,4 @@
-import type { EvalResult, EvalSummary } from '../eval/types.js';
+import type { EvalResult, EvalSummary, PassingCaseTokenMetrics } from '../eval/types.js';
 
 export interface RunMetadata {
   readonly concurrency: number;
@@ -14,6 +14,7 @@ export interface ReportPayload {
   readonly passScore: number;
   readonly results: readonly EvalResult[];
   readonly summary: EvalSummary;
+  readonly tokenMetrics: PassingCaseTokenMetrics;
 }
 
 export type ReportFormat = 'html' | 'json';

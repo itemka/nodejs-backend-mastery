@@ -107,10 +107,45 @@ describe('gradeByModel', () => {
     });
 
     expect(result).toEqual({
-      reasoning: 'Concise object.',
-      score: 9,
-      strengths: ['Compact', 'Valid'],
-      weaknesses: ['Minimal'],
+      grade: {
+        reasoning: 'Concise object.',
+        score: 9,
+        strengths: ['Compact', 'Valid'],
+        weaknesses: ['Minimal'],
+      },
+    });
+  });
+
+  it('returns provider usage alongside the parsed grade', async () => {
+    const usage = { inputTokens: 14, outputTokens: 5 };
+    const provider: LlmProvider = {
+      createMessage() {
+        const text = JSON.stringify({
+          reasoning: 'Concise object.',
+          score: 9,
+          strengths: ['Valid'],
+          weaknesses: ['Minimal'],
+        });
+
+        return Promise.resolve({ raw: {}, text, usage });
+      },
+    };
+
+    const result = await gradeByModel({
+      model: 'm',
+      output: '{"a":1}',
+      provider,
+      testCase: TEST_CASE,
+    });
+
+    expect(result).toEqual({
+      grade: {
+        reasoning: 'Concise object.',
+        score: 9,
+        strengths: ['Valid'],
+        weaknesses: ['Minimal'],
+      },
+      usage,
     });
   });
 

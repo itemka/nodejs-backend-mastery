@@ -413,7 +413,7 @@ export default function App() {
   const pageTitle = getViewTitle(activeView);
 
   return (
-    <main className="min-h-screen bg-[#f7f7f8] text-slate-900">
+    <main className="min-h-screen bg-surface text-slate-900">
       <div className="lg:grid lg:min-h-screen lg:grid-cols-[260px_minmax(0,1fr)]">
         <SidebarNav
           activeView={activeView}
@@ -425,13 +425,15 @@ export default function App() {
         />
 
         <section className="min-w-0">
-          <header className="sticky top-0 z-10 border-b border-slate-200 bg-[#f7f7f8]/95 backdrop-blur">
+          <header className="sticky top-0 z-10 border-b border-slate-200 bg-surface/95 backdrop-blur">
             <div className="mx-auto flex max-w-5xl flex-col gap-4 px-5 py-4 sm:px-6 lg:px-8">
               <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <h2 className="text-xl font-semibold text-slate-900">{pageTitle}</h2>
 
                 <div className="flex flex-wrap items-center gap-2 lg:hidden">
-                  <StatusPill tone={healthTone}>{healthLabel}</StatusPill>
+                  <StatusPill live tone={healthTone}>
+                    {healthLabel}
+                  </StatusPill>
                   <button
                     className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:border-slate-300 hover:bg-slate-50"
                     onClick={handleRefreshRequest}

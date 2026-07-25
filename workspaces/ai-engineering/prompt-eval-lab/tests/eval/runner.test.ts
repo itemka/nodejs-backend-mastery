@@ -1,4 +1,4 @@
-import type { LlmProvider, LlmRequest } from '@workspaces/packages/llm-client';
+import type { LlmProvider, LlmRequest, LlmResponse } from '@workspaces/packages/llm-client';
 import { describe, expect, it } from 'vitest';
 
 import type { Dataset, TestCase } from '../../src/datasets/types.js';
@@ -6,7 +6,9 @@ import { clampConcurrency, runEval, runTestCase } from '../../src/eval/runner.js
 
 const PROMPT_TEMPLATE = 'Solve: {{task}}';
 
-function makeProvider(handlers: ((request: LlmRequest, callIndex: number) => string)[]): {
+function makeProvider(
+  handlers: ((request: LlmRequest, callIndex: number) => LlmResponse | string)[],
+): {
   calls: LlmRequest[];
   provider: LlmProvider;
 } {
@@ -17,9 +19,11 @@ function makeProvider(handlers: ((request: LlmRequest, callIndex: number) => str
       const i = next++;
       calls.push(request);
       const handler = handlers[i] ?? handlers.at(-1)!;
-      const text = handler(request, i);
+      const result = handler(request, i);
 
-      return Promise.resolve({ raw: { text }, text });
+      return Promise.resolve(
+        typeof result === 'string' ? { raw: { text: result }, text: result } : result,
+      );
     },
   };
 
@@ -74,6 +78,35 @@ describe('runTestCase', () => {
     expect(result.syntaxScore).toBe(10);
     expect(result.score).toBe(9);
     expect(result.testCase).toBe(testCase);
+    expect(result.usage).toBeUndefined();
+  });
+
+  it('carries generation and grading usage separately', async () => {
+    const generationUsage = { inputTokens: 12, outputTokens: 4 };
+    const gradingUsage = { inputTokens: 20, outputTokens: 6 };
+    const { provider } = makeProvider([
+      () => ({
+        raw: {},
+        text: '{"ok":true}',
+        usage: generationUsage,
+      }),
+      () => ({
+        raw: {},
+        text: VALID_GRADE,
+        usage: gradingUsage,
+      }),
+    ]);
+
+    const result = await runTestCase(testCase, {
+      model: 'm',
+      promptTemplate: PROMPT_TEMPLATE,
+      provider,
+    });
+
+    expect(result.usage).toEqual({
+      generation: generationUsage,
+      grading: gradingUsage,
+    });
   });
 
   it('records syntax score 0 for invalid output', async () => {

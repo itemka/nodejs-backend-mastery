@@ -1,7 +1,7 @@
 import type { LlmProvider } from '@workspaces/packages/llm-client';
 
 import type { TestCase } from '../datasets/types.js';
-import { type ModelGraderResult, modelGraderResultSchema } from './types.js';
+import { type ModelGraderEvaluation, modelGraderResultSchema } from './types.js';
 
 const GRADER_SYSTEM_PROMPT = `You are an expert code reviewer. Evaluate an AI-generated solution from a JSON payload.
 
@@ -42,7 +42,7 @@ export interface GradeByModelArgs {
   readonly testCase: TestCase;
 }
 
-export async function gradeByModel(args: GradeByModelArgs): Promise<ModelGraderResult> {
+export async function gradeByModel(args: GradeByModelArgs): Promise<ModelGraderEvaluation> {
   const payload = JSON.stringify({
     output: args.output,
     solution_criteria: args.testCase.solution_criteria,
@@ -82,5 +82,8 @@ export async function gradeByModel(args: GradeByModelArgs): Promise<ModelGraderR
     throw new Error(`Model grader output failed validation: ${issues}`);
   }
 
-  return result.data;
+  return {
+    grade: result.data,
+    ...(response.usage === undefined ? {} : { usage: response.usage }),
+  };
 }

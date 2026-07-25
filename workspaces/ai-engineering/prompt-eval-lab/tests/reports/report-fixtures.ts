@@ -1,9 +1,11 @@
-import { summarize } from '../../src/eval/summary.js';
+import { measurePassingCaseTokens, summarize } from '../../src/eval/summary.js';
 import type { EvalResult } from '../../src/eval/types.js';
 import { PASS_SCORE } from '../../src/reports/write-report.js';
 import type { ReportPayload } from '../../src/reports/write-report.js';
 
 export function buildPayload(results: EvalResult[] = []): ReportPayload {
+  const summary = summarize(results);
+
   return {
     metadata: {
       concurrency: 3,
@@ -15,7 +17,8 @@ export function buildPayload(results: EvalResult[] = []): ReportPayload {
     },
     passScore: PASS_SCORE,
     results,
-    summary: summarize(results),
+    summary,
+    tokenMetrics: measurePassingCaseTokens(results, summary, PASS_SCORE),
   };
 }
 
@@ -41,4 +44,14 @@ export function makeResult(overrides: Partial<EvalResult> = {}): EvalResult {
     },
     ...overrides,
   };
+}
+
+export function makeResultWithUsage(overrides: Partial<EvalResult> = {}): EvalResult {
+  return makeResult({
+    usage: {
+      generation: { inputTokens: 100, outputTokens: 20 },
+      grading: { inputTokens: 50, outputTokens: 10 },
+    },
+    ...overrides,
+  });
 }

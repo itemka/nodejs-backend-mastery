@@ -1,11 +1,11 @@
 ---
 name: improve-token-usage
-description: Investigate AI-session context cost and produce a prioritized token-usage improvement plan without lowering answer quality. Use when asked to reduce token usage, shrink always-loaded context, improve context loading, or run improve-token-usage.
+description: Investigate AI-session context cost and model routing, then produce a prioritized token-usage improvement plan without lowering answer quality. Use when asked to reduce token usage, shrink always-loaded context, improve context loading, select a model class for task complexity, optimize model selection, or run improve-token-usage.
 metadata:
   created: '2026-07-03'
   status: 'baseline'
   portability: 'cross-tool'
-  last-reviewed: '2026-07-03'
+  last-reviewed: '2026-07-25'
 ---
 
 # Improve Token Usage
@@ -66,6 +66,24 @@ answer quality and safe code changes.
      tool-specific guidance to avoid unnecessary context loading.
 5. For AI-agent guidance claims, follow the freshness window in
    [maintain-agent-docs](../maintain-agent-docs/SKILL.md).
+
+## Model Routing
+
+This repository routes each task to the least costly model class that can meet
+its correctness and evidence requirements:
+
+- Use the cheapest capable class for bounded retrieval, log reading, mechanical
+  transformations, and simple checks.
+- Use a balanced mid-tier class for ordinary implementation and routine
+  multi-step work.
+- Use the strongest available class for architecture, security reasoning,
+  ambiguous business logic, migration strategy, and deep review.
+
+Validate the routing on representative work and escalate only when the current
+class cannot meet the required quality. For the existing specialist-review
+application of this policy, follow
+[code-review](../code-review/SKILL.md#parallel-specialist-review) instead of
+duplicating its routing rules here.
 
 ## Evidence Rules
 

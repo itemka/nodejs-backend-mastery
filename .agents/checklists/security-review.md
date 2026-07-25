@@ -4,7 +4,7 @@
 - Authn verifies identity, token/session expiry, and invalid credentials.
 - Authz checks tenant, org, owner, role, and action scope where relevant.
 - Authorization failures on resources whose existence is itself sensitive return 404 rather than 403.
-- Secrets, API keys, tokens, passwords, and private URLs are not committed or logged.
+- Secrets, API keys, tokens, passwords, and private URLs are not committed or logged; default or placeholder credentials — `changeme`, `your-key-here`, `admin`/`admin`, or a secret set to a weak constant — do not reach active or deployable config or a real environment. Clearly marked examples and templates may use non-usable placeholders; each real environment gets a freshly generated value.
 - Dependency changes are necessary and do not introduce obvious supply-chain risk.
 - SQL, shell, template, URL, path, and serialization injection risks are handled; identifiers such as table, column, and sort keys use an allowlist, since parameterization does not cover them.
 - Password storage uses a slow, salted algorithm (Argon2, scrypt, or bcrypt) rather than a bare fast hash; security-sensitive tokens and intentionally unguessable identifiers come from a CSPRNG; symmetric encryption is authenticated, never ECB, and follows the algorithm's nonce or IV requirements (for AES-GCM, uniqueness per key is mandatory, and deterministic and approved random constructions are both valid).

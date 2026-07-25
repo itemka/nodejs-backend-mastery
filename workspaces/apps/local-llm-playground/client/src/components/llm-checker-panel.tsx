@@ -52,7 +52,10 @@ export function LlmCheckerPanel({
                 key={sectionKey}
               >
                 <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
-                  <div className="space-y-2">
+                  {/* The heading is inside the live region, and `aria-atomic` re-reads it
+                      with the status, so a run that flips every section announces
+                      "Ollama Plan, Loading" rather than five bare "Loading"s. */}
+                  <div aria-atomic="true" aria-live="polite" className="space-y-2" role="status">
                     <h3 className="text-sm font-semibold text-slate-900">{sectionLabel}</h3>
                     <div className="flex flex-wrap items-center gap-2">
                       <StatusPill tone={tone}>{label}</StatusPill>
