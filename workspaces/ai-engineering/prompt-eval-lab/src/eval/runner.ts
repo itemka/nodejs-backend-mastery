@@ -30,7 +30,7 @@ export async function runTestCase(testCase: TestCase, deps: RunnerDeps): Promise
 
   const output = response.text;
 
-  const modelGrade = await gradeByModel({
+  const modelGraderEvaluation = await gradeByModel({
     model: deps.model,
     output,
     provider: deps.provider,
@@ -39,9 +39,25 @@ export async function runTestCase(testCase: TestCase, deps: RunnerDeps): Promise
   });
 
   const syntaxScore = gradeSyntax(output, testCase.format);
-  const score = (modelGrade.score + syntaxScore) / 2;
+  const score = (modelGraderEvaluation.grade.score + syntaxScore) / 2;
+  const usage =
+    response.usage === undefined && modelGraderEvaluation.usage === undefined
+      ? undefined
+      : {
+          ...(response.usage === undefined ? {} : { generation: response.usage }),
+          ...(modelGraderEvaluation.usage === undefined
+            ? {}
+            : { grading: modelGraderEvaluation.usage }),
+        };
 
-  return { modelGrade, output, score, syntaxScore, testCase };
+  return {
+    modelGrade: modelGraderEvaluation.grade,
+    output,
+    score,
+    syntaxScore,
+    testCase,
+    ...(usage === undefined ? {} : { usage }),
+  };
 }
 
 export async function runEval(dataset: Dataset, deps: RunnerDeps): Promise<EvalResult[]> {

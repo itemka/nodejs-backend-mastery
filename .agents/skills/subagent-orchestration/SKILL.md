@@ -5,7 +5,7 @@ metadata:
   created: '2026-07-03'
   status: 'baseline'
   portability: 'cross-tool'
-  last-reviewed: '2026-07-20'
+  last-reviewed: '2026-07-25'
 ---
 
 # Subagent Orchestration
@@ -86,6 +86,7 @@ Boundaries: <non-goals and files not to touch>
 Acceptance: <observable done condition>
 Validate: <command, checklist, or evidence>
 Output: APPROVED | NEEDS_CHANGES | BLOCKED, then concise findings or summary
+Coverage (read-heavy tasks only): examined <X of Y>; skipped <items and reason>; complete <yes or no>
 ```
 
 Do not restate full repo rules, style guides, or tool instructions when the subagent runtime already loads them. If that is uncertain, include only the critical boundary that would make the task unsafe if missed.
@@ -100,6 +101,11 @@ Reviewers should return:
 
 Workers should revise only the scoped files needed to address `NEEDS_CHANGES`, then re-run the relevant validation before asking for another review.
 
+## Coverage And Blocker Contract
+
+- **No silent fallback.** Any subagent that hits missing access, missing context, or conflicting instructions returns `BLOCKED` with the specific blocker; it does not guess, fabricate, or quietly narrow the task. This applies to every role, not only reviewers.
+- **Coverage report.** A read-heavy subagent (investigator, reviewer, tester, or specialist) ends its output with a one-line coverage report: what it examined, what it skipped and why, and whether coverage was complete. The coverage line makes silently dropped items visible.
+
 ## Red Flags
 
 - Parallel workers edit the same file or migration sequence.
@@ -109,3 +115,4 @@ Workers should revise only the scoped files needed to address `NEEDS_CHANGES`, t
 - The workflow depends on tool-specific commands, roles, or pipeline APIs that are not available in the current environment.
 - A reviewer is used for a trivial change where a direct self-check is enough.
 - A dependent task consumes an earlier subagent's output that was never checked in the main session.
+- A read-heavy subagent returns findings with no coverage line, or reports partial coverage as if it were complete.
