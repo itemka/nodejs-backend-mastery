@@ -15,6 +15,7 @@ All topic content is sharded into per-topic folders under [\_todo/](./_todo/). E
 
 ## Repo Pointers
 
+- Interview sprint: [interview-lab](../workspaces/apps/interview-lab/) — small NestJS/runtime/SQL experiments with Docker and AWS guides. Follow your Notion sprint for interview priorities; the long-term roadmap below remains a separate depth track.
 - Architecture decisions: [docs/adr/](./adr/) — numbered records of consequential choices and
   their trade-offs.
 - Real apps: [workspaces/apps/shop-mvc-express/](../workspaces/apps/shop-mvc-express/), [workspaces/apps/local-llm-playground/](../workspaces/apps/local-llm-playground/)
@@ -135,7 +136,7 @@ are done.
 
 - [\_todo/frameworks/express/](./_todo/frameworks/express/) — middleware, lifecycle, error handling. Prereq: event-loop. App: shop-mvc-express. **partial** · core
 - [\_todo/frameworks/fastify/](./_todo/frameworks/fastify/) — plugins, hooks, type providers. Prereq: express. App: auth-service, shop-feature-fastify. **todo** · core
-- [\_todo/frameworks/nestjs/](./_todo/frameworks/nestjs/) — modules, DI container. Prereq: fastify. App: —. **todo** · elective
+- [\_todo/frameworks/nestjs/](./_todo/frameworks/nestjs/) — modules, DI container. Prereq: fastify. App: interview-lab. **partial** · elective
 - [\_todo/frameworks/deno-fresh/](./_todo/frameworks/deno-fresh/) — comparison only. Prereq: —. App: —. **todo** · elective
 
 ### API Design
@@ -206,7 +207,7 @@ are done.
 
 ### DevOps / CI-CD
 
-- [\_todo/devops-ci-cd/docker/](./_todo/devops-ci-cd/docker/) — multi-stage, compose. Prereq: —. App: shop-mvc-express. **todo** · core
+- [\_todo/devops-ci-cd/docker/](./_todo/devops-ci-cd/docker/) — multi-stage, compose. Prereq: —. App: shop-mvc-express; interview-lab bootstrap. **partial** · core
 - [\_todo/devops-ci-cd/github-actions/](./_todo/devops-ci-cd/github-actions/) — CI/CD pipelines. Prereq: docker. App: shop-mvc-express. **partial** · core
 - [\_todo/devops-ci-cd/terraform-iac/](./_todo/devops-ci-cd/terraform-iac/) — CDK / Terraform. Prereq: aws. App: shop-feature-fastify. **todo** · core
 - [\_todo/devops-ci-cd/kubernetes/](./_todo/devops-ci-cd/kubernetes/) — EKS, helm. Prereq: docker. App: —. **todo** · elective

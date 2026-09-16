@@ -1,0 +1,11 @@
+**/.git
+**/node_modules
+**/dist
+**/coverage
+**/.env
+**/.env.*
+**/.mcp.json
+**/.codex
+**/.aws
+**/*.log
+docs/CURRENT_TASK_CONTEXT.md
