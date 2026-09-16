@@ -9,6 +9,8 @@ ignoredBuiltDependencies:
   - llm-checker
 
 overrides:
+  # Nest pins Multer 2.2.0; >=2.3.0 fixes GHSA-535w-7cp7-47q4, GHSA-qfvm-cv95-jqjf and GHSA-wc9g-mqfw-jrwm.
+  "@nestjs/platform-express>multer": ^2.3.0
   fast-uri: ^3.1.2
   hono: ">=4.12.25 <5"
   qs: ^6.15.2
