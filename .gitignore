@@ -36,9 +36,6 @@ pnpm-debug.log*
 # Serena MCP local project state (machine-specific, not shared toolkit config)
 .serena/
 
-# Session-only AI-agent handoff state (kept local, never committed)
-docs/CURRENT_TASK_CONTEXT.md
-
 # Structurizr local artifacts (workspace.dsl is the source of truth)
 docs/architecture/workspace.json
 docs/architecture/.structurizr/

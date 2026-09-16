@@ -13,16 +13,15 @@ Project rules, repo layout, and change discipline are imported from `AGENTS.md` 
 - Commands and checks: [.agents/rules/repo-map.md](.agents/rules/repo-map.md) § _Commands And Checks_.
 - Workspace layout (apps, AI engineering examples, shared packages): same file, § _Apps_, _AI Engineering_, _Packages_.
 - Context-loading policy (what to load eagerly vs. on demand): same file, § _Context Loading Policy_.
-- Session handoff file `docs/CURRENT_TASK_CONTEXT.md` (gitignored, optional): [.agents/rules/project.md](.agents/rules/project.md) § _Current Task Context Rule_.
+- Progress and handoff state for work in flight lives in the file-backed plan: [.agents/skills/plan/SKILL.md](.agents/skills/plan/SKILL.md) § _Plan Artifact Policy_.
 
 ### Claude-specific adapters (thin pointers into `.agents/`)
 
 - `.claude/skills/<name>/SKILL.md` — Claude-native skill adapters; bodies live in `.agents/skills/<name>/SKILL.md`.
 - `.claude/agents/*.md` — project subagents (backend-architect, code-review, debug, delivery, implement, maintain-agent-docs, plan, security-reviewer, task-analyst, tests, update-docs).
-- `.claude/commands/*.md` — slash commands; new workflows should go in `.claude/skills/` instead.
 - `.claude/settings.json` — permissions allowlist and hook wiring.
 
-When editing skills, agents, or commands, follow the design rule in [.agents/README.md](.agents/README.md): keep adapters thin and link back to `.agents/`. Run `pnpm run check:adapters` to verify the link map.
+When editing skills or agents, follow the design rule in [.agents/README.md](.agents/README.md): keep adapters thin and link back to `.agents/`. Run `pnpm run check:adapters` to verify the link map.
 
 ### Lifecycle hooks
 
@@ -31,7 +30,7 @@ When editing skills, agents, or commands, follow the design rule in [.agents/REA
 - `PreToolUse` (Bash) → `before-bash.mjs` → denies destructive shell, runs pre-commit guardrails for `git commit`.
 - `PostToolUse` (Edit/Write) → `after-edit.mjs` → Prettier + ESLint fix, then scoped tests when a test/spec file changes.
 - `UserPromptSubmit` → `inject-git-context.mjs` → injects a small git-status header.
-- `Stop` → `stop-checks.mjs` → scoped typecheck on changed workspaces, then a `docs/CURRENT_TASK_CONTEXT.md` reminder.
+- `Stop` → `stop-checks.mjs` → scoped typecheck on changed workspaces, then scoped tests.
 
 Hook map and smoke-test snippets: [.agents/hooks/README.md](.agents/hooks/README.md). Design guidance: [.agents/skills/designing-hooks/](.agents/skills/designing-hooks/).
 
