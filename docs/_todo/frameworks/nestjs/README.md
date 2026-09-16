@@ -1,6 +1,9 @@
 # NestJS modules + DI container
 
-**Category:** frameworks · **Primary app:** — · **Prereqs:** fastify · **Status:** todo
+**Category:** frameworks · **Primary app:** [interview-lab](../../../../workspaces/apps/interview-lab/) · **Prereqs:** fastify · **Status:** partial
+
+Interview bootstrap: [module/controller/provider and run guide](../../../../workspaces/apps/interview-lab/).
+The scaffold is available; the deeper comparisons below and independent recall remain pending.
 
 ## Scope
 
@@ -23,6 +26,7 @@
 
 ## Interview questions
 
+- How is `/health` wired? `AppModule` registers `HealthController` and `HealthService`; Nest resolves the provider into the controller through constructor metadata. This reduces manual wiring, but requires runtime class imports and a compiler that preserves decorator metadata.
 - When would you pick Nest over Fastify?
 - How does Nest's DI compare with manual wiring or tsyringe?
 - Explain the Nest request lifecycle: where does each decorator fire?
