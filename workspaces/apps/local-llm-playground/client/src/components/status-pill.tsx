@@ -1,5 +1,6 @@
 interface StatusPillProps {
   children: string;
+  live?: boolean;
   tone?: 'error' | 'neutral' | 'success' | 'warning';
 }
 
@@ -10,10 +11,16 @@ const toneClassNames: Record<NonNullable<StatusPillProps['tone']>, string> = {
   warning: 'border-amber-200 bg-amber-50 text-amber-700',
 };
 
-export function StatusPill({ children, tone = 'neutral' }: Readonly<StatusPillProps>) {
+export function StatusPill({
+  children,
+  live = false,
+  tone = 'neutral',
+}: Readonly<StatusPillProps>) {
   return (
     <span
+      aria-live={live ? 'polite' : undefined}
       className={`inline-flex items-center rounded-lg border px-2.5 py-1 text-xs font-medium ${toneClassNames[tone]}`}
+      role={live ? 'status' : undefined}
     >
       {children}
     </span>

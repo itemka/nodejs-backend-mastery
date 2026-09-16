@@ -217,6 +217,7 @@ are done.
 - [\_todo/deployment-strategies/blue-green/](./_todo/deployment-strategies/blue-green/) — blue-green cutover. Prereq: ecs-fargate. App: —. **todo** · core
 - [\_todo/deployment-strategies/canary/](./_todo/deployment-strategies/canary/) — canary + auto-rollback. Prereq: ecs-fargate. App: —. **todo** · core
 - [\_todo/deployment-strategies/feature-flags/](./_todo/deployment-strategies/feature-flags/) — flag-driven rollout. Prereq: —. App: —. **todo** · core
+- [\_todo/deployment-strategies/release-management/](./_todo/deployment-strategies/release-management/) — versioning, changelogs, and release communication. Prereq: —. App: —. **todo** · core
 
 ### Observability
 

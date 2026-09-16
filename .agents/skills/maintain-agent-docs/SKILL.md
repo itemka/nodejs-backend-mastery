@@ -5,7 +5,7 @@ metadata:
   created: '2026-07-03'
   status: 'baseline'
   portability: 'cross-tool'
-  last-reviewed: '2026-07-20'
+  last-reviewed: '2026-07-25'
 ---
 
 # Maintain Agent Docs
@@ -71,21 +71,22 @@ Run this when the change touches AI-agent guidance (`.agents/`, `.claude/`, `.co
 
 1. Inspect the in-scope files plus their neighbors.
 2. Run the `Freshness Window` above before editing.
-3. Compare the current layout against `AI-Agent Docs Layout` and the latest official guidance. If official docs or recent best practices suggest a materially better structure, surface the trade-off and recommend keep-or-change. Do not silently restructure.
-4. Look for duplicated guidance across skills, commands, agents, checklists, rules, hooks, and tool adapters. Move durable content into the matching skill; leave other surfaces as thin pointers.
-5. Look for stale links, stale references to removed or renamed folders/skills/commands, broken relative paths, and dead anchors.
-6. Look for overgrown files: rules longer than they need to be, commands restating workflows, role specs restating procedures, checklists that explain instead of check, or tool adapters copying skill bodies. Trim them.
-7. Apply cross-tool updates to `.agents/` first; update tool adapters as thin pointers afterward.
-8. Preserve frontmatter contracts:
+3. When the change adds a new surface — a skill, command, role spec, checklist, rule, hook, or tool adapter — check it first against [ADR-0003](../../../docs/adr/0003-ai-agent-surface-promotion-bar.md): all four promotion criteria (repetition, trigger, contract, validation) or a stated time-boxed pilot, and the standing-rejections table. Prefer extending an existing surface over adding one.
+4. Compare the current layout against `AI-Agent Docs Layout` and the latest official guidance. If official docs or recent best practices suggest a materially better structure, surface the trade-off and recommend keep-or-change. Do not silently restructure.
+5. Look for duplicated guidance across skills, commands, agents, checklists, rules, hooks, and tool adapters. Move durable content into the matching skill; leave other surfaces as thin pointers.
+6. Look for stale links, stale references to removed or renamed folders/skills/commands, broken relative paths, and dead anchors.
+7. Look for overgrown files: rules longer than they need to be, commands restating workflows, role specs restating procedures, checklists that explain instead of check, or tool adapters copying skill bodies. Trim them.
+8. Apply cross-tool updates to `.agents/` first; update tool adapters as thin pointers afterward.
+9. Preserve frontmatter contracts:
    - Portable skill `name` matches the folder name.
    - `name` is lowercase, hyphenated, 64 characters or fewer, and contains no XML tags.
    - `description` is non-empty, under 1024 characters, contains no XML tags, and front-loads the key use case and trigger terms.
    - Product-specific fields stay on product-specific surfaces unless deliberately documenting a product-specific skill.
-9. Preserve discovery contracts:
-   - Codex and Claude both discover skills by directory location; keep `.agents/skills/<name>/` and `.claude/skills/<name>/` aligned when adding or renaming a portable skill.
-   - Skill descriptions are loaded before full bodies and may be shortened in large skill sets, so keep the first sentence specific.
-   - Claude slash-skill command names come from adapter directories, not from portable frontmatter alone.
-10. Keep `SKILL.md` bodies concise. Move large references, examples, or templates into supporting files when a skill grows too large.
+10. Preserve discovery contracts:
+    - Codex and Claude both discover skills by directory location; keep `.agents/skills/<name>/` and `.claude/skills/<name>/` aligned when adding or renaming a portable skill.
+    - Skill descriptions are loaded before full bodies and may be shortened in large skill sets, so keep the first sentence specific.
+    - Claude slash-skill command names come from adapter directories, not from portable frontmatter alone.
+11. Keep `SKILL.md` bodies concise. Move large references, examples, or templates into supporting files when a skill grows too large.
 
 ## Skill Behavior Validation
 

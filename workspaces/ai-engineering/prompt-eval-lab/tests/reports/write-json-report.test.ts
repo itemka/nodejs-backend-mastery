@@ -4,7 +4,7 @@ import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import { writeJsonReport } from '../../src/reports/write-json-report.js';
-import { buildPayload } from './report-fixtures.js';
+import { buildPayload, makeResultWithUsage } from './report-fixtures.js';
 
 describe('writeJsonReport', () => {
   let tempDir: string;
@@ -25,6 +25,23 @@ describe('writeJsonReport', () => {
 
     expect(written.metadata.model).toBe('claude-sonnet-4-6');
     expect(written.summary.total).toBe(0);
+  });
+
+  it('includes token totals and tokens per passing case', async () => {
+    const file = path.join(tempDir, 'out.json');
+    await writeJsonReport(file, buildPayload([makeResultWithUsage()]));
+
+    const written = JSON.parse(await readFile(file, 'utf8'));
+
+    expect(written.summary.tokenUsage).toEqual({
+      generation: { inputTokens: 100, outputTokens: 20 },
+      grading: { inputTokens: 50, outputTokens: 10 },
+      total: { inputTokens: 150, outputTokens: 30 },
+    });
+    expect(written.tokenMetrics).toEqual({
+      passingCases: 1,
+      tokensPerPassingCase: 180,
+    });
   });
 
   it('creates intermediate directories', async () => {

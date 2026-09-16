@@ -1,3 +1,4 @@
+import type { LlmUsage } from '@workspaces/packages/llm-client';
 import { z } from 'zod';
 
 export const modelGraderResultSchema = z.object({
@@ -8,3 +9,8 @@ export const modelGraderResultSchema = z.object({
 });
 
 export type ModelGraderResult = z.infer<typeof modelGraderResultSchema>;
+
+export interface ModelGraderEvaluation {
+  readonly grade: ModelGraderResult;
+  readonly usage?: LlmUsage;
+}

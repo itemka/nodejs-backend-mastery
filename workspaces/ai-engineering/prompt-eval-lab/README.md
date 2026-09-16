@@ -92,7 +92,9 @@ For each test case the runner produces:
 - **`syntaxScore`** — `10` if the output parses as the requested format, otherwise `0`. JSON via `JSON.parse`, regex via `new RegExp`, TypeScript via the `typescript` compiler API (`ts.transpileModule` with `reportDiagnostics`).
 - **`score`** — average of `modelGrade.score` and `syntaxScore`.
 
-The summary prints the overall average plus a per-format breakdown.
+The summary prints the overall average, a per-format breakdown, generation and grading token
+totals, and tokens per passing case. Providers that omit usage are shown as `not reported`
+instead of zero.
 
 Structured outputs reduce JSON parsing failures for the grader, but the CLI
 still treats the parsed grader response as untrusted and validates it locally.
@@ -103,7 +105,8 @@ By default, each run writes a timestamped browser-friendly HTML report to `repor
 
 The HTML report includes:
 
-- summary cards for total test cases, average score, and pass rate using score `>=9`;
+- summary cards for total test cases, average score, pass rate using score `>=9`, generation and
+  grading token totals, total tokens, and tokens per passing case;
 - a table with scenario, prompt inputs, solution criteria, output, score, and reasoning;
 - HTML escaping for model output and dataset text.
 

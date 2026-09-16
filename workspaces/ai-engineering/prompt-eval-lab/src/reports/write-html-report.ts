@@ -1,7 +1,7 @@
 import { mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 
-import type { EvalResult } from '../eval/types.js';
+import type { EvalResult, PassingCaseTokenMetrics, TokenUsageTotals } from '../eval/types.js';
 import type { ReportPayload } from './types.js';
 
 export const PASS_SCORE = 9;
@@ -216,6 +216,22 @@ export function renderHtmlReport(payload: ReportPayload): string {
         <div class="card-label">Pass Rate (&ge;${passScore})</div>
         <div class="card-value">${passRate.toFixed(1)}%</div>
       </article>
+      <article class="card">
+        <div class="card-label">Generation Tokens</div>
+        <div class="card-value">${renderTokenTotals(payload.summary.tokenUsage?.generation)}</div>
+      </article>
+      <article class="card">
+        <div class="card-label">Grading Tokens</div>
+        <div class="card-value">${renderTokenTotals(payload.summary.tokenUsage?.grading)}</div>
+      </article>
+      <article class="card">
+        <div class="card-label">Total Tokens</div>
+        <div class="card-value">${renderTokenTotals(payload.summary.tokenUsage?.total)}</div>
+      </article>
+      <article class="card">
+        <div class="card-label">Tokens Per Passing Case</div>
+        <div class="card-value">${renderTokensPerPassingCase(payload.summary.tokenUsage?.total, payload.tokenMetrics)}</div>
+      </article>
     </section>
     <table>
       <thead>
@@ -285,6 +301,27 @@ function passCount(results: readonly EvalResult[], passScore: number): number {
 
 function percentage(count: number, total: number): number {
   return total === 0 ? 0 : (count / total) * 100;
+}
+
+function renderTokensPerPassingCase(
+  totals: TokenUsageTotals | undefined,
+  tokenMetrics: PassingCaseTokenMetrics,
+): string {
+  if (totals === undefined) {
+    return 'not reported';
+  }
+
+  if (tokenMetrics.passingCases === 0) {
+    return 'not applicable';
+  }
+
+  return tokenMetrics.tokensPerPassingCase?.toFixed(2) ?? 'not reported';
+}
+
+function renderTokenTotals(totals: TokenUsageTotals | undefined): string {
+  return totals === undefined
+    ? 'not reported'
+    : `${totals.inputTokens} input / ${totals.outputTokens} output`;
 }
 
 function scoreClass(score: number, passScore: number): string {

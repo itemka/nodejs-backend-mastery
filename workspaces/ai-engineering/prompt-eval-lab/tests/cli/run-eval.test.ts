@@ -49,6 +49,8 @@ describe('runEvalCli', () => {
       expect.objectContaining({ passScore: 9 }),
     );
     expect(logLines.some((l) => l.includes('HTML'))).toBe(true);
+    expect(logLines).toContain('  total: not reported');
+    expect(logLines).toContain('Tokens per passing case: not reported');
   });
 
   it('writes to the explicit --out path when provided', async () => {

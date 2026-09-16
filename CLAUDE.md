@@ -38,3 +38,5 @@ Hook map and smoke-test snippets: [.agents/hooks/README.md](.agents/hooks/README
 ### MCP
 
 Project MCP config is in `.mcp.json` (gitignored, may contain secrets). `pnpm run sync-mcp` mirrors it to `.codex/config.toml`. Configuration guidance: [.agents/skills/configuring-mcp/](.agents/skills/configuring-mcp/).
+
+Approved servers and access postures are documented in [docs/mcp-servers.md](docs/mcp-servers.md).

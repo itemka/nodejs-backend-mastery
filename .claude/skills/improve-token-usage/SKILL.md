@@ -1,6 +1,6 @@
 ---
 name: improve-token-usage
-description: Investigate AI-session context cost and produce a prioritized token-usage improvement plan without lowering answer quality. Use when asked to reduce token usage, shrink always-loaded context, improve context loading, or run /improve-token-usage.
+description: Investigate AI-session context cost and model routing, then produce a prioritized token-usage improvement plan without lowering answer quality. Use when asked to reduce token usage, shrink always-loaded context, improve context loading, select a model class for task complexity, optimize model selection, or run /improve-token-usage.
 argument-hint: '[optional output path or focus]'
 ---
 

@@ -23,7 +23,7 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
   public override render() {
     if (this.state.error) {
       return (
-        <div className="flex min-h-screen items-center justify-center bg-[#f7f7f8] p-8">
+        <div className="flex min-h-screen items-center justify-center bg-surface p-8">
           <div className="max-w-md rounded-2xl border border-slate-200 bg-white p-6 text-center">
             <h2 className="mb-2 text-lg font-semibold text-slate-900">Something went wrong</h2>
             <p className="mb-4 text-sm text-slate-600">{this.state.error.message}</p>
