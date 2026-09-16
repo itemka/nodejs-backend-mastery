@@ -19,10 +19,9 @@ behavior in executable scripts and keep tool adapters thin.
 | `format-and-lint.mjs`         | `PostToolUse` via `after-edit.mjs` | Blocks with exit `2` when auto-fix fails                          | Runs Prettier and ESLint fix for JS/TS edits outside ignored build folders.                                                                                                                     |
 | `test-changed.mjs`            | `PostToolUse` via `after-edit.mjs` | Blocks with exit `2` on scoped test failure                       | Runs the nearest workspace `test` script when a test/spec file changes.                                                                                                                         |
 | `inject-git-context.mjs`      | `UserPromptSubmit`                 | Non-blocking injected context                                     | Prints branch, dirty counts, and up to 10 short-status lines on every prompt.                                                                                                                   |
-| `stop-checks.mjs`             | `Stop`                             | Blocks on sub-hook failure                                        | Ordered stop guardrail; runs scoped typecheck, then scoped tests, then the task-context reminder.                                                                                               |
+| `stop-checks.mjs`             | `Stop`                             | Blocks on sub-hook failure                                        | Ordered stop guardrail; runs scoped typecheck, then scoped tests.                                                                                                                               |
 | `typecheck-changed.mjs`       | `Stop` via `stop-checks.mjs`       | Blocks with exit `2` on scoped typecheck failure                  | Typechecks workspaces touched since `HEAD`, skipping recursive stop-hook runs.                                                                                                                  |
 | `test-changed-workspaces.mjs` | `Stop` via `stop-checks.mjs`       | Blocks with exit `2` on scoped test failure                       | Runs `test` for every changed, test-capable workspace since `HEAD` (source/config/test files only; skips docs-only edits and packages without a `test` script); skips recursive stop-hook runs. |
-| `check-task-context.mjs`      | `Stop` via `stop-checks.mjs`       | Advisory only                                                     | Reminds when `docs/CURRENT_TASK_CONTEXT.md` is missing or stale in a dirty worktree.                                                                                                            |
 
 ## Supporting Files
 
@@ -47,7 +46,7 @@ Child hook timeouts are sized to stay under Codex's explicit outer cap
 
 - `after-edit.mjs`: `format-and-lint.mjs` 35s + `test-changed.mjs` 75s = 110s.
 - `stop-checks.mjs`: `typecheck-changed.mjs` 85s + `test-changed-workspaces.mjs`
-  70s + `check-task-context.mjs` 10s = 165s.
+  70s = 155s.
 
 `.claude/settings.json` sets no `timeout` on these hooks, so Claude Code falls
 back to its own default (600s for `PostToolUse`/`Stop` per its settings
@@ -99,8 +98,8 @@ node .agents/hooks/inject-git-context.mjs
 node --test .agents/hooks/test-changed-workspaces.test.mjs
 ```
 
-Run the broader changed-file validation explicitly when needed (portable prompt:
-[../commands/validate-changed.md](../commands/validate-changed.md)):
+Run the broader changed-file validation explicitly when needed (see
+[../skills/validate/SKILL.md](../skills/validate/SKILL.md)):
 
 ```sh
 pnpm run validate:changed

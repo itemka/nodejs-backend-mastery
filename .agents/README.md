@@ -19,6 +19,10 @@ Root entry points stay thin:
 - Portable role specs used by specialist or worker agents.
 - Compact review checklists.
 
+Progress and handoff state for work in flight belongs in the file-backed plan
+(see [skills/plan/SKILL.md](./skills/plan/SKILL.md) § _Plan Artifact Policy_),
+not in a separate session-tracking file.
+
 ## What Does Not Belong Here
 
 - Secrets, tokens, API keys, credentials, private URLs, or machine-specific paths.
@@ -41,9 +45,6 @@ Root entry points stay thin:
   review or thinking, such as backend architecture, security, testing,
   delivery, or documentation. Keep agents thin and link them from relevant
   skills instead of duplicating workflows.
-- [commands/](./commands/) — Short runnable prompts that start common
-  workflows and route to the right skills. Commands should not contain full
-  procedures; they are entry points, not sources of truth.
 - [checklists/](./checklists/) — Compact verification criteria used by
   skills and reviewers. Keep checklists practical, scannable, and free from
   long explanations.
@@ -55,14 +56,14 @@ Root entry points stay thin:
 
 ## AI-Agent Guidance Rule
 
-`.agents/skills/` is the canonical home for reusable workflows. `.agents/commands/`
-and `.agents/agents/` are routing layers — they should point into skills and
-checklists rather than duplicate workflow content. The same principle applies to
-tool-specific adapters under `.claude/`, `.codex/`, `.cursor/`, and `.github/`:
-keep adapters thin and link back to the portable source.
+`.agents/skills/` is the canonical home for reusable workflows. `.agents/agents/`
+is a routing layer — role specs should point into skills and checklists rather
+than duplicate workflow content. The same principle applies to tool-specific
+adapters under `.claude/`, `.codex/`, `.cursor/`, and `.github/`: keep adapters
+thin and link back to the portable source.
 
-When a workflow lives inside a command, role spec, or tool adapter, move the
-durable content into the matching skill first and make the adapter point to it.
+When a workflow lives inside a role spec or tool adapter, move the durable
+content into the matching skill first and make the adapter point to it.
 
 When a role spec under [agents/](./agents/) is useful for a workflow, link it
 from the related skill in a short `Related Role Specs` section. Role specs are
@@ -81,9 +82,7 @@ only when concrete reusable hook scripts or adapters need a portable home.
 - **Codex** — root `AGENTS.md` is the project instruction surface; project-
   scoped Codex config (hooks, MCP, custom agents) lives under `.codex/`.
 - **Claude Code** — `CLAUDE.md` imports `AGENTS.md`; thin adapters live under
-  `.claude/skills/<name>/SKILL.md`, `.claude/agents/*.md`, and
-  `.claude/commands/*.md`. Skills take precedence when names collide with
-  legacy command files.
+  `.claude/skills/<name>/SKILL.md` and `.claude/agents/*.md`.
 - **GitHub Copilot** — `AGENTS.md` is supported as repo instructions; Copilot-
   specific prompts and agents belong under `.github/`.
 - **Cursor** — `AGENTS.md` is supported as plain instructions; scoped rules,
@@ -132,7 +131,7 @@ before adopting it.
 1. Copy `.agents/` into the target repo.
 2. Rewrite [rules/repo-map.md](./rules/repo-map.md) for that repo's layout,
    commands, and production boundaries.
-3. Keep [rules/project.md](./rules/project.md), skills, agents, commands, and
+3. Keep [rules/project.md](./rules/project.md), skills, agents, and
    checklists mostly generic.
 4. Add a thin root `AGENTS.md` that links to this folder and the rule files.
 5. Add tool-specific adapters only when needed.

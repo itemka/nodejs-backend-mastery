@@ -1,6 +1,6 @@
 ---
 name: repo-maintain-agent-docs
-description: Use to maintain AI-agent docs, skills, commands, hooks, MCP notes, and thin tool adapters.
+description: Use to maintain AI-agent docs, skills, agents, hooks, MCP notes, and thin tool adapters.
 tools: Read, Glob, Grep, Bash, Edit, Write
 model: inherit
 ---

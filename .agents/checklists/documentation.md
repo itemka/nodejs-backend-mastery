@@ -10,9 +10,9 @@
 - Substantial copied or adapted third-party material (vendored files, whole sections, templates) records its canonical source, exact revision, original path, import date, complete upstream license and attribution notices, and local modifications; a brief adapted excerpt records at least its source and license.
 - Third-party material is not imported when required redistribution terms or notices are unavailable or unclear; missing copyright or license data is never guessed.
 - The update is scoped to the change and avoids broad unrelated rewrites.
-- Root AI instruction files stay thin; detailed workflows live in skills, while commands and tool adapters stay short and route to the shared source.
+- Root AI instruction files stay thin; detailed workflows live in skills, while tool adapters stay short and route to the shared source.
 - Tool-specific adapters link back to shared guidance instead of duplicating it.
 - Skill frontmatter follows the open-spec `name` and `description` constraints, while product-specific fields or sidecar metadata stay on the matching tool-specific surface.
 - For AI-agent guidance, the `Freshness Window` and `Structural Review` in [skills/maintain-agent-docs/SKILL.md](../skills/maintain-agent-docs/SKILL.md) were followed and the recency window used was reported (or lack of docs access was stated).
-- AI-agent docs match the `AI-Agent Docs Layout` (skills canonical, commands thin, agents thin role specs, checklists compact, rules short, `.claude/`/other adapters thin); deviations are flagged with a keep-or-change recommendation, not silently restructured.
+- AI-agent docs match the `AI-Agent Docs Layout` (skills canonical, agents thin role specs, checklists compact, rules short, `.claude/`/other adapters thin); deviations are flagged with a keep-or-change recommendation, not silently restructured.
 - AI-agent docs were scanned for duplicated guidance, stale links, stale references to removed/renamed surfaces, and overgrown files.

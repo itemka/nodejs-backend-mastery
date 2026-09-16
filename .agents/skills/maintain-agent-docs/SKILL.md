@@ -1,6 +1,6 @@
 ---
 name: maintain-agent-docs
-description: Maintains AI-agent documentation and adapters for .agents/, AGENTS.md, CLAUDE.md, .claude/, .codex/, .cursor/, and .github/. Use when creating, updating, auditing, or freshness-checking skills, commands, agents, rules, hooks, MCP notes, prompts, checklists, or tool adapters.
+description: Maintains AI-agent documentation and adapters for .agents/, AGENTS.md, CLAUDE.md, .claude/, .codex/, .cursor/, and .github/. Use when creating, updating, auditing, or freshness-checking skills, agents, rules, hooks, MCP notes, prompts, checklists, or tool adapters.
 metadata:
   created: '2026-07-03'
   status: 'baseline'
@@ -16,7 +16,7 @@ Keep AI-agent guidance accurate, lean, current, and structurally sound across sh
 
 ## When To Use
 
-- AI-agent docs, skills, agents, commands, rules, hooks, prompts, checklists, MCP notes, or tool adapters need creating, updating, or auditing.
+- AI-agent docs, skills, agents, rules, hooks, prompts, checklists, MCP notes, or tool adapters need creating, updating, or auditing.
 - The user asks for a best-practices refresh of agent guidance.
 - A change to Codex, Claude Code, Cursor, AGENTS.md, Agent Skills, MCP, hooks, plugins, or subagents may have made guidance stale.
 
@@ -43,7 +43,6 @@ Keep AI-agent guidance accurate, lean, current, and structurally sound across sh
 Single source of truth for the AI-agent docs structure. Other files should reference this section instead of restating it.
 
 - `.agents/skills/` is the canonical home for reusable workflows. Put durable step-by-step procedures here first.
-- `.agents/commands/` are short runnable prompts that route to skills. Commands must not duplicate skill bodies.
 - `.agents/agents/` are thin role specs (`Purpose`, `When To Load`, `Pairs With`, `Output Contributions`, `Boundaries`). Roles do not restate skill workflows.
 - `.agents/checklists/` are compact, scannable verification criteria. Checklists list checks, not procedures.
 - `.agents/rules/` are short because every agent loads them on every session. Keep wording tight.
@@ -67,15 +66,15 @@ Use this rule when the change touches AI tools, CLIs, framework versions, cloud 
 
 ## Structural Review
 
-Run this when the change touches AI-agent guidance (`.agents/`, `.claude/`, `.codex/`, `.cursor/`, `.github/`, `AGENTS.md`, `CLAUDE.md`, related context files, or any skill/agent/command/checklist/rule/hook).
+Run this when the change touches AI-agent guidance (`.agents/`, `.claude/`, `.codex/`, `.cursor/`, `.github/`, `AGENTS.md`, `CLAUDE.md`, related context files, or any skill/agent/checklist/rule/hook).
 
 1. Inspect the in-scope files plus their neighbors.
 2. Run the `Freshness Window` above before editing.
-3. When the change adds a new surface — a skill, command, role spec, checklist, rule, hook, or tool adapter — check it first against [ADR-0003](../../../docs/adr/0003-ai-agent-surface-promotion-bar.md): all four promotion criteria (repetition, trigger, contract, validation) or a stated time-boxed pilot, and the standing-rejections table. Prefer extending an existing surface over adding one.
+3. When the change adds a new surface — a skill, role spec, checklist, rule, hook, or tool adapter — check it first against [ADR-0003](../../../docs/adr/0003-ai-agent-surface-promotion-bar.md): all four promotion criteria (repetition, trigger, contract, validation) or a stated time-boxed pilot, and the standing-rejections table. Prefer extending an existing surface over adding one.
 4. Compare the current layout against `AI-Agent Docs Layout` and the latest official guidance. If official docs or recent best practices suggest a materially better structure, surface the trade-off and recommend keep-or-change. Do not silently restructure.
-5. Look for duplicated guidance across skills, commands, agents, checklists, rules, hooks, and tool adapters. Move durable content into the matching skill; leave other surfaces as thin pointers.
-6. Look for stale links, stale references to removed or renamed folders/skills/commands, broken relative paths, and dead anchors.
-7. Look for overgrown files: rules longer than they need to be, commands restating workflows, role specs restating procedures, checklists that explain instead of check, or tool adapters copying skill bodies. Trim them.
+5. Look for duplicated guidance across skills, agents, checklists, rules, hooks, and tool adapters. Move durable content into the matching skill; leave other surfaces as thin pointers.
+6. Look for stale links, stale references to removed or renamed folders/skills, broken relative paths, and dead anchors.
+7. Look for overgrown files: rules longer than they need to be, role specs restating procedures, checklists that explain instead of check, or tool adapters copying skill bodies. Trim them.
 8. Apply cross-tool updates to `.agents/` first; update tool adapters as thin pointers afterward.
 9. Preserve frontmatter contracts:
    - Portable skill `name` matches the folder name.

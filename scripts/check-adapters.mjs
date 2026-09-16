@@ -1,7 +1,7 @@
 // Enforce thin-adapter discipline — see .agents/README.md:
 // 1. Tool-specific adapter files must stay within MAX_LINES.
 // 2. Every .claude/ adapter must have a matching .agents/ source, and every
-//    portable skill, agent, and command must have a .claude/ adapter.
+//    portable skill and agent must have a .claude/ adapter.
 
 import { existsSync, readFileSync } from 'node:fs';
 import { glob } from 'node:fs/promises';
@@ -10,8 +10,8 @@ import * as ui from '@workspaces/cli-output';
 
 const MAX_LINES = 30;
 
-const ADAPTER_GLOBS = ['.claude/skills/**/*.md', '.claude/agents/*.md', '.claude/commands/*.md'];
-const SOURCE_GLOBS = ['.agents/skills/*/SKILL.md', '.agents/agents/*.md', '.agents/commands/*.md'];
+const ADAPTER_GLOBS = ['.claude/skills/**/*.md', '.claude/agents/*.md'];
+const SOURCE_GLOBS = ['.agents/skills/*/SKILL.md', '.agents/agents/*.md'];
 
 const countLines = (filePath) => {
   const text = readFileSync(filePath, 'utf8').replace(/\r?\n$/, '');
