@@ -25,6 +25,10 @@ The allowlist does not configure, authenticate, or grant access to a server by
 itself. Servers left out of it are still validated, so an inline credential is
 rejected even in an entry Codex never sees.
 
+The Claude Code GitHub Action ([`claude.yml`](../.github/workflows/claude.yml))
+runs with `--strict-mcp-config`: it loads only the action's own servers and
+never the shared `.mcp.json`.
+
 ## Approved Servers
 
 | Server                | Purpose                             | Reaches                                                        | Read/write                                                   | Notes                                                                                 |
@@ -69,7 +73,10 @@ the value into the transcript. Use a fine-grained, least-privilege token for
 each variable, and never a broad personal access token.
 
 Already-exported variables win over the file, so a shell export or secret
-manager works instead, and `.mcp.env` can then be omitted. The launcher fails
+manager works instead, and `.mcp.env` can then be omitted. When an export
+replaces a value from the file, the launcher names that variable on stderr
+(never the value), so a broad shell token cannot silently stand in for the
+least-privilege one you put in the file. The launcher fails
 before starting the client when a variable referenced by `.mcp.json` is missing,
 rather than letting it surface later as an auth error. Set `MCP_ENV_FILE` to
 point at a different private file; unlike the default `.mcp.env`, a missing

@@ -15,7 +15,8 @@ every shell command an agent runs, so use least-privilege tokens.
 Set MCP_ENV_FILE to use a different private file: keep it outside the repo, or name it
 .mcp.<name>.env in the repo root, which Git ignores (relative paths use the repo root).
 Already-exported variables take precedence, and .mcp.env may be absent when they cover
-every reference. Missing shared MCP variables fail before launch.
+every reference. Each file value an export overrides is named, never printed.
+Missing shared MCP variables fail before launch.
 The env file is parsed as data; shell commands and variable substitution are not evaluated.
 
 Examples:
@@ -73,6 +74,15 @@ const loadEnvironment = (root) => {
   if (missing.length > 0)
     throw new Error(
       `Missing MCP environment variables: ${missing.join(', ')}. Set them in the private env file or export them before launch.`,
+    );
+  // Exports win, so name (never print) each file value one replaces: a broad shell
+  // token silently overriding the least-privilege value in the file is easy to miss.
+  const overridden = Object.keys(values).filter(
+    (name) => process.env[name] !== undefined && process.env[name] !== values[name],
+  );
+  if (overridden.length > 0)
+    console.error(
+      ui.warn(`mcp:run: exported variables override the env file: ${overridden.join(', ')}`),
     );
   return env;
 };

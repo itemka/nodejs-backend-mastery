@@ -36,6 +36,18 @@ describe('check-secrets', () => {
     assert.doesNotMatch(result.stderr, /changeme/i);
   });
 
+  it('reports a PEM private key block without printing it', () => {
+    // Split so this test source never contains a complete PEM header.
+    const header = ['-----BEGIN OPENSSH PRIVATE', 'KEY-----'].join(' ');
+    writeFileSync(join(tempDir, 'deploy_key'), `${header}\nprivate-fixture\n`);
+    runGit(tempDir, ['add', 'deploy_key']);
+    const result = spawnSync(process.execPath, [SCRIPT_PATH], { cwd: tempDir, encoding: 'utf8' });
+    assert.equal(result.status, 1);
+    assert.match(result.stderr, /deploy_key:1:\[REDACTED_PRIVATE_KEY_BLOCK\]/);
+    assert.ok(!result.stderr.includes(header));
+    assert.doesNotMatch(result.stderr, /private-fixture/);
+  });
+
   it('allows the tracked .mcp.env.example template', () => {
     writeFileSync(join(tempDir, '.mcp.env.example'), 'GITHUB_TOKEN=\n');
     runGit(tempDir, ['add', '.mcp.env.example']);
