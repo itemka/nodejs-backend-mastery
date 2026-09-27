@@ -12,4 +12,4 @@ const app = await NestFactory.create(AppModule, {
 const config = app.get<ConfigService<Environment, true>>(ConfigService);
 
 app.enableShutdownHooks();
-await app.listen(config.get('PORT', { infer: true }), '0.0.0.0');
+await app.listen(config.get('PORT', { infer: true }), config.get('HOST', { infer: true }));

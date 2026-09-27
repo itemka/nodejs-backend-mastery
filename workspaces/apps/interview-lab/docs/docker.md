@@ -22,7 +22,9 @@ contains the deployed production package. The build context is the repository
 root because the lockfile, workspace config and TS base config live there.
 
 Explain: image vs container; layers/cache; `COPY`; build context; multi-stage
-builds; `CMD`; `USER`; `EXPOSE` vs a published port; why secrets never enter an image.
+builds; `CMD`; `USER`; `EXPOSE` vs a published port; why the image sets `HOST=0.0.0.0`
+while `pnpm dev` listens on `127.0.0.1`; why `Dockerfile.dockerignore` is an allowlist
+and secrets never enter an image.
 Change the health response temporarily, rebuild, observe it, then restore it.
 
 ## 2. Networking and optional data services
