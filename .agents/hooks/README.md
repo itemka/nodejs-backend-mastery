@@ -10,18 +10,18 @@ behavior in executable scripts and keep tool adapters thin.
 
 ## Current Hooks
 
-| File                          | Event                              | Blocks / Feedback                                                 | Purpose                                                                                                                                                                                         |
-| ----------------------------- | ---------------------------------- | ----------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `before-bash.mjs`             | `PreToolUse` for Bash/shell        | Blocks on sub-hook failure                                        | Ordered shell-command guardrail; runs destructive-command checks before commit guardrails.                                                                                                      |
-| `deny-dangerous-bash.mjs`     | `PreToolUse` via `before-bash.mjs` | Blocks with exit `2`                                              | Rejects destructive `rm -rf`, `git reset --hard`, force-push, and unparsable risky shell syntax.                                                                                                |
-| `sync-before-commit.mjs`      | `PreToolUse` via `before-bash.mjs` | Blocks commit on secret/adapter failures; MCP sync is best effort | Runs deterministic pre-commit guardrails only when the command is `git commit`.                                                                                                                 |
-| `after-edit.mjs`              | `PostToolUse` for edit tools       | Blocks on sub-hook failure                                        | Ordered edit guardrail; formats/lints before scoped test checks.                                                                                                                                |
-| `format-and-lint.mjs`         | `PostToolUse` via `after-edit.mjs` | Blocks with exit `2` when auto-fix fails                          | Runs Prettier and ESLint fix for JS/TS edits outside ignored build folders.                                                                                                                     |
-| `test-changed.mjs`            | `PostToolUse` via `after-edit.mjs` | Blocks with exit `2` on scoped test failure                       | Runs the nearest workspace `test` script when a test/spec file changes.                                                                                                                         |
-| `inject-git-context.mjs`      | `UserPromptSubmit`                 | Non-blocking injected context                                     | Prints branch, dirty counts, and up to 10 short-status lines on every prompt.                                                                                                                   |
-| `stop-checks.mjs`             | `Stop`                             | Blocks on sub-hook failure                                        | Ordered stop guardrail; runs scoped typecheck, then scoped tests.                                                                                                                               |
-| `typecheck-changed.mjs`       | `Stop` via `stop-checks.mjs`       | Blocks with exit `2` on scoped typecheck failure                  | Typechecks workspaces touched since `HEAD`, skipping recursive stop-hook runs.                                                                                                                  |
-| `test-changed-workspaces.mjs` | `Stop` via `stop-checks.mjs`       | Blocks with exit `2` on scoped test failure                       | Runs `test` for every changed, test-capable workspace since `HEAD` (source/config/test files only; skips docs-only edits and packages without a `test` script); skips recursive stop-hook runs. |
+| File                          | Event                              | Blocks / Feedback                                              | Purpose                                                                                                                                                                                         |
+| ----------------------------- | ---------------------------------- | -------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `before-bash.mjs`             | `PreToolUse` for Bash/shell        | Blocks on sub-hook failure                                     | Ordered shell-command guardrail; runs destructive-command checks before commit guardrails.                                                                                                      |
+| `deny-dangerous-bash.mjs`     | `PreToolUse` via `before-bash.mjs` | Blocks with exit `2`                                           | Rejects destructive `rm -rf`, `git reset --hard`, force-push, and unparsable risky shell syntax.                                                                                                |
+| `sync-before-commit.mjs`      | `PreToolUse` via `before-bash.mjs` | Blocks commit on secret, adapter, or staged MCP-config failure | Runs deterministic pre-commit guardrails only when the command is `git commit`.                                                                                                                 |
+| `after-edit.mjs`              | `PostToolUse` for edit tools       | Blocks on sub-hook failure                                     | Ordered edit guardrail; formats/lints before scoped test checks.                                                                                                                                |
+| `format-and-lint.mjs`         | `PostToolUse` via `after-edit.mjs` | Blocks with exit `2` when auto-fix fails                       | Runs Prettier and ESLint fix for JS/TS edits outside ignored build folders.                                                                                                                     |
+| `test-changed.mjs`            | `PostToolUse` via `after-edit.mjs` | Blocks with exit `2` on scoped test failure                    | Runs the nearest workspace `test` script when a test/spec file changes.                                                                                                                         |
+| `inject-git-context.mjs`      | `UserPromptSubmit`                 | Non-blocking injected context                                  | Prints branch, dirty counts, and up to 10 short-status lines on every prompt.                                                                                                                   |
+| `stop-checks.mjs`             | `Stop`                             | Blocks on sub-hook failure                                     | Ordered stop guardrail; runs scoped typecheck, then scoped tests.                                                                                                                               |
+| `typecheck-changed.mjs`       | `Stop` via `stop-checks.mjs`       | Blocks with exit `2` on scoped typecheck failure               | Typechecks workspaces touched since `HEAD`, skipping recursive stop-hook runs.                                                                                                                  |
+| `test-changed-workspaces.mjs` | `Stop` via `stop-checks.mjs`       | Blocks with exit `2` on scoped test failure                    | Runs `test` for every changed, test-capable workspace since `HEAD` (source/config/test files only; skips docs-only edits and packages without a `test` script); skips recursive stop-hook runs. |
 
 ## Supporting Files
 
@@ -63,6 +63,14 @@ update both the orchestrator's inline comment and this section.
   `.claude/settings.json` as thin adapters.
 - Use orchestrator hooks when order matters. Do not rely on multiple handlers
   in one lifecycle event to run sequentially.
+- Stage in a separate tool call, then run standalone `git commit` against that
+  index. The commit guard rejects pathspecs, `-a`/`-i`/`-o`, interactive modes,
+  unknown options, wrappers, shell expansions, and compound commands, because
+  they can change the commit snapshot after the pre-tool check has run.
+  Single-quoted text is literal, so a message with backticks or `$` passes when
+  single-quoted. Write a multi-line message with repeated `-m` or `--trailer`,
+  or with `-F <file>`: a newline inside `-m` splits the command for the shared
+  parser, and a `$(cat <<'EOF' …)` heredoc is a command substitution.
 - Keep hooks deterministic, bounded, and repo-root safe. Do not add destructive
   actions, hidden network calls, or broad writes.
 - `PreToolUse` can prevent an action. `PostToolUse` runs after the action and

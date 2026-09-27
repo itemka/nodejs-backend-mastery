@@ -35,6 +35,25 @@ describe('check-secrets', () => {
     assert.match(result.stderr, /\[REDACTED_PLACEHOLDER_DEFAULT_CREDENTIAL\]/);
     assert.doesNotMatch(result.stderr, /changeme/i);
   });
+
+  it('allows the tracked .mcp.env.example template', () => {
+    writeFileSync(join(tempDir, '.mcp.env.example'), 'GITHUB_TOKEN=\n');
+    runGit(tempDir, ['add', '.mcp.env.example']);
+    const result = spawnSync(process.execPath, [SCRIPT_PATH], { cwd: tempDir, encoding: 'utf8' });
+    assert.equal(result.status, 0, result.stderr);
+  });
+
+  for (const file of ['.mcp.env', '.mcp.work.env', '.mcp.local.json']) {
+    it(`rejects accidentally tracked ${file} even without a recognized token pattern`, () => {
+      writeFileSync(join(tempDir, file), 'private-fixture\n');
+      runGit(tempDir, ['add', file]);
+      const result = spawnSync(process.execPath, [SCRIPT_PATH], { cwd: tempDir, encoding: 'utf8' });
+      assert.equal(result.status, 1);
+      assert.match(result.stderr, /private MCP files must not be tracked/);
+      assert.ok(result.stderr.includes(file));
+      assert.doesNotMatch(result.stderr, /private-fixture/);
+    });
+  }
 });
 
 function runGit(cwd, args) {

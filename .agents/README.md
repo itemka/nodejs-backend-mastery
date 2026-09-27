@@ -20,8 +20,10 @@ Root entry points stay thin:
 - Compact review checklists.
 
 Progress and handoff state for work in flight belongs in the file-backed plan
-(see [skills/plan/SKILL.md](./skills/plan/SKILL.md) § _Plan Artifact Policy_),
-not in a separate session-tracking file.
+(see [skills/plan/SKILL.md](./skills/plan/SKILL.md) § _Plan Artifact Policy_), not
+in a separate session-tracking file. Which artifact a given task needs — in-session
+notes, a handoff summary, or that plan file — is decided by
+[skills/coding-discipline/SKILL.md](./skills/coding-discipline/SKILL.md) § _Working Notes_.
 
 ## What Does Not Belong Here
 
@@ -37,10 +39,11 @@ not in a separate session-tracking file.
   to be loaded often.
 - [skills/](./skills/) — Canonical reusable workflows for development tasks
   such as brainstorming, planning, implementation, coding discipline,
-  debugging, validation, review, docs, agent-doc maintenance, architecture
-  diagrams, deprecation and migration, commits, PR descriptions, branch
-  naming, hooks, subagent orchestration, token-usage investigation, and MCP
-  decisions. Put durable step-by-step guidance here first.
+  refactoring, debugging, validation, review, docs, agent-doc maintenance,
+  architecture diagrams, backend API changes, data-storage changes,
+  deprecation and migration, commits, PR descriptions, branch naming, hooks,
+  subagent orchestration, token-usage investigation, and MCP decisions. Put
+  durable step-by-step guidance here first.
 - [agents/](./agents/) — Optional specialist role specs used for focused
   review or thinking, such as backend architecture, security, testing,
   delivery, or documentation. Keep agents thin and link them from relevant
@@ -53,6 +56,10 @@ not in a separate session-tracking file.
   by `.claude/settings.json` and `.codex/hooks.json`. Design guidance lives
   in [skills/designing-hooks/](./skills/designing-hooks/); operational details
   live in [hooks/README.md](./hooks/README.md).
+
+Claude-native path-scoped rules live in `.claude/rules/` and are a time-boxed pilot governed by
+[ADR-0004](../docs/adr/0004-path-scoped-claude-rules.md): each file declares `paths` globs, holds
+Claude Code product behavior only, and carries nothing another tool must also know.
 
 ## AI-Agent Guidance Rule
 
@@ -73,6 +80,11 @@ When adding or renaming a skill, keep the folder name equal to the frontmatter
 `name`, update this index, and add or update any required tool-specific thin
 adapters such as `.claude/skills/<name>/SKILL.md`.
 
+Which surface a new instruction belongs on — always-on rule, path-scoped rule,
+skill, or hook — is decided by
+[skills/maintain-agent-docs/SKILL.md](./skills/maintain-agent-docs/SKILL.md)
+§ _Instruction Surface Selection_.
+
 Hooks and MCP guidance belong in [skills/designing-hooks/](./skills/designing-hooks/)
 and [skills/configuring-mcp/](./skills/configuring-mcp/). Create `.agents/hooks/`
 only when concrete reusable hook scripts or adapters need a portable home.
@@ -82,7 +94,8 @@ only when concrete reusable hook scripts or adapters need a portable home.
 - **Codex** — root `AGENTS.md` is the project instruction surface; project-
   scoped Codex config (hooks, MCP, custom agents) lives under `.codex/`.
 - **Claude Code** — `CLAUDE.md` imports `AGENTS.md`; thin adapters live under
-  `.claude/skills/<name>/SKILL.md` and `.claude/agents/*.md`.
+  `.claude/skills/<name>/SKILL.md` and `.claude/agents/*.md`; path-scoped rules live under
+  `.claude/rules/*.md` (pilot, see [ADR-0004](../docs/adr/0004-path-scoped-claude-rules.md)).
 - **GitHub Copilot** — `AGENTS.md` is supported as repo instructions; Copilot-
   specific prompts and agents belong under `.github/`.
 - **Cursor** — `AGENTS.md` is supported as plain instructions; scoped rules,

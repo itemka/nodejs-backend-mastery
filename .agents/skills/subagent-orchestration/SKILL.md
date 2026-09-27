@@ -5,7 +5,7 @@ metadata:
   created: '2026-07-03'
   status: 'baseline'
   portability: 'cross-tool'
-  last-reviewed: '2026-07-25'
+  last-reviewed: '2026-09-27'
 ---
 
 # Subagent Orchestration
@@ -74,6 +74,25 @@ Decision rule: steps known in advance -> run them as a predefined pipeline; step
    - Inspect the combined diff when files changed.
    - Run the repo's smallest relevant validation, then broader checks when risk warrants.
 9. Report what was delegated, what changed, validation evidence, and any unresolved risks.
+
+## Context Passing Contract
+
+Context inheritance depends on the runtime and launch options: a fresh subagent needs the task context in its prompt, while a fork or resumed agent may already carry conversation history and tool results. Inspect the native launch contract before choosing a mode.
+
+- For an independent review, explicitly select a fresh context without inherited implementation history. Pass the task, diff, and review criteria; do not assume a new agent identifier guarantees independence.
+- Shared files and direct agent messaging may be available even when conversation history is isolated. Check those capabilities separately, keep file ownership explicit, and return decisions and evidence to the coordinator for integration.
+
+- Pass findings in full, with the metadata that keeps them checkable: file path and line, source, document or symbol name, confidence, and which agent produced them. Metadata stripped in transit is what makes a downstream result unattributable.
+- State the goal and the quality criteria, not the procedure. Step-by-step instructions stop the subagent adapting when it meets something unexpected; a bare objective under-specifies. Both fail on the same axis.
+- Require a compressed, structured return — key findings, paths, names, status — rather than raw output. Isolation only pays off when the return channel is compressed too.
+- Decompose by dimension when results must be comparable across subjects, and by subject only when the tracks are genuinely independent. One connected trace through the code belongs in a single context rather than split across agents.
+- Derive the next subtask from what the previous one found when the shape of the work is not known upfront. Extending a fixed chain is still a fixed chain.
+
+When a downstream result is wrong and every upstream subagent reports success, the fault is the coordinator's context passing:
+
+- Unattributed claims: metadata was stripped in transit.
+- Stale references: upstream output was never injected.
+- Contradicted findings: a summary was passed where the full output was needed.
 
 ## Prompt Template
 
