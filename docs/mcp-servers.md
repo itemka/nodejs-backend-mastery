@@ -69,11 +69,13 @@ the value into the transcript. Use a fine-grained, least-privilege token for
 each variable, and never a broad personal access token.
 
 Already-exported variables win over the file, so a shell export or secret
-manager works instead. The launcher fails before starting the client when a
-variable referenced by `.mcp.json` is missing, rather than letting it surface
-later as an auth error. Set `MCP_ENV_FILE` to point at a different private file.
-Keep that file outside the repository, or name it `.mcp.<name>.env` in the repo
-root: Git ignores that form, and `pnpm run check:secrets` rejects it if staged.
+manager works instead, and `.mcp.env` can then be omitted. The launcher fails
+before starting the client when a variable referenced by `.mcp.json` is missing,
+rather than letting it surface later as an auth error. Set `MCP_ENV_FILE` to
+point at a different private file; unlike the default `.mcp.env`, a missing
+`MCP_ENV_FILE` is an error. Keep that file outside the repository, or name it
+`.mcp.<name>.env` in the repo root: Git ignores that form, and
+`pnpm run check:secrets` rejects it if staged.
 
 ## Personal Servers
 

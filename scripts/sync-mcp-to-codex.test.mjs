@@ -132,7 +132,7 @@ describe('sync-mcp-to-codex', () => {
             '4096',
             '--header=X-Region: eu',
           ],
-          env: { MAX_TOKENS: '4096', AUTHOR_NAME: 'example' },
+          env: { MAX_TOKENS: '4096', AUTHOR_NAME: 'example', PUBLIC_KEY_ID: 'example' },
         },
       },
     });
@@ -145,6 +145,7 @@ describe('sync-mcp-to-codex', () => {
     );
     assert.match(generated, /env.MAX_TOKENS = "4096"/);
     assert.match(generated, /env.AUTHOR_NAME = "example"/);
+    assert.match(generated, /env.PUBLIC_KEY_ID = "example"/);
   });
 
   it('accepts home-like path segments inside HTTP URLs', () => {
@@ -227,6 +228,34 @@ describe('sync-mcp-to-codex', () => {
       args: ['--config=/home/example/private-fixture.json'],
     },
     'personal file URL': { command: 'example-server', args: ['file:///Users/example/config'] },
+    'root home path': { command: 'example-server', args: ['--config=/root/private-fixture.json'] },
+    'inline private key env': {
+      command: 'example-server',
+      env: { PRIVATE_KEY: 'private-fixture' },
+    },
+    'camelCase private key env': {
+      command: 'example-server',
+      env: { privateKey: 'private-fixture' },
+    },
+    'private key option': { command: 'example-server', args: ['--private-key', 'private-fixture'] },
+    // Split so the fixture source never contains a complete PEM header.
+    'PEM private key under a neutral name': {
+      command: 'example-server',
+      env: { SIGNING_MATERIAL: ['-----BEGIN RSA PRIVATE', 'KEY-----\nprivate-fixture'].join(' ') },
+    },
+    'Redis URL credentials': {
+      command: 'example-server',
+      args: ['--cache=redis://:private-fixture@localhost:6379/0'],
+    },
+    'TLS Redis URL': { command: 'example-server', args: ['rediss://cache.example.test:6380'] },
+    'credentials in a non-HTTP URL': {
+      command: 'example-server',
+      args: ['--broker=amqp://user:private-fixture@broker.example.test/vhost'],
+    },
+    'query credentials in a non-HTTP URL': {
+      command: 'example-server',
+      args: ['wss://example.test/socket?token=private-fixture'],
+    },
     'database argument': { command: 'example-server', args: ['postgresql://localhost/local'] },
     'HTTP env': { type: 'http', url: 'https://example.test/mcp', env: { TOKEN: '${TOKEN}' } },
     'stdio headers': { command: 'example-server', headers: { Authorization: 'Bearer ${TOKEN}' } },

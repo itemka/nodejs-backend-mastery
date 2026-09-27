@@ -14,7 +14,8 @@ Everything that command spawns inherits the values, including every MCP server a
 every shell command an agent runs, so use least-privilege tokens.
 Set MCP_ENV_FILE to use a different private file: keep it outside the repo, or name it
 .mcp.<name>.env in the repo root, which Git ignores (relative paths use the repo root).
-Already-exported variables take precedence. Missing shared MCP variables fail before launch.
+Already-exported variables take precedence, and .mcp.env may be absent when they cover
+every reference. Missing shared MCP variables fail before launch.
 The env file is parsed as data; shell commands and variable substitution are not evaluated.
 
 Examples:
@@ -26,14 +27,20 @@ Examples:
 Fully quit an existing editor before launching it with a new environment.`;
 
 const loadEnvironment = (root) => {
-  const file = resolve(root, process.env.MCP_ENV_FILE || '.mcp.env');
-  let values;
+  const explicitFile = process.env.MCP_ENV_FILE;
+  const file = resolve(root, explicitFile || '.mcp.env');
+  let values = {};
   try {
     values = parseEnv(readFileSync(file, 'utf8'));
-  } catch {
-    throw new Error(
-      'Cannot read the private MCP env file. Create .mcp.env from .mcp.env.example or set MCP_ENV_FILE.',
-    );
+  } catch (error) {
+    // Exported variables alone may cover every reference, so an absent default file
+    // is not an error; the required-variable check below still fails when they do not.
+    // An explicitly selected MCP_ENV_FILE must exist.
+    if (explicitFile || error?.code !== 'ENOENT') {
+      throw new Error(
+        'Cannot read the private MCP env file. Create .mcp.env from .mcp.env.example or set MCP_ENV_FILE.',
+      );
+    }
   }
 
   // Parse errors can quote the file's contents, so never surface the raw error.

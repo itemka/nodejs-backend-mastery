@@ -114,6 +114,35 @@ describe('run-with-mcp-env', () => {
     });
   }
 
+  it('launches from exported variables when the default env file is absent', () => {
+    rmSync(join(root, '.mcp.env'));
+    env.TOKEN = 'exported fixture';
+    const result = run([
+      process.execPath,
+      '-e',
+      'require("node:assert/strict").equal(process.env.TOKEN, "exported fixture")',
+    ]);
+    assert.equal(result.status, 0, result.stderr);
+  });
+
+  it('reports missing variables, not the file, when the default env file is absent', () => {
+    rmSync(join(root, '.mcp.env'));
+    const result = run([process.execPath, '-e', 'console.log("should-not-launch")']);
+    assert.equal(result.status, 1);
+    assert.match(result.stderr, /Missing MCP environment variables: TOKEN/);
+    assert.doesNotMatch(result.stderr, /Cannot read the private MCP env file/);
+    assert.equal(result.stdout, '');
+  });
+
+  it('reports a missing explicit env file even when variables are exported', () => {
+    env.MCP_ENV_FILE = 'absent.env';
+    env.TOKEN = 'exported fixture';
+    const result = run([process.execPath, '-e', 'console.log("should-not-launch")']);
+    assert.equal(result.status, 1);
+    assert.match(result.stderr, /Cannot read the private MCP env file/);
+    assert.equal(result.stdout, '');
+  });
+
   it('reports missing files without starting a client', () => {
     env.MCP_ENV_FILE = 'absent.env';
     const result = run([process.execPath, '-e', 'console.log("should-not-launch")']);

@@ -13,8 +13,9 @@ const HELP_FLAGS = new Set(['--help', '-h']);
 const ENV_REFERENCE_PATTERN = /^\$\{([A-Za-z_][A-Za-z0-9_]*)\}$/;
 const BEARER_REFERENCE_PATTERN = /^Bearer \$\{([A-Za-z_][A-Za-z0-9_]*)\}$/i;
 // Matched against whole name segments, so MAX_TOKENS and AUTHOR_NAME stay static
-// while GITHUB_TOKEN, X-API-Key, and apiKey still require a reference. The plural
-// "tokens" is deliberately absent: it names LLM limits far more often than secrets.
+// while GITHUB_TOKEN, X-API-Key, apiKey, and PRIVATE_KEY still require a reference.
+// The plural "tokens" is deliberately absent: it names LLM limits far more often
+// than secrets.
 const CREDENTIAL_WORDS = new Set([
   'apikey',
   'auth',
@@ -24,6 +25,7 @@ const CREDENTIAL_WORDS = new Set([
   'credentials',
   'passwd',
   'password',
+  'privatekey',
   'secret',
   'secrets',
   'token',
@@ -31,8 +33,11 @@ const CREDENTIAL_WORDS = new Set([
 const CREDENTIAL_WORD_PAIRS = [
   ['api', 'key'],
   ['access', 'key'],
+  ['private', 'key'],
 ];
 const URL_PATTERN = /https?:\/\/[^\s"'<>]+/gi;
+// Any scheme with an authority, so redis://:secret@host is parsed like an HTTP URL.
+const ANY_URL_PATTERN = /\b[a-z][a-z0-9+.-]*:\/\/[^\s"'<>]+/gi;
 const argv = process.argv.slice(2);
 const check = argv.includes('--check');
 const staged = argv.includes('--staged');
@@ -197,20 +202,26 @@ const assertStaticValue = (value, location) => {
       `${location} contains an unsupported environment reference. Use env_vars or an HTTP header reference.`,
     );
   }
-  if (/\b(?:github_pat_[\w]+|gh[pousr]_[\w]+|sk-(?:proj-|ant-)?[\w-]{20,})/.test(value)) {
+  if (
+    /\b(?:github_pat_[\w]+|gh[pousr]_[\w]+|sk-(?:proj-|ant-)?[\w-]{20,})|-----BEGIN (?:[A-Z0-9]+ )*PRIVATE KEY-----/.test(
+      value,
+    )
+  ) {
     fail(`${location} contains a credential. Use an environment reference.`);
   }
   // HTTP(S) URLs are checked below; their paths (https://host/home/...) are not local paths.
-  if (/(?:\/Users\/|\/home\/|[A-Za-z]:\\Users\\)/.test(value.replaceAll(URL_PATTERN, ''))) {
+  if (
+    /(?:\/Users\/|\/home\/|\/root\/|[A-Za-z]:\\Users\\)/.test(value.replaceAll(URL_PATTERN, ''))
+  ) {
     fail(
       `${location} contains a personal path. Keep machine-specific servers in local configuration.`,
     );
   }
-  if (/\b(?:postgres(?:ql)?|mysql|mongodb(?:\+srv)?):\/\//i.test(value)) {
+  if (/\b(?:postgres(?:ql)?|mysql|mariadb|mongodb(?:\+srv)?|rediss?):\/\//i.test(value)) {
     fail(`${location} contains a database URL. Keep database servers in local configuration.`);
   }
   // Parse each embedded URL on its own so "--registry=https://..." is accepted.
-  for (const [candidate] of value.matchAll(URL_PATTERN)) {
+  for (const [candidate] of value.matchAll(ANY_URL_PATTERN)) {
     let url;
     try {
       url = new URL(candidate);
@@ -222,7 +233,9 @@ const assertStaticValue = (value, location) => {
       url.password ||
       [...url.searchParams.keys()].some((key) => isCredentialName(key))
     ) {
-      fail(`${location} contains URL credentials. Use an HTTP header reference.`);
+      fail(
+        `${location} contains URL credentials. Use an HTTP header reference or private local configuration.`,
+      );
     }
   }
 };
