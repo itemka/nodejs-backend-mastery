@@ -30,6 +30,22 @@ jobs:
         with:
           fetch-depth: 1
 
+      # The project hooks in .claude/settings.json import dev dependencies such as
+      # shell-quote; without node_modules every Bash and edit hook fails.
+      - name: Enable Corepack (pnpm)
+        run: corepack enable
+
+      - name: Setup Node 24.x
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24.x
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+
+      # This job runs on comments with write permissions, so skip lifecycle scripts.
+      - name: Install deps
+        run: pnpm install --frozen-lockfile --ignore-scripts
+
       - name: Run Claude Code
         id: claude
         uses: anthropics/claude-code-action@v1
@@ -46,4 +62,7 @@ jobs:
           # Optional: Add claude_args to customize behavior and configuration
           # See https://github.com/anthropics/claude-code-action/blob/main/docs/usage.md
           # or https://code.claude.com/docs/en/cli-reference for available options
-          # claude_args: '--allowed-tools Bash(gh pr *)'
+          # --strict-mcp-config keeps the action's own --mcp-config servers and skips the
+          # project .mcp.json. The action enables every project server, but this job never
+          # allows their tools, so they would only download and start browsers for nothing.
+          claude_args: "--strict-mcp-config"

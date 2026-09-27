@@ -56,7 +56,7 @@ describe('run-with-mcp-env', () => {
     assert.equal(result.stdout + result.stderr, '');
   });
 
-  it('keeps exported values ahead of the env file', () => {
+  it('keeps exported values ahead of the env file and names each override', () => {
     env.TOKEN = 'exported fixture';
     const result = run([
       process.execPath,
@@ -64,6 +64,15 @@ describe('run-with-mcp-env', () => {
       'require("node:assert/strict").equal(process.env.TOKEN, "exported fixture")',
     ]);
     assert.equal(result.status, 0, result.stderr);
+    assert.match(result.stderr, /exported variables override the env file: TOKEN/);
+    assert.doesNotMatch(result.stderr, /exported fixture|private test value/);
+  });
+
+  it('does not warn when an export matches the env file value', () => {
+    env.TOKEN = 'private test value';
+    const result = run([process.execPath, '-e', '']);
+    assert.equal(result.status, 0, result.stderr);
+    assert.equal(result.stderr, '');
   });
 
   it('supports a private file override', () => {

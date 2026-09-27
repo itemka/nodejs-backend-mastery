@@ -16,6 +16,7 @@ const PATTERNS = [
   { name: 'AWS access key', re: /\bAKIA[0-9A-Z]{16}\b/g },
   { name: 'Slack token', re: /\bxox[abprs]-[A-Za-z0-9-]{10,}/g },
   { name: 'Google API key', re: /\bAIza[0-9A-Za-z_-]{35}\b/g },
+  { name: 'Private key block', re: /-----BEGIN (?:[A-Z0-9]+ )*PRIVATE KEY-----/g },
 ];
 
 const CREDENTIAL_KEY_PATTERN = String.raw`(?:(?:[A-Za-z0-9]+[_-])*(?:password|passwd|pwd|secret|api[_-]?key|access[_-]?key|auth[_-]?token|token|credential)s?|[A-Za-z][A-Za-z0-9]*(?:Password|Passwd|Pwd|Secret|ApiKey|AccessKey|AuthToken|Token|Credential)s?)`;
@@ -126,9 +127,13 @@ const scanPatterns = (patterns, files) => {
   for (const { name, re, remediation, allowMarker } of patterns) {
     re.lastIndex = 0;
     const grepOptions = `-n${re.ignoreCase ? 'i' : ''}IP`;
-    const workingTreeHits = grepPattern(['grep', grepOptions, re.source, '--', ...files], name);
+    // `-e` keeps a pattern that starts with `-` (the PEM header) from parsing as an option.
+    const workingTreeHits = grepPattern(
+      ['grep', grepOptions, '-e', re.source, '--', ...files],
+      name,
+    );
     const indexHits = grepPattern(
-      ['grep', '--cached', grepOptions, re.source, '--', ...files],
+      ['grep', '--cached', grepOptions, '-e', re.source, '--', ...files],
       name,
     );
     const hits = [...new Set([...workingTreeHits, ...indexHits])].filter(
