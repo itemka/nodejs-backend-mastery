@@ -6,7 +6,7 @@ Maintain shared AI-agent guidance and thin tool adapters with current, concise, 
 
 ## When To Load
 
-- AI-agent skills, agents, commands, rules, hooks, prompts, checklists, MCP notes, or adapters need creating, updating, or auditing.
+- AI-agent skills, agents, rules, hooks, prompts, checklists, MCP notes, or adapters need creating, updating, or auditing.
 - Codex, Claude Code, Cursor, AGENTS.md, Agent Skills, MCP, hooks, plugins, or subagent guidance may be stale.
 - A PR touches `.agents/`, `AGENTS.md`, `CLAUDE.md`, `.claude/`, `.codex/`, `.cursor/`, or `.github/` agent guidance.
 

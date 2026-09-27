@@ -1,4 +1,4 @@
-// Ordered Stop hook: scoped typecheck, then scoped tests, then task-context guard.
+// Ordered Stop hook: scoped typecheck, then scoped tests.
 
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -7,12 +7,11 @@ import { readStdin, readStdinJson, repoRoot, runNodeHook } from './lib/hook-util
 
 const hookDir = dirname(fileURLToPath(import.meta.url));
 // Adapter caps stop-checks at 180s. Split it across typecheck (which may
-// build), the changed-workspace test run, and a small task-context budget:
-// 85s + 70s + 10s = 165s, under the 180s outer cap.
+// build) and the changed-workspace test run: 85s + 70s = 155s, under the
+// 180s outer cap.
 const HOOKS = [
   { name: 'typecheck-changed.mjs', timeout: 85_000 },
   { name: 'test-changed-workspaces.mjs', timeout: 70_000 },
-  { name: 'check-task-context.mjs', timeout: 10_000 },
 ];
 
 const raw = readStdin();

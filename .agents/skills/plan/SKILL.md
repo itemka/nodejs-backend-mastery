@@ -5,7 +5,7 @@ metadata:
   created: '2026-04-25'
   status: 'baseline'
   portability: 'cross-tool'
-  last-reviewed: '2026-07-03'
+  last-reviewed: '2026-09-17'
 ---
 
 # Plan
@@ -88,6 +88,10 @@ Filename and timestamp rules:
 - Do not stage or commit the temporary plan file unless the user explicitly asks.
 - Keep the plan file temporary unless the user asks to keep it as project documentation.
 - Use local ISO 8601 minute precision with timezone offset for plan timestamps, for example `2026-04-25T15:36+02:00`.
+
+This policy covers the plan file only. Choosing between a plan file, in-session working notes,
+and a compressed handoff summary is owned by
+[coding-discipline](../coding-discipline/SKILL.md) § _Working Notes_.
 
 ## Plan File Template
 

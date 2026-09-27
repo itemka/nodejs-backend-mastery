@@ -1,6 +1,6 @@
 ---
 name: maintain-agent-docs
-description: Maintains AI-agent documentation and adapters for .agents/, AGENTS.md, CLAUDE.md, .claude/, .codex/, .cursor/, and .github/. Use when creating, updating, auditing, or freshness-checking skills, commands, agents, rules, hooks, MCP notes, prompts, checklists, or tool adapters.
+description: Maintains AI-agent documentation and adapters for .agents/, AGENTS.md, CLAUDE.md, .claude/, .codex/, .cursor/, and .github/. Use when creating, updating, auditing, or freshness-checking skills, agents, rules, hooks, MCP notes, prompts, checklists, or tool adapters.
 argument-hint: '[agent-doc surface or change description]'
 ---
 

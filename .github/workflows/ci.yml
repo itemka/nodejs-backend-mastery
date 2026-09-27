@@ -132,6 +132,8 @@ jobs:
         run: pnpm run check:secrets
       - name: Check agent adapters
         run: pnpm run check:adapters
+      - name: Check MCP config drift
+        run: pnpm run check:mcp
       - name: Prettier (check)
         run: pnpm run format:check
       - name: ESLint

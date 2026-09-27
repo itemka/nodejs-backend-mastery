@@ -11,10 +11,12 @@
       "Bash(pnpm run validate:changed)",
       "Bash(pnpm run check:secrets)",
       "Bash(pnpm run check:adapters)",
+      "Bash(pnpm run check:mcp)",
       "Bash(pnpm run sync-mcp)",
       "Bash(node scripts/check-secrets.mjs)",
       "Bash(node scripts/check-adapters.mjs)",
-      "Bash(node scripts/sync-mcp-to-codex.mjs)"
+      "Bash(node scripts/sync-mcp-to-codex.mjs)",
+      "Bash(node scripts/sync-mcp-to-codex.mjs --check)"
     ]
   },
   "hooks": {

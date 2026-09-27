@@ -75,7 +75,8 @@ and path-scoped because raw output stays in the conversation transcript.
 - Root scripts are defined in `package.json`.
 - Common root checks: `pnpm run lint`, `pnpm run format:check`, `pnpm run typecheck`, `pnpm run test`, `pnpm run build`.
 - Aggregate gates: `pnpm run validate` (lint + format:check + typecheck + test) and
-  `pnpm run validate:all` (adds `check:secrets`, `check:adapters`, and `build`).
+  `pnpm run validate:all` (adds `check:secrets`, `check:adapters`, `check:mcp`, and
+  `build`).
   Use `pnpm run validate:changed` for the scoped, hook-driven path.
 - Codex sandbox note: `pnpm` is Corepack-backed here and may stall before
   failing when sandboxed network access prevents Corepack from verifying the

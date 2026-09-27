@@ -62,7 +62,7 @@ Use for diff-focused reviews. Lead with blocking issues and keep suggestions sma
 
 ## Agent / Tooling
 
-- Are AI instructions, skills, agents, commands, hooks, and MCP notes scoped to the right file type?
+- Are AI instructions, skills, agents, hooks, and MCP notes scoped to the right file type?
 - Do skills have focused triggers and valid frontmatter?
 - Are tool adapters thin and linked to the portable source of truth?
 - Are hook or MCP changes deterministic, least-privilege, and free of secrets?

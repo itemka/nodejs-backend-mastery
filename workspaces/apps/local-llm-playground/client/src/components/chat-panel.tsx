@@ -87,7 +87,9 @@ export function ChatPanel({
         </div>
 
         <div className="flex flex-wrap items-center gap-2 text-sm text-slate-500">
-          <span>{statusLabel}</span>
+          <span aria-live="polite" role="status">
+            {statusLabel}
+          </span>
           {requestIdNode}
         </div>
       </div>
@@ -99,7 +101,7 @@ export function ChatPanel({
         <div className="border-t border-slate-100 px-4 py-4">
           <textarea
             aria-label="System prompt"
-            className="min-h-28 w-full rounded-2xl border border-slate-200 bg-[#f7f7f8] px-4 py-3 text-sm leading-6 text-slate-900 outline-none transition focus:border-slate-400 focus:bg-white"
+            className="min-h-28 w-full rounded-2xl border border-slate-200 bg-surface px-4 py-3 text-sm leading-6 text-slate-900 outline-none transition focus:border-slate-400 focus:bg-white"
             onChange={(event) => {
               onSettingsChange({
                 systemPrompt: event.currentTarget.value,

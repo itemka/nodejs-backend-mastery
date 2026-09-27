@@ -1,0 +1,27 @@
+{
+  "mcpServers": {
+    "github": {
+      "_description": "GitHub Copilot MCP — access repos, PRs, issues, and code search via GitHub API",
+      "type": "http",
+      "url": "https://api.githubcopilot.com/mcp/",
+      "headers": {
+        "Authorization": "Bearer ${GITHUB_TOKEN}"
+      }
+    },
+    "chrome-devtools-mcp": {
+      "_description": "Chrome DevTools MCP — control a browser tab: navigate, click, screenshot, inspect network/console",
+      "command": "npx",
+      "args": ["--registry", "https://registry.npmjs.org", "chrome-devtools-mcp@0.16.0"]
+    },
+    "playwright": {
+      "_description": "Playwright MCP — headless browser automation: navigate, fill forms, take screenshots",
+      "command": "npx",
+      "args": ["@playwright/mcp@0.0.82"]
+    },
+    "context7": {
+      "_description": "Context7 MCP — fetch version-specific library docs and code examples by package name; eliminates hallucinated APIs",
+      "type": "http",
+      "url": "https://mcp.context7.com/mcp"
+    }
+  }
+}

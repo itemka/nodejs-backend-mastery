@@ -1,11 +1,11 @@
 ---
 name: designing-hooks
-description: AI coding tool hook design and review for deterministic lifecycle automation. Use when designing, reviewing, or adapting hooks; avoid risky or destructive automation.
+description: AI coding tool hook design and review for deterministic lifecycle automation. Use when designing, reviewing, or adapting hooks, or when deciding whether a rule belongs in a hook, in settings, or in instructions; avoid risky or destructive automation.
 metadata:
   created: '2026-04-25'
   status: 'baseline'
   portability: 'cross-tool'
-  last-reviewed: '2026-05-05'
+  last-reviewed: '2026-09-17'
 ---
 
 # Designing Hooks
@@ -34,6 +34,21 @@ Design safe hook automation for AI coding tools while keeping shared guidance po
 - [security-reviewer](../../agents/security-reviewer.md): load when hook automation can affect approvals, secrets, filesystem access, external services, or destructive commands.
 - [code-review](../../agents/code-review.md): load when reviewing hook-related repo changes as part of a broader diff.
 
+## Enforcement Decision Test
+
+Decide the mechanism before the lifecycle point.
+
+- **A rule that must hold every run belongs in a hook or in client-enforced settings.** The trigger is consequence, not preference: one failure that is irreversible, breaks the build, or crosses the whole team. Wording such as "must always" or "needs a guarantee" points at the same thing.
+- **A recoverable preference belongs in instructions.** When a miss is cheap to undo, an always-on rule or a skill instruction is enough, and a hook is unjustified complexity.
+- **Read the timing before reaching for determinism.** A tool-event hook fires around a tool call, so it can gate an action but cannot shape what the agent writes. Prompt- and session-event hooks can inject context — this repo's `UserPromptSubmit` hook adds git status to every prompt — but injected context steers generation without guaranteeing it. Standing conventions that must guide generation belong in always-loaded context; hooks guarantee a gate.
+- **Deciding the next action is not enforcement.** When the open question is what the agent should do next, return the tool result and let the model reason about it. Branching in hook code on tool output replaces the agent loop instead of guarding it.
+
+## Lifecycle Placement
+
+- Locate the defect first. Something wrong in the outgoing call is a pre-tool concern: that event can block, modify, or redirect the call before any side effect. Something wrong in the returned result is a post-tool concern: that event runs after the action happened, so it can normalize, trim, or flag what the model is about to read, but it cannot undo the call. Enforcement is always pre; normalization is always post.
+- When a pre-tool hook blocks a call, return a descriptive error that names the unmet prerequisite. A blocked call should redirect the agent's next action rather than only refusing this one.
+- Subagent lifecycle events observe more than they control: a spawn event cannot block or rewrite the spawn, while a completion event can validate the result and send the work back. To change what the coordinator itself sees, hook the pre- and post-tool events on the subagent-spawning tool.
+
 ## Workflow
 
 1. Define the automation goal in one sentence.
@@ -46,7 +61,7 @@ Design safe hook automation for AI coding tools while keeping shared guidance po
 8. Make hook paths and command working directories repo-root safe. Do not assume the agent session starts at the repository root; use the tool's project-dir variable, a `git rev-parse --show-toplevel` wrapper, or script-level repo-root detection.
 9. Map failures to the target tool's hook semantics. Use blocking exit codes or structured JSON only where the lifecycle event can act on them; do not rely on conventional exit `1` for policy feedback.
 10. Do not rely on multiple hook handlers in one lifecycle event to run sequentially. If order matters, create one small orchestrator hook that runs deterministic checks in sequence.
-11. Remember lifecycle limits: `PreToolUse` can prevent an action; `PostToolUse` observes after the action happened and can only give feedback or continue the loop.
+11. Place the hook by the direction of the problem, using `Lifecycle Placement` above.
 12. Prefer structured shell parsing for shell-command safety hooks. Use a maintained parser when it improves quote/operator handling; keep fail-closed behavior for unparsable risky syntax. Known parser blind spots that must be closed manually before trusting the parse: literal newline command separators, wrapper commands that take a script string (`bash -c`, `sh -c`, `zsh -c`, `eval`), brace expansion targets, and any positional that contains command substitution or variable references.
 13. Make orchestrator hooks fail closed. When a sub-hook spawn fails (missing script, signal kill, timeout, unexpected exit code), surface the failure as a real block (exit `2` for Claude / Codex) instead of treating it as a silent pass. Assign per-phase timeouts so a stuck early phase cannot exhaust the adapter's overall budget.
 14. Document the tool-specific adapter location only when implementation is needed; keep shared guidance in skills until concrete hook files exist.

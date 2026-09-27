@@ -1,11 +1,11 @@
 ---
 name: maintain-agent-docs
-description: Maintains AI-agent documentation and adapters for .agents/, AGENTS.md, CLAUDE.md, .claude/, .codex/, .cursor/, and .github/. Use when creating, updating, auditing, or freshness-checking skills, commands, agents, rules, hooks, MCP notes, prompts, checklists, or tool adapters.
+description: Maintains AI-agent documentation and adapters for .agents/, AGENTS.md, CLAUDE.md, .claude/, .codex/, .cursor/, and .github/. Use when creating, updating, auditing, or freshness-checking skills, agents, rules, hooks, MCP notes, prompts, checklists, or tool adapters.
 metadata:
   created: '2026-07-03'
   status: 'baseline'
   portability: 'cross-tool'
-  last-reviewed: '2026-07-20'
+  last-reviewed: '2026-09-17'
 ---
 
 # Maintain Agent Docs
@@ -16,7 +16,7 @@ Keep AI-agent guidance accurate, lean, current, and structurally sound across sh
 
 ## When To Use
 
-- AI-agent docs, skills, agents, commands, rules, hooks, prompts, checklists, MCP notes, or tool adapters need creating, updating, or auditing.
+- AI-agent docs, skills, agents, rules, hooks, prompts, checklists, MCP notes, or tool adapters need creating, updating, or auditing.
 - The user asks for a best-practices refresh of agent guidance.
 - A change to Codex, Claude Code, Cursor, AGENTS.md, Agent Skills, MCP, hooks, plugins, or subagents may have made guidance stale.
 
@@ -43,13 +43,23 @@ Keep AI-agent guidance accurate, lean, current, and structurally sound across sh
 Single source of truth for the AI-agent docs structure. Other files should reference this section instead of restating it.
 
 - `.agents/skills/` is the canonical home for reusable workflows. Put durable step-by-step procedures here first.
-- `.agents/commands/` are short runnable prompts that route to skills. Commands must not duplicate skill bodies.
 - `.agents/agents/` are thin role specs (`Purpose`, `When To Load`, `Pairs With`, `Output Contributions`, `Boundaries`). Roles do not restate skill workflows.
 - `.agents/checklists/` are compact, scannable verification criteria. Checklists list checks, not procedures.
 - `.agents/rules/` are short because every agent loads them on every session. Keep wording tight.
 - `.agents/hooks/` holds concrete reusable hook scripts and hook operational notes. Design guidance lives in skills, not in hooks.
 - `.claude/`, `.codex/`, `.cursor/`, and `.github/` adapters are thin pointers into `.agents/`. They never copy skill bodies.
+- `.claude/rules/` holds Claude-native path-scoped rules: `paths` globs in frontmatter, product behavior only, size-checked by `scripts/check-adapters.mjs`. Scope and review date are set by [ADR-0004](../../../docs/adr/0004-path-scoped-claude-rules.md).
 - `AGENTS.md` and `CLAUDE.md` are thin entry points; they import or link `.agents/` and do not contain workflows.
+
+## Instruction Surface Selection
+
+Choose the surface from what the instruction has to do, before deciding which folder the file goes in.
+
+- **Applies to every session and every task** → entry-point instructions (`AGENTS.md`, `CLAUDE.md`) and `.agents/rules/`. Keep them short, because they load whether or not they apply.
+- **Applies to a file type or area wherever it lives** → a path-scoped rule in the tool's rules directory, within the bounds of [ADR-0004](../../../docs/adr/0004-path-scoped-claude-rules.md). Conditional loading is the point; splitting an entry-point file into imports does not reduce context, because imports are inlined eagerly when the file loads. A rule that declares no `paths` is an always-on surface wearing a rule's clothing.
+- **A multi-step procedure run on demand** → a skill.
+- **Must hold on every run** → client-enforced settings or a hook. Entry-point instruction files concatenate rather than override, so a project file does not reliably win over a user file and two contradictory instructions have no guaranteed winner. Remove the conflict instead of relying on load order.
+- **Must shape what the agent writes** → always-loaded context. Tool-event hooks fire around tool calls and can gate an action but cannot guide generation. Prompt- and session-event hooks can inject context, which suits dynamic state such as git status rather than a standing convention.
 
 ## Freshness Window
 
@@ -67,25 +77,30 @@ Use this rule when the change touches AI tools, CLIs, framework versions, cloud 
 
 ## Structural Review
 
-Run this when the change touches AI-agent guidance (`.agents/`, `.claude/`, `.codex/`, `.cursor/`, `.github/`, `AGENTS.md`, `CLAUDE.md`, related context files, or any skill/agent/command/checklist/rule/hook).
+Run this when the change touches AI-agent guidance (`.agents/`, `.claude/`, `.codex/`, `.cursor/`, `.github/`, `AGENTS.md`, `CLAUDE.md`, related context files, or any skill/agent/checklist/rule/hook).
 
 1. Inspect the in-scope files plus their neighbors.
 2. Run the `Freshness Window` above before editing.
-3. Compare the current layout against `AI-Agent Docs Layout` and the latest official guidance. If official docs or recent best practices suggest a materially better structure, surface the trade-off and recommend keep-or-change. Do not silently restructure.
-4. Look for duplicated guidance across skills, commands, agents, checklists, rules, hooks, and tool adapters. Move durable content into the matching skill; leave other surfaces as thin pointers.
-5. Look for stale links, stale references to removed or renamed folders/skills/commands, broken relative paths, and dead anchors.
-6. Look for overgrown files: rules longer than they need to be, commands restating workflows, role specs restating procedures, checklists that explain instead of check, or tool adapters copying skill bodies. Trim them.
-7. Apply cross-tool updates to `.agents/` first; update tool adapters as thin pointers afterward.
-8. Preserve frontmatter contracts:
+3. When the change adds a new surface — a skill, role spec, checklist, rule, hook, or tool adapter — check it first against [ADR-0003](../../../docs/adr/0003-ai-agent-surface-promotion-bar.md): all four promotion criteria (repetition, trigger, contract, validation) or a stated time-boxed pilot, and the standing-rejections table. Prefer extending an existing surface over adding one.
+4. Compare the current layout against `AI-Agent Docs Layout` and the latest official guidance. If official docs or recent best practices suggest a materially better structure, surface the trade-off and recommend keep-or-change. Do not silently restructure.
+5. Look for duplicated guidance across skills, agents, checklists, rules, hooks, and tool adapters. Move durable content into the matching skill; leave other surfaces as thin pointers.
+6. Look for stale links, stale references to removed or renamed folders/skills, broken relative paths, and dead anchors.
+7. Look for overgrown files: rules longer than they need to be, role specs restating procedures, checklists that explain instead of check, or tool adapters copying skill bodies. Trim them.
+8. Apply cross-tool updates to `.agents/` first; update tool adapters as thin pointers afterward.
+9. Preserve frontmatter contracts:
    - Portable skill `name` matches the folder name.
    - `name` is lowercase, hyphenated, 64 characters or fewer, and contains no XML tags.
    - `description` is non-empty, under 1024 characters, contains no XML tags, and front-loads the key use case and trigger terms.
    - Product-specific fields stay on product-specific surfaces unless deliberately documenting a product-specific skill.
-9. Preserve discovery contracts:
-   - Codex and Claude both discover skills by directory location; keep `.agents/skills/<name>/` and `.claude/skills/<name>/` aligned when adding or renaming a portable skill.
-   - Skill descriptions are loaded before full bodies and may be shortened in large skill sets, so keep the first sentence specific.
-   - Claude slash-skill command names come from adapter directories, not from portable frontmatter alone.
-10. Keep `SKILL.md` bodies concise. Move large references, examples, or templates into supporting files when a skill grows too large.
+   - The portable `metadata` block carries `created`, `status`, `portability`, and `last-reviewed` as quoted ISO dates or values. Keep all four keys and bump `last-reviewed` whenever a skill is reviewed or materially changed.
+   - Know what a tool-native frontmatter field does before adding it to an adapter, because the same-sounding field differs by surface. On a **skill**, `allowed-tools` pre-approves tools so they run without a permission prompt; it grants rather than restricts, and `disallowed-tools` is the restricting field. On a **subagent**, `tools` is the opposite: an allowlist that replaces the inherited set, with `disallowedTools` applied before it. Confusing the two either leaves a reviewer agent able to write or silently strips tools it needs.
+10. Preserve discovery contracts:
+    - Codex and Claude both discover skills by directory location; keep `.agents/skills/<name>/` and `.claude/skills/<name>/` aligned when adding or renaming a portable skill.
+    - Skill descriptions are loaded before full bodies and may be shortened in large skill sets, so keep the first sentence specific.
+    - Claude slash-skill command names come from adapter directories, not from portable frontmatter alone.
+    - A skill is a directory whose entrypoint is `SKILL.md`. A flat `.md` file dropped into a skills directory registers nothing. Flat-file commands are the older form of the same surface and a skill wins a name collision with a command, so this repo keeps skills only.
+    - A subagent file whose opening `---` is not the first line, or that has no `name`, is skipped as documentation and never reported; a malformed `name` or a missing `description` reaches only the debug log. Because every one of these fails silently at runtime, `pnpm run check:adapters` asserts them — run it after editing `.claude/agents/`, and do not rely on noticing the agent is missing.
+11. Keep `SKILL.md` bodies concise. Move large references, examples, or templates into supporting files when a skill grows too large.
 
 ## Skill Behavior Validation
 
@@ -97,6 +112,16 @@ Run this for new or materially changed skills, including changes to the descript
 4. Record the prompts, selection results, and observed uplift in the change summary.
 
 Skip only for cosmetic edits such as typo or link fixes, and state why validation was skipped.
+
+The manual protocol above is the portable one and stays the baseline, because these skills
+target more than one tool. To automate steps 1-3 for Claude specifically, the skill-creator
+plugin reads `evals/evals.json` from inside a skill directory, runs each case in its own
+subagent, and its benchmark mode aggregates pass rate, tokens, and time with the skill against
+the same cases without it. That comparison answers two questions a single run cannot: whether
+the skill has been **outgrown** — the base model now passes the cases unaided, so the skill is
+cost without benefit — and whether a new model has caused a **regression**. Do not reach for
+`claude plugin eval` here: it evaluates a plugin, not a project skill under `.claude/skills/`,
+and its case format is deliberately not interchangeable with `evals/evals.json`.
 
 ## Safety Rules
 

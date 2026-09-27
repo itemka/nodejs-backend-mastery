@@ -20,10 +20,4 @@ Always-on rules for AI agents working in this repository.
 
 For AI-agent docs design rules (skills are canonical, adapters are thin, role specs link from skills), see [.agents/README.md](../README.md).
 
-## Current Task Context Rule
-
-`docs/CURRENT_TASK_CONTEXT.md` is a **session-only, gitignored local handoff file** — not a permanent audit trail and not part of any commit.
-
-Keep a compact handoff in [docs/CURRENT_TASK_CONTEXT.md](../../docs/CURRENT_TASK_CONTEXT.md) when work will continue across turns, tools, or sessions. Skip it for trivial or fully reverted edits, or when the next action is already obvious from the current diff. Create the file when needed; do not treat a missing file as an error.
-
-Use [skills/current-task-context/SKILL.md](../skills/current-task-context/SKILL.md) for the file shape, update rules, and the `Activity Log` compaction rule (~120 lines). Use local ISO 8601 minute precision with timezone offset (for example `2026-05-18T16:32+02:00`) for log headings. Record what changed, why, files touched, validation run, risks, and next steps. Do not include secrets, long terminal logs, or full source code.
+Progress and handoff state for work in flight lives in the file-backed plan itself — see [skills/plan/SKILL.md](../skills/plan/SKILL.md) § _Plan Artifact Policy_ and _Executing a Plan_ (`Status`, `Current step`) — not in a separate session file.

@@ -5,7 +5,7 @@ metadata:
   created: '2026-07-03'
   status: 'baseline'
   portability: 'cross-tool'
-  last-reviewed: '2026-07-20'
+  last-reviewed: '2026-09-27'
 ---
 
 # Subagent Orchestration
@@ -75,6 +75,25 @@ Decision rule: steps known in advance -> run them as a predefined pipeline; step
    - Run the repo's smallest relevant validation, then broader checks when risk warrants.
 9. Report what was delegated, what changed, validation evidence, and any unresolved risks.
 
+## Context Passing Contract
+
+Context inheritance depends on the runtime and launch options: a fresh subagent needs the task context in its prompt, while a fork or resumed agent may already carry conversation history and tool results. Inspect the native launch contract before choosing a mode.
+
+- For an independent review, explicitly select a fresh context without inherited implementation history. Pass the task, diff, and review criteria; do not assume a new agent identifier guarantees independence.
+- Shared files and direct agent messaging may be available even when conversation history is isolated. Check those capabilities separately, keep file ownership explicit, and return decisions and evidence to the coordinator for integration.
+
+- Pass findings in full, with the metadata that keeps them checkable: file path and line, source, document or symbol name, confidence, and which agent produced them. Metadata stripped in transit is what makes a downstream result unattributable.
+- State the goal and the quality criteria, not the procedure. Step-by-step instructions stop the subagent adapting when it meets something unexpected; a bare objective under-specifies. Both fail on the same axis.
+- Require a compressed, structured return — key findings, paths, names, status — rather than raw output. Isolation only pays off when the return channel is compressed too.
+- Decompose by dimension when results must be comparable across subjects, and by subject only when the tracks are genuinely independent. One connected trace through the code belongs in a single context rather than split across agents.
+- Derive the next subtask from what the previous one found when the shape of the work is not known upfront. Extending a fixed chain is still a fixed chain.
+
+When a downstream result is wrong and every upstream subagent reports success, the fault is the coordinator's context passing:
+
+- Unattributed claims: metadata was stripped in transit.
+- Stale references: upstream output was never injected.
+- Contradicted findings: a summary was passed where the full output was needed.
+
 ## Prompt Template
 
 Use a compact task prompt like this, adapting fields to the subtask:
@@ -86,6 +105,7 @@ Boundaries: <non-goals and files not to touch>
 Acceptance: <observable done condition>
 Validate: <command, checklist, or evidence>
 Output: APPROVED | NEEDS_CHANGES | BLOCKED, then concise findings or summary
+Coverage (read-heavy tasks only): examined <X of Y>; skipped <items and reason>; complete <yes or no>
 ```
 
 Do not restate full repo rules, style guides, or tool instructions when the subagent runtime already loads them. If that is uncertain, include only the critical boundary that would make the task unsafe if missed.
@@ -100,6 +120,11 @@ Reviewers should return:
 
 Workers should revise only the scoped files needed to address `NEEDS_CHANGES`, then re-run the relevant validation before asking for another review.
 
+## Coverage And Blocker Contract
+
+- **No silent fallback.** Any subagent that hits missing access, missing context, or conflicting instructions returns `BLOCKED` with the specific blocker; it does not guess, fabricate, or quietly narrow the task. This applies to every role, not only reviewers.
+- **Coverage report.** A read-heavy subagent (investigator, reviewer, tester, or specialist) ends its output with a one-line coverage report: what it examined, what it skipped and why, and whether coverage was complete. The coverage line makes silently dropped items visible.
+
 ## Red Flags
 
 - Parallel workers edit the same file or migration sequence.
@@ -109,3 +134,4 @@ Workers should revise only the scoped files needed to address `NEEDS_CHANGES`, t
 - The workflow depends on tool-specific commands, roles, or pipeline APIs that are not available in the current environment.
 - A reviewer is used for a trivial change where a direct self-check is enough.
 - A dependent task consumes an earlier subagent's output that was never checked in the main session.
+- A read-heavy subagent returns findings with no coverage line, or reports partial coverage as if it were complete.

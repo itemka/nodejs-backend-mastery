@@ -1,11 +1,11 @@
 ---
 name: coding-discipline
-description: Guides non-trivial implementation, debugging, refactoring, code review, and multi-step engineering work through an evidence-based decision loop. Use when choices affect correctness, scope, compatibility, or risk to define a finish line, select the least-complex sound approach, constrain the diff, and verify in proportion to impact. Skip for obvious low-risk mechanical edits.
+description: Guides non-trivial implementation, debugging, refactoring, code review, and multi-step engineering work through an evidence-based decision loop. Use when choices affect correctness, scope, compatibility, or risk to define a finish line, select the least-complex sound approach, constrain the diff, and verify in proportion to impact. Also covers session continuity and whether a task needs working notes, a scratchpad, or a handoff summary. Skip for obvious low-risk mechanical edits.
 metadata:
   created: '2026-07-15'
   status: 'baseline'
   portability: 'cross-tool'
-  last-reviewed: '2026-07-15'
+  last-reviewed: '2026-09-17'
 ---
 
 # Coding Discipline
@@ -46,8 +46,35 @@ Pair this cross-cutting workflow with the task-specific skill that owns the deta
 ### 5. Demonstrate The Result
 
 - Run the selected check first, then broaden validation according to impact and risk.
+- After three failed attempts at the same failing check, stop and report instead of trying again. Summarize what was tried, what the failure says, and the two most likely causes; repeated attempts are where a fix can turn into silencing the symptom through broader error handling, relaxed assertions, or new fallback defaults.
 - Inspect the final diff for accidental scope growth, stale references, and unsupported claims.
 - Report the commands run, their results, and anything that remains unverified.
+
+## Working Notes
+
+Three persistence artifacts, three jobs. Pick by the boundary the work actually crosses, and skip the ones it does not.
+
+| Artifact        | Crosses                   | Content                                                                                | Home                                               |
+| --------------- | ------------------------- | -------------------------------------------------------------------------------------- | -------------------------------------------------- |
+| Scratchpad      | Nothing — one session     | Verbatim specifics: paths, symbol names, dependency chains, measured numbers           | The tool's temporary scratch location, uncommitted |
+| Handoff summary | An agent or tool boundary | Compressed conclusions: findings, severity, changed files, recommended next action     | The subagent prompt, or the final response         |
+| Plan file       | Sessions and tools        | Structured state: steps, `Status`, `Current step`, validation evidence, remaining work | `docs/plan-<short-task-goal>.md`                   |
+
+- Decide on a scratchpad when the exploration starts, not after the answers begin drifting. It earns its keep when a task reads across many modules and the early precise findings would otherwise be pushed out by later verbose output.
+- Keep scratchpad entries verbatim. Compression is what a handoff needs; the current session needs the specifics it already paid to discover.
+- Skip the scratchpad for short, bounded work, and skip it when a plan file already carries the same state.
+- Do not add a separate session-tracking or task-context file to the repository. The plan file is the only committed progress artifact; anything shorter-lived stays in the tool's scratch location.
+- Naming, lifecycle, and the file-vs-chat decision for the plan file are owned by [plan](../plan/SKILL.md) § _Plan Artifact Policy_. The shape of a subagent handoff is owned by [subagent-orchestration](../subagent-orchestration/SKILL.md) § _Context Passing Contract_.
+
+## Session Continuity
+
+Work that outlives one session continues from the state of the context, not from habit.
+
+- Context still valid and the work is linear → resume the same session.
+- Context still valid but two approaches need comparing → branch from it and keep each branch's results separate. A branch inherits the state it was taken from, including anything already stale.
+- Context stale or degraded → start fresh and inject a written summary plus the list of files that changed since. Conversation history is append-only: re-reading a modified file adds the new contents without evicting the old, so both versions stay in play and either can drive the next answer.
+- Stale-context tells: recommending a fix that is already applied, referring to code that no longer exists, or answering inconsistently about the same file across turns.
+- Persist state before restarting. Persist, restart, then inject the summary; the anti-pattern is restarting with nothing written down. What to persist where is the table above.
 
 ## Boundaries
 

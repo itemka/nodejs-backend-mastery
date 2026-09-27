@@ -28,16 +28,14 @@ pnpm-debug.log*
 # OS files
 .DS_Store
 
-# MCP config (may contain secrets)
-.mcp.json
-.codex/config.toml
+# Private MCP credentials and optional local server definitions
+/.mcp.env
+/.mcp.*.env
+/.mcp.local.json
 .playwright-mcp
 
 # Serena MCP local project state (machine-specific, not shared toolkit config)
 .serena/
-
-# Session-only AI-agent handoff state (kept local, never committed)
-docs/CURRENT_TASK_CONTEXT.md
 
 # Structurizr local artifacts (workspace.dsl is the source of truth)
 docs/architecture/workspace.json
