@@ -21,7 +21,7 @@ Project rules, repo layout, and change discipline are imported from `AGENTS.md` 
 - `.claude/agents/*.md` — project subagents (backend-architect, code-review, debug, delivery, implement, maintain-agent-docs, plan, security-reviewer, task-analyst, tests, update-docs).
 - `.claude/settings.json` — permissions allowlist and hook wiring.
 
-When editing skills or agents, follow the design rule in [.agents/README.md](.agents/README.md): keep adapters thin and link back to `.agents/`. Run `pnpm run check:adapters` to verify the link map.
+When editing skills or agents, follow the design rule in [.agents/README.md](.agents/README.md): keep adapters thin and link back to `.agents/`. Run `pnpm run check:adapters` to verify the link map and that every subagent still satisfies Claude Code's discovery contract.
 
 ### Lifecycle hooks
 
@@ -36,6 +36,6 @@ Hook map and smoke-test snippets: [.agents/hooks/README.md](.agents/hooks/README
 
 ### MCP
 
-Project MCP config is in `.mcp.json` (gitignored, may contain secrets). `pnpm run sync-mcp` mirrors it to `.codex/config.toml`. Configuration guidance: [.agents/skills/configuring-mcp/](.agents/skills/configuring-mcp/).
+Project MCP config is in `.mcp.json`, which is tracked and holds `${VAR}` references instead of credentials. `pnpm run sync-mcp` generates the tracked `.codex/config.toml`; `pnpm run check:mcp` fails on stale output in CI and before a commit. Credential values live in the untracked `.mcp.env` and reach a client through `pnpm mcp:run <command>`. Configuration guidance: [.agents/skills/configuring-mcp/](.agents/skills/configuring-mcp/).
 
 Approved servers and access postures are documented in [docs/mcp-servers.md](docs/mcp-servers.md).

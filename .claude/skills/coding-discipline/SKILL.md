@@ -1,6 +1,6 @@
 ---
 name: coding-discipline
-description: Guides non-trivial implementation, debugging, refactoring, code review, and multi-step engineering work through an evidence-based decision loop. Use when choices affect correctness, scope, compatibility, or risk to define a finish line, select the least-complex sound approach, constrain the diff, and verify in proportion to impact. Skip for obvious low-risk mechanical edits.
+description: Guides non-trivial implementation, debugging, refactoring, code review, and multi-step engineering work through an evidence-based decision loop. Use when choices affect correctness, scope, compatibility, or risk to define a finish line, select the least-complex sound approach, constrain the diff, and verify in proportion to impact. Also covers session continuity and whether a task needs working notes, a scratchpad, or a handoff summary. Skip for obvious low-risk mechanical edits.
 argument-hint: '[task or diff]'
 ---
 

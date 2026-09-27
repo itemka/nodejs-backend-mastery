@@ -227,6 +227,16 @@ const main = () => {
   assertPcreSupport();
   assertPlaceholderPatterns();
   const files = listTrackedFiles();
+  // .mcp.env, the .mcp.<name>.env form used for MCP_ENV_FILE overrides, and .mcp.local.json.
+  const privateFiles = files.filter((file) =>
+    /^\.mcp(?:\.[^/]+)?\.env$|^\.mcp\.local\.json$/.test(file),
+  );
+  if (privateFiles.length > 0) {
+    console.error(
+      `${ui.prefix('[check:secrets]')} ${ui.fail('private MCP files must not be tracked:')} ${privateFiles.join(', ')}`,
+    );
+    return 1;
+  }
   const findings = scan(files);
   if (findings.length === 0) {
     console.log(

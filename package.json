@@ -19,12 +19,13 @@
     "arch:export": "docker run --rm --user \"$(id -u):$(id -g)\" -v \"$PWD/docs/architecture\":/usr/local/structurizr structurizr/structurizr:2026.06.28 export -workspace workspace.dsl -format mermaid -output /usr/local/structurizr/generated",
     "arch:view": "docker run --rm --user \"$(id -u):$(id -g)\" -p 8080:8080 -v \"$PWD/docs/architecture\":/usr/local/structurizr structurizr/structurizr:2026.06.28 local",
     "validate": "pnpm run lint && pnpm run format:check && pnpm run typecheck && pnpm run test",
-    "validate:all": "pnpm run validate && pnpm run check:secrets && pnpm run check:adapters && pnpm run build",
+    "validate:all": "pnpm run validate && pnpm run check:secrets && pnpm run check:adapters && pnpm run check:mcp && pnpm run build",
     "validate:changed": "node scripts/validate-changed.mjs",
     "check:secrets": "node scripts/check-secrets.mjs",
     "check:adapters": "node scripts/check-adapters.mjs",
+    "check:mcp": "node scripts/sync-mcp-to-codex.mjs --check",
     "sync-mcp": "node scripts/sync-mcp-to-codex.mjs",
-    "postinstall": "node scripts/sync-mcp-to-codex.mjs --quiet-missing || true"
+    "mcp:run": "node scripts/run-with-mcp-env.mjs"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.4",
@@ -41,6 +42,7 @@
     "shell-quote": "^1.9.0",
     "typescript": "^5.9.3",
     "typescript-eslint": "^8.58.1",
-    "typescript-language-server": "^5.3.0"
+    "typescript-language-server": "^5.3.0",
+    "yaml": "2.8.3"
   }
 }

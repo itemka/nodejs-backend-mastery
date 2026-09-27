@@ -1,11 +1,11 @@
 ---
 name: improve-token-usage
-description: Investigate AI-session context cost and model routing, then produce a prioritized token-usage improvement plan without lowering answer quality. Use when asked to reduce token usage, shrink always-loaded context, improve context loading, select a model class for task complexity, optimize model selection, or run improve-token-usage.
+description: Investigate AI-session context cost and model routing, then produce a prioritized token-usage improvement plan without lowering answer quality. Use when asked to reduce token usage, shrink always-loaded context, improve context loading, select a model class for task complexity, optimize model selection, choose between synchronous and batch API processing, or run improve-token-usage.
 metadata:
   created: '2026-07-03'
   status: 'baseline'
   portability: 'cross-tool'
-  last-reviewed: '2026-07-25'
+  last-reviewed: '2026-09-17'
 ---
 
 # Improve Token Usage
@@ -85,11 +85,42 @@ application of this policy, follow
 [code-review](../code-review/SKILL.md#parallel-specialist-review) instead of
 duplicating its routing rules here.
 
+## Processing Mode
+
+Model routing decides what runs the request; processing mode decides how it is sent. Both are
+cost levers, and this one turns on a single question: does anything block on the answer?
+
+- Something waits — a pre-merge check, a person, an in-flight request — use the synchronous
+  Messages API. Latency is the requirement, and a cheaper mode that may take hours does not meet
+  it.
+- Nothing waits — overnight reports, dataset grading, backfills, bulk evaluation — use the
+  Message Batches API: half the token cost on the same model, with most batches finishing inside
+  an hour.
+- Size the deadline with margin. Results are available when every request has finished or at the
+  24-hour expiry, whichever comes first, and requests still unprocessed then come back `expired`
+  and unbilled. A window that lands exactly on the deadline has no headroom.
+- Key results by `custom_id`. Batch results arrive in any order, each carrying its own
+  `succeeded`, `errored`, `canceled`, or `expired` outcome.
+- One batch holds at most 100,000 requests or 256 MB, whichever comes first. Split beyond that.
+
+In this repository the batch-shaped workload is
+`workspaces/ai-engineering/prompt-eval-lab` (dataset to render to run to grade). Interactive
+paths such as `llm-chat`, `mcp-chat`, and `rag-pipeline` stay synchronous.
+
 ## Evidence Rules
 
 - Prefer cheap repo evidence before opening large files: `git status --short`,
   `git ls-files <path>`, `git check-ignore -v <path>`, `wc -l` / `wc -c`, and
   `rg --files <focused-paths>`.
+- Measure skill and plugin context cost instead of estimating it from file size.
+  In Claude Code, `/skill-doctor` reports what each loaded skill costs and how
+  often it is actually invoked, which separates "large" from "expensive": a long
+  skill that loads on demand may cost less per session than a short one that
+  loads every time. Prefer it over `wc -l` when ranking skills for removal, and
+  treat a high-cost never-invoked skill as the first candidate. It needs a
+  terminal session on the machine running Claude Code (not Remote Control), and
+  prints as text under `-p`. For other tools, or when it is unavailable, fall
+  back to file-size evidence and say which was used.
 - Every finding needs concrete file or folder references, with line numbers
   when useful.
 - Respect the avoid-tier sources in the repo map's context-loading policy; do
