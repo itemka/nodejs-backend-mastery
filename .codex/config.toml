@@ -3,8 +3,8 @@
 [mcp_servers]
 
 [mcp_servers.github]
-url = "https://api.githubcopilot.com/mcp/"
-bearer_token_env_var = "GITHUB_TOKEN"
+command = "node"
+args = ["--eval", "const { execFileSync } = require('node:child_process'); const { resolve } = require('node:path'); const { pathToFileURL } = require('node:url'); const root = execFileSync('git', ['rev-parse', '--show-toplevel'], { encoding: 'utf8' }).trim(); import(pathToFileURL(resolve(root, 'scripts/start-github-mcp.mjs')).href);"]
 
 [mcp_servers.chrome-devtools-mcp]
 command = "npx"

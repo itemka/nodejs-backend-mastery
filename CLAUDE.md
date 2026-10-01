@@ -36,6 +36,6 @@ Hook map and smoke-test snippets: [.agents/hooks/README.md](.agents/hooks/README
 
 ### MCP
 
-Project MCP config is in `.mcp.json`, which is tracked and holds `${VAR}` references instead of credentials. `pnpm run sync-mcp` generates the tracked `.codex/config.toml`; `pnpm run check:mcp` fails on stale output in CI and before a commit. Credential values live in the untracked `.mcp.env` and reach a client through `pnpm mcp:run <command>`. Configuration guidance: [.agents/skills/configuring-mcp/](.agents/skills/configuring-mcp/).
+Project MCP config is in `.mcp.json`, which is tracked and contains no credentials. `pnpm run sync-mcp` generates the tracked `.codex/config.toml`; `pnpm run check:mcp` fails on stale output in CI and before a commit. Credential values live in the untracked `.mcp.env`; GitHub MCP loads them at server startup, while other clients can use `pnpm mcp:run <command>`. Configuration guidance: [.agents/skills/configuring-mcp/](.agents/skills/configuring-mcp/).
 
 Approved servers and access postures are documented in [docs/mcp-servers.md](docs/mcp-servers.md).

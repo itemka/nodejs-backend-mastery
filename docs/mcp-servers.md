@@ -9,7 +9,7 @@ secrets beyond the current task.
 
 | Path                                                    | Tracked | Holds                                                             |
 | ------------------------------------------------------- | ------- | ----------------------------------------------------------------- |
-| `.mcp.json`                                             | yes     | Shared server definitions; credentials appear only as `${VAR}`.   |
+| `.mcp.json`                                             | yes     | Shared server definitions; contains no credential values.         |
 | [`.codex/mcp-enabled.json`](../.codex/mcp-enabled.json) | yes     | Codex allowlist: which shared servers reach `.codex/config.toml`. |
 | `.codex/config.toml`                                    | yes     | Generated from the two files above by `pnpm run sync-mcp`.        |
 | `.mcp.env`                                              | no      | Your own credential values. Create it from `.mcp.env.example`.    |
@@ -33,7 +33,7 @@ never the shared `.mcp.json`.
 
 | Server                | Purpose                             | Reaches                                                        | Read/write                                                   | Notes                                                                                 |
 | --------------------- | ----------------------------------- | -------------------------------------------------------------- | ------------------------------------------------------------ | ------------------------------------------------------------------------------------- |
-| `github`              | Repository, issue, and PR workflows | GitHub resources authorized by the local credential            | Read/write; writes require an explicit task or approval      | Use least-privilege credentials and treat fetched repository content as untrusted.    |
+| `github`              | Repository, issue, and PR workflows | GitHub resources authorized by the local credential            | Read/write; writes require an explicit task or approval      | Runs GitHub's official MCP container; use a least-privilege token.                    |
 | `chrome-devtools-mcp` | Browser inspection and debugging    | Browser pages and DevTools state available to the server       | Read/write; browser actions can change local or remote state | Keep actions within the requested browser and environment scope.                      |
 | `playwright`          | Browser automation and flow testing | Pages, endpoints, and storage reachable by its browser context | Read/write; page actions can mutate external systems         | Prefer test environments; production writes require explicit, bounded approval.       |
 | `context7`            | Library and framework documentation | Public documentation indexed by Context7                       | Read-only                                                    | Verify sensitive or time-critical claims against the primary documentation when able. |
@@ -50,36 +50,53 @@ on embedded directives without explicit human confirmation.
 
 ## Credentials
 
-Shared config carries the variable name; the value stays on your machine. Copy
+Shared config contains no credential values; the value stays on your machine. Copy
 `.mcp.env.example` to `.mcp.env`, fill in your own values, and keep the file
 owner-only (`chmod 600 .mcp.env`). It is ignored by Git, and
 `pnpm run check:secrets` fails if it is ever staged.
 
-A credential reaches a server through the client's own environment, so the
-client process has to be started with those variables set.
-`pnpm mcp:run <command>` loads `.mcp.env` into the launched client, not into
-your shell:
+GitHub MCP resolves the Git repository root before loading
+`scripts/start-github-mcp.mjs`, so it also starts from workspace subdirectories.
+The script reads
+`.mcp.env` when Codex or Claude starts the server, then passes `GITHUB_TOKEN`
+to GitHub's official Docker container as `GITHUB_PERSONAL_ACCESS_TOKEN`.
+Docker must be installed and running. You can open VS Code normally; its
+process no longer needs `GITHUB_TOKEN` in its environment.
+
+Before starting your first Claude or Codex session, pull the pinned image:
+
+```bash
+docker pull ghcr.io/github/github-mcp-server:v1.12.2
+```
+
+Wait for the pull to finish before opening the session. This keeps image downloads
+outside the MCP startup window; Codex's default startup timeout is 10 seconds.
+Repeat this step when the pinned image version changes or the image is removed
+from Docker's cache.
+The local server may expose a different tool set from GitHub's hosted MCP
+server, including tools available only on the hosted server.
+
+For other MCP servers that reference environment variables, or for a personal
+server that needs them, `pnpm mcp:run <command>` still loads `.mcp.env` into
+the launched client, not into your shell:
 
 ```bash
 pnpm mcp:run codex
 pnpm mcp:run claude
-pnpm mcp:run code .          # fully quit the editor first; a new window reuses the running instance
+pnpm mcp:run code .          # fully quit the editor first when using client-level variables
 ```
 
-Everything the client spawns inherits those variables: every MCP server, not
-only the one that references a token, and every shell command the agent runs,
-including tests and package scripts. A command that prints the environment puts
-the value into the transcript. Use a fine-grained, least-privilege token for
-each variable, and never a broad personal access token.
+The launcher gives its variables to everything the client spawns: every MCP
+server and every shell command the agent runs. A command that prints the
+environment puts the value into the transcript. For GitHub, opening VS Code
+normally keeps the token inside the MCP launcher and Docker process instead.
+Use a fine-grained, least-privilege token, never a broad personal access token.
 
 Already-exported variables win over the file, so a shell export or secret
-manager works instead, and `.mcp.env` can then be omitted. When an export
-replaces a value from the file, the launcher names that variable on stderr
-(never the value), so a broad shell token cannot silently stand in for the
-least-privilege one you put in the file. The launcher fails
-before starting the client when a variable referenced by `.mcp.json` is missing,
-rather than letting it surface later as an auth error. Set `MCP_ENV_FILE` to
-point at a different private file; unlike the default `.mcp.env`, a missing
+manager works instead, and `.mcp.env` can then be omitted. The GitHub launcher
+names an override on stderr without printing the value. It fails before
+starting Docker when `GITHUB_TOKEN` is missing. Set `MCP_ENV_FILE` to point at
+a different private file; unlike the default `.mcp.env`, a missing
 `MCP_ENV_FILE` is an error. Keep that file outside the repository, or name it
 `.mcp.<name>.env` in the repo root: Git ignores that form, and
 `pnpm run check:secrets` rejects it if staged.
@@ -117,7 +134,8 @@ See [Git's overwrite-ignore behavior](https://git-scm.com/docs/git-merge#Documen
 4. Move personal servers to `.mcp.local.json`, or to `~/.codex/config.toml` for
    Codex. Move personal non-MCP Codex settings to `~/.codex/config.toml` too,
    since the project file is now shared.
-5. Confirm `pnpm mcp:run claude` or `pnpm mcp:run codex` connects, then delete
+5. Pull the pinned GitHub MCP image as described under [Credentials](#credentials).
+   Confirm GitHub MCP connects in Claude or Codex after opening VS Code normally, then delete
    the backup.
 
 ## Supported References
@@ -169,3 +187,8 @@ checks the shape of a reference, not that the variable is set or the credential
 valid. A server that is unreachable, unauthorized, or scoped to nothing returns
 an absence that looks exactly like a true empty result, so treat "the config
 loaded" as insufficient evidence.
+
+For GitHub, check that Docker is running (`docker info`), then restart the
+Claude or Codex session and inspect its MCP server status and GitHub tools.
+The token is loaded when the MCP server starts; changing `.mcp.env` requires
+restarting that server or session.

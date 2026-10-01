@@ -5,7 +5,7 @@ metadata:
   created: '2026-04-25'
   status: 'baseline'
   portability: 'cross-tool'
-  last-reviewed: '2026-09-17'
+  last-reviewed: '2026-10-01'
 ---
 
 # Configuring MCP
@@ -41,7 +41,7 @@ This repository records its approved servers and access postures in [docs/mcp-se
 Its credential flow shapes what a shared entry may contain:
 
 - `.mcp.json` and `.codex/config.toml` are both tracked. `.mcp.json` is the source; `pnpm run sync-mcp` generates the Codex file, and `pnpm run check:mcp` fails on stale output in CI and before a commit. Stage the source, the allowlist, and the generated file together.
-- A tracked file carries only the variable name. Values live in the untracked `.mcp.env`, which reaches a client through `pnpm mcp:run <command>` or an ordinary shell export.
+- Tracked files carry no credential values. Values live in the untracked `.mcp.env`. GitHub MCP reads it through its server launcher; other clients can receive variables through `pnpm mcp:run <command>` or a shell export.
 - Generation rejects an inline credential, a URL credential, a personal path, a database URL, and any reference it cannot translate — including `${VAR:-fallback}` and references inside `command`, `args`, or `url`. Keep a server that needs one of those in the untracked `.mcp.local.json`, which loads only when passed explicitly (`--mcp-config`) and which Codex never reads — see [Personal Servers](../../../docs/mcp-servers.md#personal-servers).
 
 ## Config Scope And Resolution
