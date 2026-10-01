@@ -37,6 +37,10 @@ workspace "nodejs-backend-mastery" "C4 model of the runnable apps in this monore
             claudeCapabilitiesCli = container "Scenario CLI" "Argument-driven scenario runner on top of @workspaces/llm-client and the Anthropic SDK; validates sample file types and sizes before sending." "Node.js CLI"
         }
 
+        notionBackup = softwareSystem "notion-backup-automation" "Scaffold of the Notion workspace backup agent, deployed as Vercel Functions; it currently serves only a health check." {
+            notionBackupHealth = container "Health function" "Public GET /api/health returning ok and the short commit SHA, with no caching and no other data." "Vercel Function (Node.js)"
+        }
+
         developer -> playgroundUi "Chats and compares models in the browser"
         playgroundUi -> playgroundApi "Calls REST + SSE endpoints" "JSON/SSE over HTTP"
         playgroundApi -> ollama "Sends chat/completions requests" "OpenAI-compatible HTTP"
@@ -59,6 +63,8 @@ workspace "nodejs-backend-mastery" "C4 model of the runnable apps in this monore
 
         developer -> claudeCapabilitiesCli "Runs individual capability scenarios from the terminal"
         claudeCapabilitiesCli -> anthropic "Sends scenario requests (messages, files, code execution)" "HTTPS"
+
+        developer -> notionBackupHealth "Checks that a deployment is live" "HTTPS"
     }
 
     views {

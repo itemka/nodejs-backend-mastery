@@ -18,6 +18,8 @@ graph LR
     style 19 fill:#ffffff,stroke:#444444,color:#444444
     2["<div style='font-weight: bold'>Ollama</div><div style='font-size: 70%; margin-top: 0px'>[Software System]</div><div style='font-size: 80%; margin-top:10px'>Local LLM runtime exposing an<br />OpenAI-compatible API on<br />localhost:11434.</div>"]
     style 2 fill:#8c8c8c,stroke:#626262,color:#ffffff
+    21["<div style='font-weight: bold'>notion-backup-automation</div><div style='font-size: 70%; margin-top: 0px'>[Software System]</div><div style='font-size: 80%; margin-top:10px'>Scaffold of the Notion<br />workspace backup agent,<br />deployed as Vercel Functions;<br />it currently serves only a<br />health check.</div>"]
+    style 21 fill:#ffffff,stroke:#444444,color:#444444
     3["<div style='font-weight: bold'>VoyageAI API</div><div style='font-size: 70%; margin-top: 0px'>[Software System]</div><div style='font-size: 80%; margin-top:10px'>Hosted embeddings API<br />(voyage-3-large by default).</div>"]
     style 3 fill:#8c8c8c,stroke:#626262,color:#ffffff
     4["<div style='font-weight: bold'>Anthropic API</div><div style='font-size: 70%; margin-top: 0px'>[Software System]</div><div style='font-size: 80%; margin-top:10px'>Hosted Claude models API.</div>"]
@@ -41,5 +43,6 @@ graph LR
     17-. "<div>Sends solve + model-grader<br />messages requests (grader<br />uses structured JSON output)</div><div style='font-size: 70%'>[HTTPS]</div>" .->4
     1-. "<div>Runs individual capability<br />scenarios from the terminal</div><div style='font-size: 70%'></div>" .->19
     19-. "<div>Sends scenario requests<br />(messages, files, code<br />execution)</div><div style='font-size: 70%'>[HTTPS]</div>" .->4
+    1-. "<div>Checks that a deployment is<br />live</div><div style='font-size: 70%'>[HTTPS]</div>" .->21
 
   end
