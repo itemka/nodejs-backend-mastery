@@ -1,6 +1,10 @@
 # Docker
 
-**Category:** devops-ci-cd · **Primary app:** [shop-mvc-express](../../../../workspaces/apps/shop-mvc-express/) · **Prereqs:** — · **Status:** todo
+**Category:** devops-ci-cd · **Primary app:** [shop-mvc-express](../../../../workspaces/apps/shop-mvc-express/) · **Prereqs:** — · **Status:** partial
+
+Interview practice: [NestJS Dockerfile and Compose exercises](../../../../workspaces/apps/interview-lab/docs/docker.md).
+That starter provides a build/runtime split and optional local data services;
+the shop deployment, scanning tasks below and personal hands-on readiness remain pending.
 
 ## Scope
 
@@ -30,6 +34,7 @@
 
 ## Interview questions
 
+- What survives recreation in the interview lab? PostgreSQL uses the named `postgres-data` volume; Redis is disposable. Container-local `localhost` is not the host, so the API uses service names and container ports when a data lab is added.
 - Walk through your multi-stage Dockerfile.
 - Why run as non-root? How do you make it work with bind mounts?
 - Why is the order of `COPY` statements load-bearing?

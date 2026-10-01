@@ -1,0 +1,53 @@
+name: Interview lab container
+
+on:
+  pull_request:
+    paths:
+      - "workspaces/apps/interview-lab/**"
+      - "pnpm-lock.yaml"
+      - "pnpm-workspace.yaml"
+      - "package.json"
+      - "tsconfig.base.json"
+      - ".github/workflows/interview-lab-container.yml"
+  push:
+    branches: [main]
+    paths:
+      - "workspaces/apps/interview-lab/**"
+      - "pnpm-lock.yaml"
+      - "pnpm-workspace.yaml"
+      - "package.json"
+      - "tsconfig.base.json"
+      - ".github/workflows/interview-lab-container.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: interview-lab-container-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: workspaces/apps/interview-lab
+    steps:
+      - uses: actions/checkout@v4
+      - name: Configure disposable local services
+        run: cp .env.example .env
+      - name: Build and start API and data services
+        run: docker compose --profile api --profile data up --build -d --wait --wait-timeout 90
+      - name: Verify HTTP, SQL and cache access
+        run: |
+          test "$(curl --fail --silent http://localhost:3100/health)" = '{"status":"ok"}'
+          docker compose exec -T api node -e "if (process.getuid() === 0) process.exit(1)"
+          docker compose exec -T postgres psql -U lab -d interview_lab -v ON_ERROR_STOP=1 -c 'SELECT 1;'
+          test "$(docker compose exec -T redis redis-cli ping)" = 'PONG'
+      - name: Show container logs on failure
+        if: failure()
+        run: docker compose --profile api --profile data logs --tail 60
+      - name: Remove disposable services and volumes
+        if: always()
+        run: docker compose --profile api --profile data down --volumes

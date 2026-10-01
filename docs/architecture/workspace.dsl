@@ -37,6 +37,10 @@ workspace "nodejs-backend-mastery" "C4 model of the runnable apps in this monore
             claudeCapabilitiesCli = container "Scenario CLI" "Argument-driven scenario runner on top of @workspaces/llm-client and the Anthropic SDK; validates sample file types and sizes before sending." "Node.js CLI"
         }
 
+        interviewLab = softwareSystem "interview-lab" "NestJS workspace for small backend interview experiments; Docker and AWS practice guides live alongside it." {
+            interviewLabApi = container "NestJS API" "Module, controller and injected provider serving GET /health (process liveness only; no database connection yet)." "Node.js + NestJS"
+        }
+
         developer -> playgroundUi "Chats and compares models in the browser"
         playgroundUi -> playgroundApi "Calls REST + SSE endpoints" "JSON/SSE over HTTP"
         playgroundApi -> ollama "Sends chat/completions requests" "OpenAI-compatible HTTP"
@@ -59,6 +63,8 @@ workspace "nodejs-backend-mastery" "C4 model of the runnable apps in this monore
 
         developer -> claudeCapabilitiesCli "Runs individual capability scenarios from the terminal"
         claudeCapabilitiesCli -> anthropic "Sends scenario requests (messages, files, code execution)" "HTTPS"
+
+        developer -> interviewLabApi "Calls GET /health while tracing the Nest request flow" "HTTP"
     }
 
     views {

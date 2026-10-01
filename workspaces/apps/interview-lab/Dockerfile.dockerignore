@@ -1,0 +1,17 @@
+# Allowlist: the build context is the repository root, which also holds local
+# credentials, keys and other apps. Send only workspace manifests and this app.
+*
+!package.json
+!pnpm-lock.yaml
+!pnpm-workspace.yaml
+!tsconfig.base.json
+!workspaces/**/package.json
+!workspaces/apps/interview-lab/**
+
+# Later patterns win: drop installed, generated and local files from allowed paths.
+**/node_modules
+**/dist
+**/coverage
+**/.env
+**/.env.*
+**/*.log

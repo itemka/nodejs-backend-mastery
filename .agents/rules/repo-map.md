@@ -45,6 +45,7 @@ and path-scoped because raw output stays in the conversation transcript.
 
 - `workspaces/apps/shop-mvc-express`: Express backend app.
 - `workspaces/apps/local-llm-playground`: Express backend with a Vite/React client and shared schemas.
+- `workspaces/apps/interview-lab`: NestJS interview-practice workspace (`GET /health` bootstrap, Vitest + SWC) with a production Dockerfile, optional PostgreSQL/Redis Compose profiles, and Docker/AWS practice guides; individual labs are added per study topic.
 - README-only app scaffolds are not production-ready and are not expected to build unless their package config says otherwise.
 - Anything under `_todo`, scratch, or placeholder areas should not be treated as production-ready.
 
@@ -98,9 +99,11 @@ and path-scoped because raw output stays in the conversation transcript.
 
 - TypeScript base config: `tsconfig.base.json`.
 - ESLint config: `eslint.config.mjs`.
-- GitHub workflows: `.github/workflows/ci.yml`, `.github/workflows/claude.yml`, and
+- GitHub workflows: `.github/workflows/ci.yml`, `.github/workflows/claude.yml`,
   `.github/workflows/docs-architecture.yml` (path-scoped: validates the Structurizr DSL
-  under `docs/architecture/**` and diffs the committed generated Mermaid output).
+  under `docs/architecture/**` and diffs the committed generated Mermaid output), and
+  `.github/workflows/interview-lab-container.yml` (path-scoped: builds the interview-lab
+  image and smoke-tests its Compose API, non-root user, PostgreSQL and Redis).
 - CI runs lint, format check, typecheck, tests, and per-workspace builds for directly changed
   workspaces; a change under `workspaces/packages/**` (or a root config file) also triggers the
   all-workspace `root-build` job, since a shared-package change can break a consumer's build
