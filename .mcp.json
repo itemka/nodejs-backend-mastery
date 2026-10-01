@@ -1,12 +1,12 @@
 {
   "mcpServers": {
     "github": {
-      "_description": "GitHub Copilot MCP — access repos, PRs, issues, and code search via GitHub API",
-      "type": "http",
-      "url": "https://api.githubcopilot.com/mcp/",
-      "headers": {
-        "Authorization": "Bearer ${GITHUB_TOKEN}"
-      }
+      "_description": "GitHub MCP — access repos, PRs, issues, and code search via GitHub API",
+      "command": "node",
+      "args": [
+        "--eval",
+        "const { execFileSync } = require('node:child_process'); const { resolve } = require('node:path'); const { pathToFileURL } = require('node:url'); const root = execFileSync('git', ['rev-parse', '--show-toplevel'], { encoding: 'utf8' }).trim(); import(pathToFileURL(resolve(root, 'scripts/start-github-mcp.mjs')).href);"
+      ]
     },
     "chrome-devtools-mcp": {
       "_description": "Chrome DevTools MCP — control a browser tab: navigate, click, screenshot, inspect network/console",
