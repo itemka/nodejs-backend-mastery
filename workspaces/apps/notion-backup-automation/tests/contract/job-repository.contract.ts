@@ -248,6 +248,14 @@ export function describeJobRepositoryContract(
     });
 
     describe('get and list', () => {
+      it.each([0, -1])('returns no jobs for a limit of %i', async (limit) => {
+        const { repository } = await setup();
+
+        await createOrFail(repository, jobFor('2026-10'));
+
+        expect(await repository.list({ limit })).toEqual([]);
+      });
+
       it('returns undefined for an unknown job', async () => {
         const { repository } = await setup();
 
@@ -302,6 +310,15 @@ export function describeJobRepositoryContract(
         expect(results.filter((result) => result.acquired)).toHaveLength(1);
       });
 
+      it('cannot release a lease that already expired, even if nobody took it over', async () => {
+        const { advance, repository } = await setup();
+
+        await repository.acquireLease('2026-10', 'worker-a', 300);
+        await advance(600);
+
+        expect(await repository.releaseLease('2026-10', 'worker-a')).toBe(false);
+      });
+
       it('expires after its TTL', async () => {
         const { advance, repository } = await setup();
 
@@ -316,6 +333,14 @@ export function describeJobRepositoryContract(
     });
 
     describe('events', () => {
+      it.each([0, -1])('returns no events for a limit of %i', async (limit) => {
+        const { repository } = await setup();
+
+        await repository.appendEvent('2026-10', eventAt(1));
+
+        expect(await repository.listEvents('2026-10', { limit })).toEqual([]);
+      });
+
       it('returns the newest events, oldest first', async () => {
         const { repository } = await setup();
 

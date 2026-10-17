@@ -149,6 +149,11 @@ export class RedisJobRepository implements JobRepository {
   }
 
   async list({ limit }: { limit: number }): Promise<StoredJob[]> {
+    // ZRANGE 0 -1 would return the whole set for a limit of 0.
+    if (limit <= 0) {
+      return [];
+    }
+
     const ids = await this.redis.zrange<string[]>(this.keys.jobs, 0, limit - 1, { rev: true });
 
     if (ids.length === 0) {
@@ -171,6 +176,11 @@ export class RedisJobRepository implements JobRepository {
   }
 
   async listEvents(jobId: string, { limit }: { limit: number }): Promise<JobEvent[]> {
+    // LRANGE -0 -1 would return the whole list for a limit of 0.
+    if (limit <= 0) {
+      return [];
+    }
+
     const entries = await this.redis.lrange(this.keys.events(jobId), -limit, -1);
 
     return decodeEvents(entries);

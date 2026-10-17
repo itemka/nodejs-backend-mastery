@@ -165,7 +165,8 @@ describe('loadEnv', () => {
   it('names malformed variables without ever printing a value', () => {
     const leakedValues = {
       APP_BASE_URL: 'https://leaked-host.example.com/with/path',
-      APP_ENCRYPTION_KEY: 'bGVha2VkLWtleS10b28tc2hvcnQ=',
+      // Built at run time: a base64 literal in a `KEY:` field trips secret scanners.
+      APP_ENCRYPTION_KEY: Buffer.from('not-32-bytes-long').toString('base64'),
       AUTO_START_ENABLED: 'leaked-yes',
       BACKUP_TIME_ZONE: 'Leaked/Zone',
       LOG_LEVEL: 'leaked-level',

@@ -187,6 +187,8 @@ export type McpEnv = z.output<typeof mcpEnvSchema>;
 export type WorkerEnv = z.output<typeof workerEnvSchema>;
 export type CronEnv = z.output<typeof cronEnvSchema>;
 
+const byName = (a: string, b: string) => a.localeCompare(b);
+
 /** `CONFIG_INCOMPLETE`. The message names the variables, never their values. */
 export class ConfigError extends Error {
   readonly code = 'CONFIG_INCOMPLETE';
@@ -239,5 +241,5 @@ export function loadEnv<T extends z.ZodObject>(
     (input[name] === undefined ? missing : invalid).add(name);
   }
 
-  throw new ConfigError([...missing].toSorted(), [...invalid].toSorted());
+  throw new ConfigError([...missing].toSorted(byName), [...invalid].toSorted(byName));
 }

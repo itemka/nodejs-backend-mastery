@@ -111,14 +111,22 @@ export class InMemoryJobRepository implements JobRepository {
   async list({ limit }: { limit: number }): Promise<StoredJob[]> {
     await nextTurn();
 
+    if (limit <= 0) {
+      return [];
+    }
+
     return [...this.jobs.entries()]
       .toSorted(([, a], [, b]) => b.createdAtMs - a.createdAtMs)
-      .slice(0, Math.max(limit, 0))
+      .slice(0, limit)
       .map(([id, record]) => this.toStored(id, record));
   }
 
   async listEvents(jobId: string, { limit }: { limit: number }): Promise<JobEvent[]> {
     await nextTurn();
+
+    if (limit <= 0) {
+      return [];
+    }
 
     return decodeEvents((this.events.get(jobId) ?? []).slice(-limit));
   }
@@ -140,7 +148,10 @@ export class InMemoryJobRepository implements JobRepository {
   async releaseLease(jobId: string, workerId: string): Promise<boolean> {
     await nextTurn();
 
-    if (this.leases.get(jobId)?.workerId !== workerId) {
+    const lease = this.leases.get(jobId);
+
+    // Redis has already dropped an expired lease, so releasing it reports false there too.
+    if (lease?.workerId !== workerId || lease.expiresAtMs <= this.clock.now().getTime()) {
       return false;
     }
 

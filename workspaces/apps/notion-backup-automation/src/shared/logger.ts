@@ -42,9 +42,9 @@ export function createLogger(options: LoggerOptions = {}): Logger {
       return;
     }
 
-    // The fixed keys come first and cannot be overridden by bindings or fields.
+    // The fixed keys come first and, spread last, cannot be overridden by bindings or fields.
     const header = { event, level: lineLevel, time: clock.now().toISOString() };
-    const record = Object.assign({ ...header }, bindings, fields, header);
+    const record = { ...header, ...bindings, ...fields, ...header };
 
     sink(lineLevel, JSON.stringify(redact(record)));
   };
