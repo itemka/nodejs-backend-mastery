@@ -94,6 +94,7 @@ export interface GoogleTokenProvider {
 export type ExportEmailRejection =
   | 'authentication'
   | 'consumed'
+  | 'recipient'
   | 'sender'
   | 'stale'
   | 'subject'

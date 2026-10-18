@@ -13,11 +13,11 @@ import {
   GMAIL_SCOPE,
   googleError,
 } from '../support/fake-google.js';
-import { loadEmailFixture, toGmailMessage } from '../support/gmail-fixtures.js';
+import { loadEmailFixture, toGmailMessage, withHeader } from '../support/gmail-fixtures.js';
 import { ManualClock } from '../support/manual-clock.js';
 
 const MESSAGES = 'gmail.googleapis.com/gmail/v1/users/me/messages';
-const exportReady = loadEmailFixture('export-ready');
+const exportReady = withHeader(loadEmailFixture('export-ready'), 'To', 'artsem@example.com');
 const encryptionKey = randomBytes(32).toString('base64');
 
 const fullEnv = {
@@ -153,7 +153,11 @@ describe('doctor', () => {
   });
 
   it('warns when no trusted export email arrived, with the rejection counts', async () => {
-    const forged = loadEmailFixture('forged-authentication-results');
+    const forged = withHeader(
+      loadEmailFixture('forged-authentication-results'),
+      'To',
+      'artsem@example.com',
+    );
     const google = healthyGoogle()
       .on('GET', MESSAGES, () => Response.json({ messages: [{ id: forged.id }] }))
       .on('GET', `${MESSAGES}/*`, () => Response.json(toGmailMessage(forged)));

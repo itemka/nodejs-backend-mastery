@@ -73,10 +73,16 @@ While the Google OAuth app is in **Testing**, refresh tokens expire after 7 days
 reports `GOOGLE_AUTH_REQUIRED`, run `auth:google` again.
 
 The export email is trusted only when Gmail's own, topmost `Authentication-Results` header
-reports a DKIM pass for `@mail.notion.com` and a DMARC pass for `mail.notion.com`, the sender,
-subject and DKIM-signed `X-Feedback-Id` subtype (`export-completed`) match, and the HTML holds
+reports a DKIM pass for `@mail.notion.com` and a DMARC pass for `mail.notion.com`, the single
+`To` address matches the authenticated Gmail profile, the sender, subject and `X-Feedback-Id`
+subtype (`export-completed`) match, and the HTML holds
 exactly one "here" link to `https://mg.mail.notion.com/c/…`. The link is read again when the
 download needs it, and is never stored, logged or returned.
+
+Gmail's selector and signature prefix must identify exactly one Notion DKIM signature covering
+`From`, `To`, `Subject` and `X-Feedback-Id`; missing or ambiguous coverage is rejected. The
+recipient is checked again before returning a download link. Provider-controlled Drive folder
+names are quoted and control characters escaped before terminal output.
 
 ## State In Redis
 

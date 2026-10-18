@@ -62,10 +62,11 @@ export class GmailExportEmailFinder implements ExportEmailFinder {
 
     messages.sort((a, b) => Number(b.internalDate) - Number(a.internalDate));
 
+    const { emailAddress: expectedRecipient } = await this.gmail.getProfile();
     const rejected: Partial<Record<ExportEmailRejection, number>> = {};
 
     for (const message of messages) {
-      const rejection = checkExportEmail(message, { excludeIds, notBefore });
+      const rejection = checkExportEmail(message, { excludeIds, expectedRecipient, notBefore });
 
       if (rejection !== undefined) {
         rejected[rejection] = (rejected[rejection] ?? 0) + 1;
@@ -101,7 +102,12 @@ export class GmailExportEmailFinder implements ExportEmailFinder {
       throw error;
     }
 
-    const rejection = checkExportEmail(message, { excludeIds: [], notBefore: new Date(0) });
+    const { emailAddress: expectedRecipient } = await this.gmail.getProfile();
+    const rejection = checkExportEmail(message, {
+      excludeIds: [],
+      expectedRecipient,
+      notBefore: new Date(0),
+    });
 
     if (rejection !== undefined) {
       this.logger.warn('gmail.export_email.rejected', { messageId, rejection });

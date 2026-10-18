@@ -112,9 +112,14 @@ export async function checkDriveRoot(api: GoogleApiClient, rootId: string): Prom
   }
 
   const canAdd = root.capabilities?.canAddChildren === true ? 'yes' : 'no';
+  // JSON quoting escapes C0 controls; escape C1, bidi controls and Unicode line separators too.
+  const name = JSON.stringify(root.name ?? '').replaceAll(
+    /[\p{Cc}\p{Cf}\p{Zl}\p{Zp}]/gu,
+    (character) => String.raw`\u${character.codePointAt(0)?.toString(16).padStart(4, '0')}`,
+  );
 
   return {
-    detail: `root visible: "${root.name ?? ''}", canAddChildren ${canAdd}`,
+    detail: `root visible: ${name}, canAddChildren ${canAdd}`,
     id: 'C1',
     outcome: 'pass',
   };

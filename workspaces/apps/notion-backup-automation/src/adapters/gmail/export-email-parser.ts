@@ -39,17 +39,20 @@ export function exportEmailQuery(notBefore: Date): string {
 
 export interface ExportEmailCheck {
   excludeIds: readonly string[];
+  /** The authenticated Gmail profile's address, never inferred from the email itself. */
+  expectedRecipient: string;
   /** Emails Gmail received before this are stale. */
   notBefore: Date;
 }
 
 /**
- * The trust checks, cheapest first: not consumed, fresh, the sender, the subject, the
- * DKIM-signed type marker, and Gmail's own DKIM and DMARC verdicts. Undefined means trusted.
+ * The trust checks, cheapest first: not consumed, fresh, the sender, the recipient, the
+ * subject, DKIM-signed type marker, and Gmail's own DKIM and DMARC verdicts. The verified
+ * signature must cover the single From, To, Subject and X-Feedback-Id headers.
  */
 export function checkExportEmail(
   message: GmailMessage,
-  { excludeIds, notBefore }: ExportEmailCheck,
+  { excludeIds, expectedRecipient, notBefore }: ExportEmailCheck,
 ): ExportEmailRejection | undefined {
   if (excludeIds.includes(message.id)) {
     return 'consumed';
@@ -61,8 +64,12 @@ export function checkExportEmail(
 
   const headers = message.payload.headers ?? [];
 
-  if (senderOf(headerValues(headers, 'From')) !== EXPORT_EMAIL.sender) {
+  if (singleAddress(headerValues(headers, 'From')) !== EXPORT_EMAIL.sender) {
     return 'sender';
+  }
+
+  if (singleAddress(headerValues(headers, 'To')) !== expectedRecipient.trim().toLowerCase()) {
+    return 'recipient';
   }
 
   const subjects = headerValues(headers, 'Subject');
@@ -78,7 +85,8 @@ export function checkExportEmail(
   // Only the topmost header: Gmail prepends its own, and anything below it came with the message.
   const gmailVerdict = headerValues(headers, 'Authentication-Results')[0];
 
-  return gmailVerdict !== undefined && isTrustedByGmail(gmailVerdict)
+  return gmailVerdict !== undefined &&
+    isTrustedByGmail(gmailVerdict, headerValues(headers, 'DKIM-Signature'))
     ? undefined
     : 'authentication';
 }
@@ -179,7 +187,7 @@ export function parseAuthenticationResults(value: string): AuthenticationResults
 }
 
 /** Gmail's verdict: a DKIM pass for Notion's identity and a DMARC pass for its `From` domain. */
-function isTrustedByGmail(value: string): boolean {
+function isTrustedByGmail(value: string, signatures: readonly string[]): boolean {
   const { authservId, results } = parseAuthenticationResults(value);
 
   if (authservId !== EXPORT_EMAIL.gmailAuthservId) {
@@ -187,10 +195,11 @@ function isTrustedByGmail(value: string): boolean {
   }
 
   const dkim = results.some(
-    ({ method, properties, result }) =>
-      method === 'dkim' &&
-      result === 'pass' &&
-      properties['header.i']?.toLowerCase() === EXPORT_EMAIL.dkimIdentity,
+    (result) =>
+      result.method === 'dkim' &&
+      result.result === 'pass' &&
+      result.properties['header.i']?.toLowerCase() === EXPORT_EMAIL.dkimIdentity &&
+      hasSignedTrustHeaders(result, signatures),
   );
   const dmarc = results.some(
     ({ method, properties, result }) =>
@@ -202,14 +211,81 @@ function isTrustedByGmail(value: string): boolean {
   return dkim && dmarc;
 }
 
+/** RFC 6008: header.b identifies the verified signature by a case-sensitive, unique prefix. */
+function hasSignedTrustHeaders(
+  result: AuthenticationResult,
+  signatures: readonly string[],
+): boolean {
+  const prefix = result.properties['header.b'];
+  const selector = result.properties['header.s'];
+
+  if (prefix === undefined || prefix === '' || selector === undefined) {
+    return false;
+  }
+
+  const matches = signatures.flatMap((value) => {
+    const tags = dkimTags(value);
+    const signature = tags?.get('b')?.replaceAll(/\s/g, '');
+
+    return tags !== undefined && signature?.startsWith(prefix) ? [tags] : [];
+  });
+  const tags = matches.length === 1 ? matches[0] : undefined;
+
+  if (tags === undefined) {
+    return false;
+  }
+
+  const signature = tags.get('b')?.replaceAll(/\s/g, '') ?? '';
+  // RFC 6008 requires at least eight characters, or the entire signature if shorter.
+  const minimumPrefixLength = 8;
+  const domain = tags.get('d')?.toLowerCase();
+  const identity = (tags.get('i') ?? `@${domain ?? ''}`).toLowerCase();
+  const signedHeaders = new Set(
+    (tags.get('h') ?? '')
+      .toLowerCase()
+      .split(':')
+      .map((name) => name.trim()),
+  );
+
+  return (
+    prefix.length >= Math.min(minimumPrefixLength, signature.length) &&
+    domain === EXPORT_EMAIL.dmarcFromDomain &&
+    identity === EXPORT_EMAIL.dkimIdentity &&
+    tags.get('s')?.toLowerCase() === selector.toLowerCase() &&
+    ['from', 'to', 'subject', 'x-feedback-id'].every((name) => signedHeaders.has(name))
+  );
+}
+
+/** Folded DKIM tag/value pairs; duplicate tags are ambiguous and rejected. */
+function dkimTags(value: string): Map<string, string> | undefined {
+  const tags = new Map<string, string>();
+
+  for (const field of value.split(';')) {
+    if (field.trim() === '') {
+      continue;
+    }
+
+    const separator = field.indexOf('=');
+    const name = field.slice(0, separator).trim().toLowerCase();
+
+    if (separator < 1 || !/^[a-z][\da-z_]*$/.test(name) || tags.has(name)) {
+      return undefined;
+    }
+
+    tags.set(name, field.slice(separator + 1).trim());
+  }
+
+  return tags;
+}
+
 function headerValues(headers: readonly { name: string; value: string }[], name: string): string[] {
   const wanted = name.toLowerCase();
 
   return headers.filter((header) => header.name.toLowerCase() === wanted).map(({ value }) => value);
 }
 
-/** The single `From` address, lowercased; undefined for zero, several or malformed. */
-function senderOf(values: readonly string[]): string | undefined {
+/** A single mailbox address, lowercased; undefined for zero, several or malformed. */
+function singleAddress(values: readonly string[]): string | undefined {
   if (values.length !== 1) {
     return undefined;
   }

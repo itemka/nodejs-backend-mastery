@@ -15,7 +15,13 @@ import {
 
 const fixture = loadEmailFixture('export-ready');
 const receivedAt = Number(fixture.internalDate);
-const fresh = { excludeIds: [], notBefore: new Date(receivedAt - 5 * 60_000) };
+const fresh = {
+  excludeIds: [],
+  expectedRecipient: 'user@example.com',
+  notBefore: new Date(receivedAt - 5 * 60_000),
+};
+const notionSignature =
+  'v=1; a=rsa-sha256; d=mail.notion.com; s=pic; h=From:To:Subject:X-Feedback-Id; b=fixture';
 
 const gmailVerdict = (results: string) => `mx.google.com;\r\n       ${results}`;
 const notionDkim = 'dkim=pass header.i=@mail.notion.com header.s=pic header.b=fixture';
@@ -45,6 +51,7 @@ describe('checkExportEmail', () => {
   it('rejects an email received before the search bound', () => {
     expect(
       checkExportEmail(toGmailMessage(fixture), {
+        ...fresh,
         excludeIds: [],
         notBefore: new Date(receivedAt + 1),
       }),
@@ -81,6 +88,92 @@ describe('checkExportEmail', () => {
     );
 
     expect(checkExportEmail(toGmailMessage(twoFrom), fresh)).toBe('sender');
+  });
+
+  it.each([
+    ['a replay to this mailbox', ['attacker@example.com']],
+    ['a recipient hidden in the display name', ['"user@example.com" <attacker@example.com>']],
+    ['multiple recipients', ['user@example.com, attacker@example.com']],
+    ['duplicate To headers', ['user@example.com', 'attacker@example.com']],
+    ['a missing To header', []],
+  ])('rejects %s despite a passing Gmail verdict', (_case, recipients) => {
+    const replay = withHeader(fixture, 'To', ...recipients);
+
+    expect(checkExportEmail(toGmailMessage(replay), fresh)).toBe('recipient');
+  });
+
+  it('accepts a single recipient with a display name and mixed case', () => {
+    const addressed = withHeader(fixture, 'To', 'Backup User <User@Example.Com>');
+
+    expect(checkExportEmail(toGmailMessage(addressed), fresh)).toBeUndefined();
+  });
+
+  it.each(['From', 'To', 'Subject', 'X-Feedback-Id'])(
+    'rejects a verified signature that does not cover %s',
+    (header) => {
+      const signedHeaders = ['From', 'To', 'Subject', 'X-Feedback-Id']
+        .filter((name) => name !== header)
+        .join(':');
+      const signature = notionSignature.replace('From:To:Subject:X-Feedback-Id', signedHeaders);
+
+      expect(
+        checkExportEmail(toGmailMessage(withHeader(fixture, 'DKIM-Signature', signature)), fresh),
+      ).toBe('authentication');
+    },
+  );
+
+  it.each([
+    ['no signature', []],
+    ['another selector', [notionSignature.replace('s=pic', 's=other')]],
+    ['another signature value', [notionSignature.replace('b=fixture', 'b=other')]],
+    ['another signing domain', [notionSignature.replace('d=mail.notion.com', 'd=evil.example')]],
+    ['duplicate tags', [`${notionSignature}; h=From:To`]],
+    ['an ambiguous signature prefix', [notionSignature, `${notionSignature}extra`]],
+  ])('rejects %s even when Gmail reports a Notion DKIM pass', (_case, signatures) => {
+    expect(
+      checkExportEmail(toGmailMessage(withHeader(fixture, 'DKIM-Signature', ...signatures)), fresh),
+    ).toBe('authentication');
+  });
+
+  it('matches a folded signature using Gmail’s case-sensitive b prefix', () => {
+    const signed = withHeader(
+      withHeader(
+        fixture,
+        'DKIM-Signature',
+        notionSignature.replace('b=fixture', 'b=fixtureA\r\n BCDE'),
+      ),
+      'Authentication-Results',
+      gmailVerdict(
+        `${notionDkim.replace('header.b=fixture', 'header.b=fixtureA')}; ${notionDmarc}`,
+      ),
+    );
+
+    expect(checkExportEmail(toGmailMessage(signed), fresh)).toBeUndefined();
+  });
+
+  it('does not take recipient coverage from a different, unverified signature', () => {
+    const signed = withHeader(
+      fixture,
+      'DKIM-Signature',
+      notionSignature.replace('From:To:Subject', 'From:Subject'),
+      notionSignature.replace('b=fixture', 'b=forged'),
+    );
+
+    expect(checkExportEmail(toGmailMessage(signed), fresh)).toBe('authentication');
+  });
+
+  it.each([
+    ['no signature prefix', notionDkim.replace(' header.b=fixture', '')],
+    ['no selector', notionDkim.replace(' header.s=pic', '')],
+    ['different prefix case', notionDkim.replace('header.b=fixture', 'header.b=FIXTURE')],
+  ])('rejects Gmail’s verdict with %s', (_case, dkim) => {
+    const signed = withHeader(
+      fixture,
+      'Authentication-Results',
+      gmailVerdict(`${dkim}; ${notionDmarc}`),
+    );
+
+    expect(checkExportEmail(toGmailMessage(signed), fresh)).toBe('authentication');
   });
 
   it('rejects another subject', () => {
@@ -150,6 +243,7 @@ describe('checkExportEmail', () => {
 
     expect(
       checkExportEmail(toGmailMessage(forged), {
+        ...fresh,
         excludeIds: [],
         notBefore: new Date(Number(forged.internalDate) - 60_000),
       }),

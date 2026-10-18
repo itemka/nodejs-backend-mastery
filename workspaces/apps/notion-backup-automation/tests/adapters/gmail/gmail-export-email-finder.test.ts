@@ -33,7 +33,10 @@ function setup(messages: readonly GmailMessage[]) {
       const message = messages.find(({ id }) => url.pathname.endsWith(`/${id}`));
 
       return message === undefined ? googleError(404, 'notFound') : Response.json(message);
-    });
+    })
+    .on('GET', 'gmail.googleapis.com/gmail/v1/users/me/profile', () =>
+      Response.json({ emailAddress: 'user@example.com' }),
+    );
   const lines: string[] = [];
   const api = new GoogleApiClient({
     fetch: google.fetch,
@@ -82,6 +85,30 @@ describe('GmailExportEmailFinder.findReadyEmail', () => {
     const result = await finder.findReadyEmail({ excludeIds: [], requestedAfter });
 
     expect(result).toMatchObject({ email: { messageId: 'newer' }, status: 'found' });
+  });
+
+  it('skips a fresh replay addressed to another mailbox and finds this mailbox’s export', async () => {
+    const replay = messageWith(withHeader(exportReady, 'To', 'attacker@example.com'), {
+      id: 'replayed',
+      internalDate: at(60_000),
+    });
+    const { finder, lines } = setup([replay, toGmailMessage(exportReady)]);
+
+    await expect(finder.findReadyEmail({ excludeIds: [], requestedAfter })).resolves.toMatchObject({
+      email: { messageId: exportReady.id },
+      status: 'found',
+    });
+    expect(lines.join('\n')).not.toMatch(/user@example.com|attacker@example.com/);
+  });
+
+  it('fails closed when the authenticated mailbox cannot be read', async () => {
+    const { finder, google } = setup([toGmailMessage(exportReady)]);
+
+    google.on('GET', 'gmail.googleapis.com/gmail/v1/users/me/profile', () => googleError(401));
+
+    await expect(finder.findReadyEmail({ excludeIds: [], requestedAfter })).rejects.toMatchObject({
+      code: 'GOOGLE_AUTH_REQUIRED',
+    });
   });
 
   it('skips a message deleted after listing and examines the remaining candidates', async () => {
@@ -196,6 +223,17 @@ describe('GmailExportEmailFinder.findReadyEmail', () => {
 });
 
 describe('GmailExportEmailFinder.getDownloadLink', () => {
+  it('rechecks the recipient before revealing a download link', async () => {
+    const { finder } = setup([
+      toGmailMessage(withHeader(exportReady, 'To', 'attacker@example.com')),
+    ]);
+
+    await expect(finder.getDownloadLink(exportReady.id)).rejects.toMatchObject({
+      code: 'EMAIL_UNRECOGNIZED',
+      message: 'The export email failed a trust check (recipient)',
+    });
+  });
+
   it('re-reads the email and returns its link, hidden from serialization', async () => {
     const { finder } = setup([toGmailMessage(exportReady)]);
 

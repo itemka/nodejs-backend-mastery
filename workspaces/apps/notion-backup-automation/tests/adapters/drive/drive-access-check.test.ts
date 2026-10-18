@@ -133,6 +133,23 @@ describe('checkDriveAccess', () => {
     );
   });
 
+  it('escapes provider-controlled names before they reach terminal output', async () => {
+    const { api, google } = fakeDrive({});
+    const name = 'Backup\u001B[2J\u001B]52;c;clipboard\u0007\r\nforged\u009B31m\u202E\u2028';
+
+    google.on('GET', `${FILES}/${ROOT_ID}`, () =>
+      Response.json({ id: ROOT_ID, mimeType: FOLDER, name }),
+    );
+
+    const report = await run(api);
+    const detail = report.checks[0]?.detail ?? '';
+
+    expect(detail).not.toMatch(/[\p{Cc}\p{Cf}\p{Zl}\p{Zp}]/u);
+    expect(detail).toContain(String.raw`Backup\u001b[2J`);
+    expect(detail).toContain(String.raw`\r\nforged`);
+    expect(detail).toContain(String.raw`\u009b31m`);
+  });
+
   it('fails C1–C3 and skips C4 when drive.file cannot see the folders you created', async () => {
     const { api } = fakeDrive({ root: 'missing' });
 
