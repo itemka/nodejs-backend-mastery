@@ -1,6 +1,8 @@
 import type { JobEvent } from '../domain/job-event.js';
+import type { FoundEmail } from '../domain/job-lifecycle.js';
 import type { BackupJob } from '../domain/job.js';
 import type { EnvelopeMeta } from '../shared/envelope-crypto.js';
+import type { SecretValue } from '../shared/secret-value.js';
 import type { HealthField, HealthSnapshot } from './health-snapshot.js';
 
 /** A job record with the version its compare-and-set updates are checked against. */
@@ -78,4 +80,49 @@ export interface SecretStore {
 export interface HealthStore {
   read(): Promise<HealthSnapshot>;
   write<F extends HealthField>(field: F, value: NonNullable<HealthSnapshot[F]>): Promise<void>;
+}
+
+/**
+ * Google access tokens for Gmail and Drive, kept in memory. Throws `IntegrationError`
+ * `GOOGLE_AUTH_REQUIRED` when the refresh token is rejected or a required scope is missing.
+ */
+export interface GoogleTokenProvider {
+  getAccessToken(): Promise<string>;
+}
+
+/** Why a search hit is not the export email. None of these reveal the email's content. */
+export type ExportEmailRejection =
+  | 'authentication'
+  | 'consumed'
+  | 'sender'
+  | 'stale'
+  | 'subject'
+  | 'type';
+
+export interface ExportEmailSearch {
+  /** Emails already consumed by this or another job. */
+  excludeIds: readonly string[];
+  /** When the export was requested; the search starts 10 minutes earlier. */
+  requestedAfter: Date;
+}
+
+export type ExportEmailSearchResult =
+  | {
+      readonly rejected: Readonly<Partial<Record<ExportEmailRejection, number>>>;
+      readonly status: 'not_found';
+    }
+  | { readonly email: FoundEmail; readonly status: 'found' };
+
+/**
+ * Finds Notion's "export ready" email. A trusted email whose download link cannot be read
+ * throws `IntegrationError` `EMAIL_UNRECOGNIZED`.
+ */
+export interface ExportEmailFinder {
+  /** The newest trusted export email after `requestedAfter − 10 min`, if one has arrived. */
+  findReadyEmail(search: ExportEmailSearch): Promise<ExportEmailSearchResult>;
+  /**
+   * Re-reads the email and returns its Mailgun download link. The link is as sensitive as the
+   * signed file URL it redirects to: it is never stored, logged or returned.
+   */
+  getDownloadLink(messageId: string): Promise<SecretValue<string>>;
 }

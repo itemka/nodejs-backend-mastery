@@ -1,0 +1,43 @@
+{
+  "id": "199a3c4d5e6f7081",
+  "internalDate": "1790888182000",
+  "headers": [
+    { "name": "Delivered-To", "value": "user@example.com" },
+    {
+      "name": "Received",
+      "value": "by 2002:a05:6000:fixture with SMTP id fixture; Thu, 1 Oct 2026 13:56:22 -0700 (PDT)"
+    },
+    {
+      "name": "ARC-Authentication-Results",
+      "value": "i=1; mx.google.com;\r\n       dkim=pass header.i=@mail.notion.com header.s=pic header.b=fixture;\r\n       dmarc=pass (p=REJECT sp=REJECT dis=NONE) header.from=mail.notion.com"
+    },
+    { "name": "Return-Path", "value": "<bounce+fixture@mail.notion.com>" },
+    {
+      "name": "Received",
+      "value": "from outgoing1.mail.notion.so (outgoing1.mail.notion.so. [192.0.2.10]) by mx.google.com; Thu, 01 Oct 2026 13:56:22 -0700 (PDT)"
+    },
+    {
+      "name": "Authentication-Results",
+      "value": "mx.google.com;\r\n       dkim=pass header.i=@mail.notion.com header.s=pic header.b=fixture;\r\n       dkim=pass header.i=@mailgun.org header.s=mg header.b=fixture;\r\n       spf=pass (google.com: domain of bounce+fixture@mail.notion.com designates 192.0.2.10 as permitted sender) smtp.mailfrom=\"bounce+fixture@mail.notion.com\";\r\n       dmarc=pass (p=REJECT sp=REJECT dis=NONE) header.from=mail.notion.com"
+    },
+    {
+      "name": "DKIM-Signature",
+      "value": "a=rsa-sha256; v=1; c=relaxed/relaxed; d=mail.notion.com; q=dns/txt; s=pic; t=1790888182; x=1790895382; h=Content-Type: Subject: From: To: Message-Id: X-Feedback-Id; bh=fixture; b=fixture"
+    },
+    { "name": "Content-Transfer-Encoding", "value": "quoted-printable" },
+    { "name": "Content-Type", "value": "text/html; charset=\"utf-8\"" },
+    { "name": "Date", "value": "Thu, 01 Oct 2026 20:56:22 +0000" },
+    { "name": "From", "value": "Notion Team <notify@mail.notion.com>" },
+    { "name": "Message-Id", "value": "<20261001205622.0000000000000000@mail.notion.com>" },
+    { "name": "Mime-Version", "value": "1.0" },
+    { "name": "Sender", "value": "notify@mail.notion.com" },
+    { "name": "Subject", "value": "Your workspace export is ready" },
+    { "name": "To", "value": "user@example.com" },
+    {
+      "name": "X-Feedback-Id",
+      "value": "notify@mail.notion.com:email_type=sendNotification-email_subtype=export-completed:0000000000000000:mailgun"
+    },
+    { "name": "X-Mailgun-Sending-Ip", "value": "192.0.2.10" }
+  ],
+  "html": "<!DOCTYPE html><html><head><meta charset=\"utf-8\"><style>a { color: #0b6e99; }</style></head><body><div style=\"font-family: sans-serif\"><p style=\"font-size: 20px\">Your workspace export is ready</p><p>Click <a href=\"https://mg.mail.notion.com/c/fixture-download-link-not-real\" style=\"color: #0b6e99\">here</a> to download the export. The link will expire after 7 days.</p><p>Oct 1, 2026, 10:54 PM</p><p style=\"color: #999999\">Notion Labs, Inc. &middot; <a href=\"https://mg.mail.notion.com/c/fixture-footer-link-not-real\">notion.com</a></p><img src=\"https://mg.mail.notion.com/o/fixture-pixel-not-real\" width=\"1\" height=\"1\" alt=\"\"></div></body></html>"
+}

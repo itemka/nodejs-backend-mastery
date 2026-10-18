@@ -9,14 +9,21 @@
     "lint": "eslint api src tests",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run",
-    "test:live": "vitest run --config vitest.live.config.ts"
+    "test:live": "vitest run --config vitest.live.config.ts",
+    "test:live:drive": "NBA_LIVE_DRIVE=1 vitest run --config vitest.live.config.ts tests/live/drive-access.live.ts",
+    "cli": "tsx src/cli/main.ts",
+    "auth:google": "tsx src/cli/main.ts auth:google",
+    "drive:check": "tsx src/cli/main.ts drive:check"
   },
   "dependencies": {
     "@upstash/redis": "^1.39.0",
+    "google-auth-library": "^11.3.1",
     "zod": "^4.1.12"
   },
   "devDependencies": {
     "@types/node": "^25.6.0",
+    "@workspaces/cli-output": "workspace:*",
+    "tsx": "^4.20.6",
     "typescript": "^5.9.3",
     "vitest": "^4.1.5"
   }
