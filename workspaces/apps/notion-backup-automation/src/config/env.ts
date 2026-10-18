@@ -98,12 +98,22 @@ const qstashVerifyShape = {
   QSTASH_NEXT_SIGNING_KEY: secret,
 };
 
-const googleShape = {
+const googleClientShape = {
   GOOGLE_CLIENT_ID: z.string(),
   GOOGLE_CLIENT_SECRET: secret,
-  GOOGLE_DRIVE_BACKUP_ROOT_FOLDER_ID: z.string().regex(/^[\w-]+$/),
+};
+
+const googleApiShape = {
+  ...googleClientShape,
   GOOGLE_REFRESH_TOKEN: secret,
 };
+
+/** The folder ID is interpolated into Drive queries, so it is limited to ID characters. */
+const driveShape = {
+  GOOGLE_DRIVE_BACKUP_ROOT_FOLDER_ID: z.string().regex(/^[\w-]+$/),
+};
+
+const googleShape = { ...googleApiShape, ...driveShape };
 
 const notionShape = {
   NOTION_EXPORT_FORMAT: z.enum(['markdown']).default('markdown'),
@@ -143,6 +153,34 @@ const requireGeminiKey = (
 
 /** Redis access only: `test:live` and local CLI commands. */
 export const persistenceEnvSchema = z.object({ ...coreShape, ...redisShape });
+
+/** The encrypted secrets in Redis: `doctor`, and `auth:notion` later. */
+export const secretStoreEnvSchema = z.object({ ...coreShape, ...redisShape, ...encryptionShape });
+
+/**
+ * `auth:google`: the OAuth client, since it produces the refresh token. The time zone dates the
+ * 1Password label.
+ */
+export const googleAuthEnvSchema = z.object({
+  ...googleClientShape,
+  BACKUP_TIME_ZONE: policyShape.BACKUP_TIME_ZONE,
+});
+
+/** `auth:google --pick-folders`: the picked items are checked against the configured root. */
+export const googlePickerEnvSchema = z.object({ ...googleClientShape, ...driveShape });
+
+/** Gmail and Drive API calls from the CLI: `doctor`, `drive:init`. The time zone dates searches. */
+export const googleApiEnvSchema = z.object({
+  ...googleApiShape,
+  BACKUP_TIME_ZONE: policyShape.BACKUP_TIME_ZONE,
+});
+
+/** `drive:check`, `drive:init` and `test:live:drive`. The time zone picks the year folder. */
+export const driveEnvSchema = z.object({
+  ...googleApiShape,
+  ...driveShape,
+  BACKUP_TIME_ZONE: policyShape.BACKUP_TIME_ZONE,
+});
 
 /** `/mcp`: starts and inspects jobs. It never needs Gemini, the QStash signing keys or Google. */
 export const mcpEnvSchema = z.object({

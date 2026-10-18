@@ -37,9 +37,16 @@ workspace "nodejs-backend-mastery" "C4 model of the runnable apps in this monore
             claudeCapabilitiesCli = container "Scenario CLI" "Argument-driven scenario runner on top of @workspaces/llm-client and the Anthropic SDK; validates sample file types and sizes before sending." "Node.js CLI"
         }
 
-        notionBackup = softwareSystem "notion-backup-automation" "Scaffold of the Notion workspace backup agent, deployed as Vercel Functions; it currently serves only a health check." {
+        notionBackup = softwareSystem "notion-backup-automation" "Notion backup agent with local Google OAuth setup, Gmail export-email discovery, Drive access diagnostics, and a deployed health check." {
             notionBackupHealth = container "Health function" "Public GET /api/health returning ok and the short commit SHA, with no caching and no other data." "Vercel Function (Node.js)"
+            notionBackupCli = container "Local CLI" "auth:google, drive:check, drive:init, and doctor: Google consent, trusted export-email discovery, Drive probes, and Redis/session diagnostics." "Node.js + TypeScript CLI"
+            notionBackupConfig = container "Local configuration" "Google OAuth credentials and refresh token, plus connection and encryption settings; auth:google saves the token with mode 0600." ".env.local file"
         }
+
+        googleOAuth = softwareSystem "Google OAuth" "Consent, authorization-code exchange with PKCE, and access-token refresh for gmail.readonly and drive.file." "External"
+        gmail = softwareSystem "Gmail API" "Read-only mailbox access and Notion export-email discovery; email content and download links stay out of logs." "External"
+        googleDrive = softwareSystem "Google Drive API" "Folder visibility checks, app-owned root creation, and creation/deletion of temporary access probes through drive.file." "External"
+        upstashRedis = softwareSystem "Upstash Redis" "Managed backup state and encrypted Notion session storage; doctor checks connectivity and decrypts the stored session locally." "External"
 
         developer -> playgroundUi "Chats and compares models in the browser"
         playgroundUi -> playgroundApi "Calls REST + SSE endpoints" "JSON/SSE over HTTP"
@@ -65,10 +72,17 @@ workspace "nodejs-backend-mastery" "C4 model of the runnable apps in this monore
         claudeCapabilitiesCli -> anthropic "Sends scenario requests (messages, files, code execution)" "HTTPS"
 
         developer -> notionBackupHealth "Checks that a deployment is live" "HTTPS"
+        developer -> notionBackupCli "Runs Google setup and backup dependency diagnostics" "Terminal"
+        developer -> googleOAuth "Grants Gmail and Drive access, optionally choosing folders" "HTTPS in browser"
+        notionBackupCli -> notionBackupConfig "Reads settings and credentials; writes the Google refresh token" "Local file I/O"
+        notionBackupCli -> googleOAuth "Exchanges authorization codes and refreshes access tokens" "OAuth 2.0 over HTTPS"
+        notionBackupCli -> gmail "Reads the mailbox profile and finds and validates export emails" "REST over HTTPS (gmail.readonly)"
+        notionBackupCli -> googleDrive "Checks folders, manages access probes, and finds or creates the app-owned root" "REST over HTTPS (drive.file)"
+        notionBackupCli -> upstashRedis "Pings Redis and reads the encrypted Notion session for local validation" "Redis REST over HTTPS"
     }
 
     views {
-        systemLandscape "Landscape" "Runnable apps and the external LLM services they depend on." {
+        systemLandscape "Landscape" "Runnable apps and the external services they depend on." {
             include *
             autoLayout lr
         }
@@ -84,6 +98,11 @@ workspace "nodejs-backend-mastery" "C4 model of the runnable apps in this monore
         }
 
         container mcpChat "McpChatContainers" "mcp-chat CLI client, its stdio MCP server, and the Anthropic dependency." {
+            include *
+            autoLayout lr
+        }
+
+        container notionBackup "NotionBackupContainers" "Notion backup CLI, local configuration, deployed health function, and current Google and Redis dependencies." {
             include *
             autoLayout lr
         }

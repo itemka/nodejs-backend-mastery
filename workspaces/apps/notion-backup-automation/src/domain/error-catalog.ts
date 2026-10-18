@@ -68,6 +68,13 @@ export const errorCatalog = {
     retry: 'window',
     supervised: true,
   },
+  EMAIL_SEARCH_LIMIT: {
+    description: 'The export-email search reached its scan limit before the end of the results.',
+    howToFix:
+      'Inspect Gmail for matching-message floods or review the scan limit, then run backup_retry.',
+    retry: 'none',
+    supervised: true,
+  },
   EMAIL_TIMEOUT: {
     description: 'No export email arrived within the wait limit, and no export attempt is left.',
     howToFix:

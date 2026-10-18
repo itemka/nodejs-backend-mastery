@@ -13,7 +13,7 @@ describe('errorCatalog', () => {
     }
   });
 
-  it('covers every code the plan names', () => {
+  it('covers the supported job error codes', () => {
     expect(errorCodes.toSorted()).toEqual(
       [
         'BROWSER_LAUNCH_FAILED',
@@ -23,6 +23,7 @@ describe('errorCatalog', () => {
         'DRIVE_CHECKSUM_MISMATCH',
         'DRIVE_ROOT_INACCESSIBLE',
         'DRIVE_UNAVAILABLE',
+        'EMAIL_SEARCH_LIMIT',
         'EMAIL_TIMEOUT',
         'EMAIL_UNRECOGNIZED',
         'GMAIL_UNAVAILABLE',

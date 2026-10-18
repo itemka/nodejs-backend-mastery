@@ -1,0 +1,27 @@
+{
+  "id": "199a3c4d5e6f7099",
+  "internalDate": "1790888300000",
+  "headers": [
+    { "name": "Delivered-To", "value": "user@example.com" },
+    { "name": "Return-Path", "value": "<bounce@attacker.example>" },
+    {
+      "name": "Authentication-Results",
+      "value": "mx.google.com;\r\n       dkim=pass header.i=@attacker.example header.s=s1 header.b=fixture;\r\n       spf=pass (google.com: domain of bounce@attacker.example designates 198.51.100.7 as permitted sender) smtp.mailfrom=bounce@attacker.example;\r\n       dmarc=fail (p=REJECT sp=REJECT dis=NONE) header.from=mail.notion.com"
+    },
+    {
+      "name": "Authentication-Results",
+      "value": "mx.google.com; dkim=pass header.i=@mail.notion.com header.s=pic header.b=forged; dmarc=pass (p=REJECT) header.from=mail.notion.com"
+    },
+    { "name": "Content-Type", "value": "text/html; charset=\"utf-8\"" },
+    { "name": "Date", "value": "Thu, 01 Oct 2026 20:58:20 +0000" },
+    { "name": "From", "value": "Notion Team <notify@mail.notion.com>" },
+    { "name": "Message-Id", "value": "<forged@attacker.example>" },
+    { "name": "Subject", "value": "Your workspace export is ready" },
+    { "name": "To", "value": "user@example.com" },
+    {
+      "name": "X-Feedback-Id",
+      "value": "notify@mail.notion.com:email_type=sendNotification-email_subtype=export-completed:0000000000000000:mailgun"
+    }
+  ],
+  "html": "<!DOCTYPE html><html><body><p>Your workspace export is ready</p><p>Click <a href=\"https://mg.mail.notion.com/c/fixture-forged-link-not-real\">here</a> to download the export. The link will expire after 7 days.</p></body></html>"
+}

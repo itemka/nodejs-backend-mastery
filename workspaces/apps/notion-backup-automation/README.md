@@ -3,7 +3,8 @@
 A backup agent that will request the official Notion workspace export every month and store
 the ZIP in Google Drive. It runs as Vercel Functions.
 
-**Status:** domain and persistent state (Phase 1). The only function is still `GET /api/health`.
+**Status:** Google OAuth, the Drive access check and the Gmail export-email finder (Phase 2),
+with a local CLI. The only function is still `GET /api/health`.
 
 ## Layout
 
@@ -12,10 +13,14 @@ the ZIP in Google Drive. It runs as Vercel Functions.
 | `api/`                      | Vercel function entry points (Web `Request` → `Response`). No business logic.                                                     |
 | `src/config/env.ts`         | Zod env schemas, one subset per function. Errors name the variables, never their values.                                          |
 | `src/domain/`               | The job schema, statuses, transitions and lifecycle rules, schedule and retry policies, periods, naming, the error catalog. Pure. |
-| `src/application/ports.ts`  | The ports the adapters implement (`JobRepository`, `SecretStore`, `HealthStore`).                                                 |
+| `src/application/`          | The ports the adapters implement (`ports.ts`), and `IntegrationError`, which carries a cataloged error code.                      |
 | `src/adapters/persistence/` | Upstash Redis adapters with Lua scripts (`lua/*.lua`), and the in-memory job repository.                                          |
-| `src/shared/`               | The redacting JSON-line logger, envelope crypto (AES-256-GCM), the `.env.local` writer, clock, IDs.                               |
-| `tests/`                    | Vitest. `tests/contract/` holds the repository contract; `tests/live/` the opt-in live suite.                                     |
+| `src/adapters/google/`      | OAuth: loopback consent with PKCE, the Picker grant, the token provider, and the REST client shared by Gmail and Drive.           |
+| `src/adapters/gmail/`       | The export-email finder and its parser: the trust checks and the download-link extraction.                                        |
+| `src/adapters/drive/`       | The S6 access check (C1–C4) and the app-owned root of S6 fallback 2.                                                              |
+| `src/cli/`                  | The local CLI: `auth:google`, `drive:check`, `drive:init`, `doctor`.                                                              |
+| `src/shared/`               | The redacting JSON-line logger, envelope crypto (AES-256-GCM), the `.env.local` writer, masking, `SecretValue`, clock, IDs.       |
+| `tests/`                    | Vitest. `tests/contract/` holds the repository contract; `tests/live/` the opt-in live suites; `tests/fixtures/` recorded shapes. |
 | `vercel.json`               | Region and per-function limits.                                                                                                   |
 | `.env.example`              | Template for the untracked `.env.local`.                                                                                          |
 
@@ -26,6 +31,7 @@ pnpm --filter notion-backup-automation typecheck
 pnpm --filter notion-backup-automation test
 pnpm --filter notion-backup-automation lint
 NBA_LIVE_REDIS=1 pnpm --filter notion-backup-automation test:live
+pnpm --filter notion-backup-automation test:live:drive
 ```
 
 `test` never touches the network, a browser or real credentials. `test:live` runs the repository
@@ -36,8 +42,57 @@ It also runs against a local Redis behind
 [serverless-redis-http](https://github.com/hiett/serverless-redis-http), which accepts plain
 `http://` URLs.
 
+`test:live:drive` runs the S6 Drive checks against the real backup root (see below). It creates
+two empty probe files and deletes them again.
+
 Local configuration lives in `.env.local`: copy `.env.example`, run `chmod 600 .env.local` and
 fill in the values. Git ignores `.env.local` and every other `.env.*` file except the example.
+
+## Local CLI
+
+The CLI reads `.env.local` (shell variables win) and prints masked or content-free output only:
+never a token, a download link, an email's subject or body, or the full mailbox address. Its
+JSON logs go to stderr at `LOG_LEVEL` (default `warn`).
+
+```sh
+pnpm --filter notion-backup-automation auth:google [--print] [--pick-folders]
+pnpm --filter notion-backup-automation drive:check [--year YYYY]
+pnpm --filter notion-backup-automation cli drive:init
+pnpm --filter notion-backup-automation cli doctor [--email-since YYYY-MM-DD]
+```
+
+| Command                      | What it does                                                                                                                                                                                                                                                                                                                                                  |
+| ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `auth:google`                | Opens Google consent for `gmail.readonly` and `drive.file` (Desktop client, loopback redirect on `127.0.0.1`, PKCE, `state`). Writes `GOOGLE_REFRESH_TOKEN` into `.env.local` (0600) and prints it masked. `--print` also prints the token itself, to paste into 1Password.                                                                                   |
+| `auth:google --pick-folders` | S6 fallback 1: a separate `drive.file`-only consent with the Google Picker. Pick `Full Workspace` and the year folder; the grant belongs to the app, and this consent's token is discarded.                                                                                                                                                                   |
+| `drive:check`                | S6: C1 the root is visible, C2 exactly one year folder is visible in it, C3 a file can be created and deleted in the root, C4 the same in the year folder. Exits 0 when C1 and C3 pass.                                                                                                                                                                       |
+| `drive:init`                 | S6 fallback 2: creates the app-owned `Full Workspace` folder at the top of My Drive (once), and prints its ID and the manual steps.                                                                                                                                                                                                                           |
+| `doctor`                     | Refreshes the Google token and lists its scopes, reads the masked mailbox, finds the newest trusted export email since `--email-since` (a day in `BACKUP_TIME_ZONE`; default: the last 30 days), checks the Drive root (C1), pings Redis, and opens the Notion session secret of `APP_ENV`. Exits 1 if a check fails; an expired Testing token names the fix. |
+
+While the Google OAuth app is in **Testing**, refresh tokens expire after 7 days. When `doctor`
+reports `GOOGLE_AUTH_REQUIRED`, run `auth:google` again.
+
+The export email is trusted only when Gmail's own, topmost `Authentication-Results` header
+reports a DKIM pass for `@mail.notion.com` and a DMARC pass for `mail.notion.com`, the single
+`To` address matches the authenticated Gmail profile, the sender, subject and `X-Feedback-Id`
+subtype (`export-completed`) match, and the HTML holds
+exactly one "here" link to `https://mg.mail.notion.com/c/…`. The link is read again when the
+download needs it, and is never stored, logged or returned.
+
+Gmail's selector and signature prefix must identify exactly one Notion DKIM signature covering
+`From`, `To`, `Subject` and `X-Feedback-Id`; missing or ambiguous coverage is rejected. The
+recipient is checked again before returning a download link. Provider-controlled Drive folder
+names are quoted and control characters escaped before terminal output.
+
+The Gmail finder follows result pages past rejected candidates. Its default budget is ten
+pages of ten candidates; reaching the budget with more results raises `EMAIL_SEARCH_LIMIT`
+instead of reporting that no email arrived. Investigate matching-message floods or review the
+scan budget before retrying.
+
+An ambiguous probe creation is reconciled by its generated name, app marker and parent. A
+single recovered probe is deleted; ambiguous matches or failed cleanup are reported by ID,
+and further write probes stop. If Drive cannot reveal the ID, the command reports the unknown
+outcome and directs you to inspect app-marked probes before retrying; it never retries the POST.
 
 ## State In Redis
 

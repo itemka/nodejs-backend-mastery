@@ -28,6 +28,10 @@ export class FakeRedis implements HashCommands, StringCommands {
     return Promise.resolve(Object.keys(values).length);
   }
 
+  ping(): Promise<'PONG'> {
+    return Promise.resolve('PONG');
+  }
+
   set(key: string, value: string): Promise<'OK'> {
     this.strings.set(key, value);
 

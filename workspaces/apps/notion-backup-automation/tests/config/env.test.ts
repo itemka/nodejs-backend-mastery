@@ -3,11 +3,16 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   ConfigError,
   cronEnvSchema,
+  driveEnvSchema,
+  googleApiEnvSchema,
+  googleAuthEnvSchema,
+  googlePickerEnvSchema,
   loadEnv,
   loadHealthEnv,
   mcpEnvSchema,
   persistenceEnvSchema,
   QSTASH_EU_URL,
+  secretStoreEnvSchema,
   workerEnvSchema,
 } from '../../src/config/env.js';
 
@@ -213,5 +218,49 @@ describe('loadEnv', () => {
     expect(
       configError(() => loadEnv(mcpEnvSchema, { ...mcpVars, APP_ENV: undefined })).missing,
     ).toEqual(['APP_ENV']);
+  });
+});
+
+describe('CLI env subsets', () => {
+  it('auth:google needs the OAuth client only; the time zone has a default', () => {
+    expect(configError(() => loadEnv(googleAuthEnvSchema, {})).missing).toEqual([
+      'GOOGLE_CLIENT_ID',
+      'GOOGLE_CLIENT_SECRET',
+    ]);
+    expect(loadEnv(googleAuthEnvSchema, workerVars).BACKUP_TIME_ZONE).toBe('Europe/Warsaw');
+  });
+
+  it('doctor needs the refresh token for Gmail, and the Picker needs the root', () => {
+    expect(configError(() => loadEnv(googleApiEnvSchema, {})).missing).toEqual([
+      'GOOGLE_CLIENT_ID',
+      'GOOGLE_CLIENT_SECRET',
+      'GOOGLE_REFRESH_TOKEN',
+    ]);
+    expect(configError(() => loadEnv(googlePickerEnvSchema, {})).missing).toEqual([
+      'GOOGLE_CLIENT_ID',
+      'GOOGLE_CLIENT_SECRET',
+      'GOOGLE_DRIVE_BACKUP_ROOT_FOLDER_ID',
+    ]);
+  });
+
+  it('drive:check takes the backup time zone with its default', () => {
+    expect(loadEnv(driveEnvSchema, workerVars).BACKUP_TIME_ZONE).toBe('Europe/Warsaw');
+  });
+
+  it('rejects a root folder ID that could break out of a Drive query', () => {
+    expect(
+      configError(() =>
+        loadEnv(driveEnvSchema, {
+          ...workerVars,
+          GOOGLE_DRIVE_BACKUP_ROOT_FOLDER_ID: "root' or 'x' in parents",
+        }),
+      ).invalid,
+    ).toEqual(['GOOGLE_DRIVE_BACKUP_ROOT_FOLDER_ID']);
+  });
+
+  it('the secret store needs Redis and the encryption key', () => {
+    expect(configError(() => loadEnv(secretStoreEnvSchema, persistenceVars)).missing).toEqual([
+      'APP_ENCRYPTION_KEY',
+    ]);
   });
 });
