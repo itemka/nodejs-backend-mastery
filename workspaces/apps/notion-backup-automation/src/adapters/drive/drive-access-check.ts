@@ -208,11 +208,14 @@ async function probeWrite(
       url: `${DRIVE_API_URL}/files/${probeId}`,
     });
   } catch (error) {
-    return {
-      detail: `created a probe file but cannot delete it: ${refusal(error)}`,
-      leftoverId: probeId,
-      ok: false,
-    };
+    // A lost DELETE response can lead to a retry returning 404: the probe is already gone.
+    if (!(error instanceof GoogleApiError) || error.status !== 404) {
+      return {
+        detail: `created a probe file but cannot delete it: ${refusal(error)}`,
+        leftoverId: probeId,
+        ok: false,
+      };
+    }
   }
 
   return { detail: 'created and deleted a probe file', leftoverId: undefined, ok: true };
@@ -242,14 +245,23 @@ export interface AppOwnedRoot {
  * created once. Running it again returns the same folder.
  */
 export async function ensureAppOwnedRoot(api: GoogleApiClient): Promise<AppOwnedRoot> {
-  const { files } = await api.json(driveFileListSchema, {
-    query: {
-      fields: 'files(id,name)',
-      pageSize: 10,
-      q: `appProperties has { key='${ROOT_APP_PROPERTY}' and value='true' } and trashed = false and mimeType = '${DRIVE_FOLDER_MIME_TYPE}'`,
-    },
-    url: `${DRIVE_API_URL}/files`,
-  });
+  const files: DriveFile[] = [];
+  let pageToken: string | undefined;
+
+  do {
+    const page = await api.json(driveFileListSchema, {
+      query: {
+        fields: 'nextPageToken,files(id,name)',
+        pageSize: 10,
+        pageToken,
+        q: `appProperties has { key='${ROOT_APP_PROPERTY}' and value='true' } and trashed = false and mimeType = '${DRIVE_FOLDER_MIME_TYPE}'`,
+      },
+      url: `${DRIVE_API_URL}/files`,
+    });
+
+    files.push(...page.files);
+    pageToken = page.nextPageToken;
+  } while (pageToken !== undefined);
 
   if (files.length > 1) {
     throw new Error(

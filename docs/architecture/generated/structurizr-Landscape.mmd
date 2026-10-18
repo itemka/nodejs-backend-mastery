@@ -18,8 +18,16 @@ graph LR
     style 19 fill:#ffffff,stroke:#444444,color:#444444
     2["<div style='font-weight: bold'>Ollama</div><div style='font-size: 70%; margin-top: 0px'>[Software System]</div><div style='font-size: 80%; margin-top:10px'>Local LLM runtime exposing an<br />OpenAI-compatible API on<br />localhost:11434.</div>"]
     style 2 fill:#8c8c8c,stroke:#626262,color:#ffffff
-    21["<div style='font-weight: bold'>notion-backup-automation</div><div style='font-size: 70%; margin-top: 0px'>[Software System]</div><div style='font-size: 80%; margin-top:10px'>Scaffold of the Notion<br />workspace backup agent,<br />deployed as Vercel Functions;<br />it currently serves only a<br />health check.</div>"]
+    21["<div style='font-weight: bold'>notion-backup-automation</div><div style='font-size: 70%; margin-top: 0px'>[Software System]</div><div style='font-size: 80%; margin-top:10px'>Notion backup agent with<br />local Google OAuth setup,<br />Gmail export-email discovery,<br />Drive access diagnostics, and<br />a deployed health check.</div>"]
     style 21 fill:#ffffff,stroke:#444444,color:#444444
+    25["<div style='font-weight: bold'>Google OAuth</div><div style='font-size: 70%; margin-top: 0px'>[Software System]</div><div style='font-size: 80%; margin-top:10px'>Consent, authorization-code<br />exchange with PKCE, and<br />access-token refresh for<br />gmail.readonly and<br />drive.file.</div>"]
+    style 25 fill:#8c8c8c,stroke:#626262,color:#ffffff
+    26["<div style='font-weight: bold'>Gmail API</div><div style='font-size: 70%; margin-top: 0px'>[Software System]</div><div style='font-size: 80%; margin-top:10px'>Read-only mailbox access and<br />Notion export-email<br />discovery; email content and<br />download links stay out of<br />logs.</div>"]
+    style 26 fill:#8c8c8c,stroke:#626262,color:#ffffff
+    27["<div style='font-weight: bold'>Google Drive API</div><div style='font-size: 70%; margin-top: 0px'>[Software System]</div><div style='font-size: 80%; margin-top:10px'>Folder visibility checks,<br />app-owned root creation, and<br />creation/deletion of<br />temporary access probes<br />through drive.file.</div>"]
+    style 27 fill:#8c8c8c,stroke:#626262,color:#ffffff
+    28["<div style='font-weight: bold'>Upstash Redis</div><div style='font-size: 70%; margin-top: 0px'>[Software System]</div><div style='font-size: 80%; margin-top:10px'>Managed backup state and<br />encrypted Notion session<br />storage; doctor checks<br />connectivity and decrypts the<br />stored session locally.</div>"]
+    style 28 fill:#8c8c8c,stroke:#626262,color:#ffffff
     3["<div style='font-weight: bold'>VoyageAI API</div><div style='font-size: 70%; margin-top: 0px'>[Software System]</div><div style='font-size: 80%; margin-top:10px'>Hosted embeddings API<br />(voyage-3-large by default).</div>"]
     style 3 fill:#8c8c8c,stroke:#626262,color:#ffffff
     4["<div style='font-weight: bold'>Anthropic API</div><div style='font-size: 70%; margin-top: 0px'>[Software System]</div><div style='font-size: 80%; margin-top:10px'>Hosted Claude models API.</div>"]
@@ -44,5 +52,10 @@ graph LR
     1-. "<div>Runs individual capability<br />scenarios from the terminal</div><div style='font-size: 70%'></div>" .->19
     19-. "<div>Sends scenario requests<br />(messages, files, code<br />execution)</div><div style='font-size: 70%'>[HTTPS]</div>" .->4
     1-. "<div>Checks that a deployment is<br />live</div><div style='font-size: 70%'>[HTTPS]</div>" .->21
+    1-. "<div>Grants Gmail and Drive<br />access, optionally choosing<br />folders</div><div style='font-size: 70%'>[HTTPS in browser]</div>" .->25
+    21-. "<div>Exchanges authorization codes<br />and refreshes access tokens</div><div style='font-size: 70%'>[OAuth 2.0 over HTTPS]</div>" .->25
+    21-. "<div>Reads the mailbox profile and<br />finds and validates export<br />emails</div><div style='font-size: 70%'>[REST over HTTPS (gmail.readonly)]</div>" .->26
+    21-. "<div>Checks folders, manages<br />access probes, and finds or<br />creates the app-owned root</div><div style='font-size: 70%'>[REST over HTTPS (drive.file)]</div>" .->27
+    21-. "<div>Pings Redis and reads the<br />encrypted Notion session for<br />local validation</div><div style='font-size: 70%'>[Redis REST over HTTPS]</div>" .->28
 
   end

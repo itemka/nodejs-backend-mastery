@@ -288,6 +288,41 @@ describe('checkDriveAccess', () => {
     expect(report.leftoverProbeIds).toEqual(['probe-1']);
   });
 
+  it('passes the write checks when a DELETE succeeds but its response is lost before a 404 retry', async () => {
+    const { api, google } = fakeDrive({
+      creatableIn: [ROOT_ID, 'folder-0'],
+      subfolders: ['2026'],
+    });
+    const deleted = new Set<string>();
+
+    google.on('DELETE', `${FILES}/*`, ({ url }) => {
+      if (deleted.has(url.pathname)) {
+        return googleError(404, 'notFound');
+      }
+
+      deleted.add(url.pathname);
+
+      throw new TypeError('DELETE response lost after the file was removed');
+    });
+
+    const report = await run(api);
+
+    expect(report.checks.map(({ outcome }) => outcome)).toEqual(['pass', 'pass', 'pass', 'pass']);
+    expect(report.leftoverProbeIds).toEqual([]);
+    expect(google.requests.filter(({ method }) => method === 'DELETE')).toHaveLength(4);
+  });
+
+  it.each([
+    [401, 'GOOGLE_AUTH_REQUIRED'],
+    [503, 'DRIVE_UNAVAILABLE'],
+  ])('propagates HTTP %s during probe cleanup', async (status, code) => {
+    const { api, google } = fakeDrive({ creatableIn: [ROOT_ID] });
+
+    google.on('DELETE', `${FILES}/*`, () => googleError(status));
+
+    await expect(run(api)).rejects.toMatchObject({ code });
+  });
+
   it('aborts on an auth failure instead of reporting a verdict', async () => {
     const { api, google } = fakeDrive({});
 
@@ -350,6 +385,78 @@ describe('ensureAppOwnedRoot', () => {
       folderId: 'existing-root-id',
     });
     expect(google.requests.filter((request) => request.method === 'POST')).toEqual([]);
+  });
+
+  it('finds an existing root after an empty page without creating another one', async () => {
+    const { api, google } = driveWithRoots([]);
+
+    google.on('GET', FILES, ({ url }) =>
+      Response.json(
+        url.searchParams.has('pageToken')
+          ? { files: [{ id: 'existing-root-id', name: 'Full Workspace' }] }
+          : { nextPageToken: 'second-page' },
+      ),
+    );
+
+    await expect(ensureAppOwnedRoot(api)).resolves.toEqual({
+      created: false,
+      folderId: 'existing-root-id',
+    });
+    expect(google.requests.map(({ url }) => url.searchParams.get('pageToken'))).toEqual([
+      null,
+      'second-page',
+    ]);
+    expect(google.requests.every(({ method }) => method === 'GET')).toBe(true);
+    expect(
+      google.requests.every(({ url }) => url.searchParams.get('fields')?.includes('nextPageToken')),
+    ).toBe(true);
+  });
+
+  it('refuses duplicate roots split across pages without creating another one', async () => {
+    const { api, google } = driveWithRoots([]);
+
+    google.on('GET', FILES, ({ url }) =>
+      Response.json(
+        url.searchParams.has('pageToken')
+          ? { files: [{ id: 'root-b', name: 'Full Workspace' }] }
+          : { files: [{ id: 'root-a', name: 'Full Workspace' }], nextPageToken: 'second-page' },
+      ),
+    );
+
+    await expect(ensureAppOwnedRoot(api)).rejects.toThrow('Found 2 app-owned root folders');
+    expect(google.requests.filter(({ method }) => method === 'POST')).toEqual([]);
+  });
+
+  it('creates a root only after the final empty page', async () => {
+    const { api, google } = driveWithRoots([]);
+
+    google.on('GET', FILES, ({ url }) =>
+      Response.json(
+        url.searchParams.has('pageToken')
+          ? { files: [] }
+          : { files: [], nextPageToken: 'second-page' },
+      ),
+    );
+
+    await expect(ensureAppOwnedRoot(api)).resolves.toEqual({
+      created: true,
+      folderId: 'new-root-id',
+    });
+    expect(google.requests.map(({ method }) => method)).toEqual(['GET', 'GET', 'POST']);
+    expect(google.requests[1]?.url.searchParams.get('pageToken')).toBe('second-page');
+  });
+
+  it('propagates a later-page outage without creating a root from an incomplete listing', async () => {
+    const { api, google } = driveWithRoots([]);
+
+    google.on('GET', FILES, ({ url }) =>
+      url.searchParams.has('pageToken')
+        ? googleError(503)
+        : Response.json({ files: [], nextPageToken: 'second-page' }),
+    );
+
+    await expect(ensureAppOwnedRoot(api)).rejects.toMatchObject({ code: 'DRIVE_UNAVAILABLE' });
+    expect(google.requests.filter(({ method }) => method === 'POST')).toEqual([]);
   });
 
   it('refuses to choose between several app-owned roots', async () => {
