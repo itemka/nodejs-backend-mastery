@@ -50,7 +50,14 @@ export class GmailExportEmailFinder implements ExportEmailFinder {
     const messages: GmailMessage[] = [];
 
     for (const id of ids) {
-      messages.push(await this.gmail.getMessage(id));
+      try {
+        messages.push(await this.gmail.getMessage(id));
+      } catch (error) {
+        // A listed message can be deleted before it is read; other failures must still abort.
+        if (!(error instanceof GoogleApiError) || error.status !== 404) {
+          throw error;
+        }
+      }
     }
 
     messages.sort((a, b) => Number(b.internalDate) - Number(a.internalDate));

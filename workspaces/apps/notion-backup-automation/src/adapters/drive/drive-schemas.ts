@@ -19,4 +19,5 @@ export type DriveFile = z.infer<typeof driveFileSchema>;
 
 export const driveFileListSchema = z.object({
   files: z.array(driveFileSchema),
+  nextPageToken: z.string().optional(),
 });

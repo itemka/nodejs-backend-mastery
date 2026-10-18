@@ -125,19 +125,27 @@ async function checkYearFolder(
   rootId: string,
   year: string,
 ): Promise<{ check: DriveCheck; folderId: string | undefined }> {
-  let folders: DriveFile[];
+  const folders: DriveFile[] = [];
 
   try {
-    ({ files: folders } = await api.json(driveFileListSchema, {
-      query: {
-        fields: 'files(id,name)',
-        includeItemsFromAllDrives: true,
-        pageSize: 100,
-        q: `'${rootId}' in parents and trashed = false and mimeType = '${DRIVE_FOLDER_MIME_TYPE}'`,
-        supportsAllDrives: true,
-      },
-      url: `${DRIVE_API_URL}/files`,
-    }));
+    let pageToken: string | undefined;
+
+    do {
+      const page = await api.json(driveFileListSchema, {
+        query: {
+          fields: 'nextPageToken,files(id,name)',
+          includeItemsFromAllDrives: true,
+          pageSize: 100,
+          pageToken,
+          q: `'${rootId}' in parents and trashed = false and mimeType = '${DRIVE_FOLDER_MIME_TYPE}'`,
+          supportsAllDrives: true,
+        },
+        url: `${DRIVE_API_URL}/files`,
+      });
+
+      folders.push(...page.files);
+      pageToken = page.nextPageToken;
+    } while (pageToken !== undefined);
   } catch (error) {
     return {
       check: { detail: `cannot list the root: ${refusal(error)}`, id: 'C2', outcome: 'fail' },

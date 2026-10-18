@@ -172,6 +172,97 @@ describe('checkDriveAccess', () => {
     expect(report.yearFolderId).toBeUndefined();
   });
 
+  it('finds the year folder on a later page, continuing past an empty page', async () => {
+    const { api, google } = fakeDrive({ creatableIn: [ROOT_ID, 'year-folder'] });
+
+    google.on('GET', FILES, ({ url }) => {
+      switch (url.searchParams.get('pageToken')) {
+        case null: {
+          return Response.json({
+            files: Array.from({ length: 100 }, (_, index) => ({
+              id: `folder-${index}`,
+              name: `other-${index}`,
+            })),
+            nextPageToken: 'second-page',
+          });
+        }
+
+        case 'second-page': {
+          return Response.json({ files: [], nextPageToken: 'third-page' });
+        }
+
+        case 'third-page': {
+          return Response.json({ files: [{ id: 'year-folder', name: '2026' }] });
+        }
+
+        default: {
+          return googleError(400);
+        }
+      }
+    });
+
+    const report = await run(api);
+
+    expect(report.checks[1]).toEqual({
+      detail: '2026 folder visible (101 visible subfolders)',
+      id: 'C2',
+      outcome: 'pass',
+    });
+    expect(report.yearFolderId).toBe('year-folder');
+    expect(report.checks[3]?.outcome).toBe('pass');
+
+    const pages = google
+      .requestsTo(FILES)
+      .filter(({ url }) => url.pathname === '/drive/v3/files' && url.searchParams.has('q'));
+
+    expect(pages.map(({ url }) => url.searchParams.get('pageToken'))).toEqual([
+      null,
+      'second-page',
+      'third-page',
+    ]);
+    expect(
+      pages.every(({ url }) => url.searchParams.get('fields')?.includes('nextPageToken')),
+    ).toBe(true);
+  });
+
+  it('fails C2 and skips C4 when a duplicate year folder appears on a later page', async () => {
+    const { api, google } = fakeDrive({ creatableIn: [ROOT_ID, 'first-year'] });
+
+    google.on('GET', FILES, ({ url }) =>
+      Response.json(
+        url.searchParams.has('pageToken')
+          ? { files: [{ id: 'second-year', name: '2026' }] }
+          : { files: [{ id: 'first-year', name: '2026' }], nextPageToken: 'second-page' },
+      ),
+    );
+
+    const report = await run(api);
+
+    expect(report.checks[1]).toEqual({
+      detail: '2 folders named 2026; only one may exist',
+      id: 'C2',
+      outcome: 'fail',
+    });
+    expect(report.yearFolderId).toBeUndefined();
+    expect(report.checks[3]?.outcome).toBe('skip');
+  });
+
+  it('propagates an outage on a later page rather than accepting an incomplete listing', async () => {
+    const { api, google } = fakeDrive({});
+
+    google.on('GET', FILES, ({ url }) =>
+      url.searchParams.has('pageToken')
+        ? googleError(503)
+        : Response.json({
+            files: [{ id: 'first-year', name: '2026' }],
+            nextPageToken: 'second-page',
+          }),
+    );
+
+    await expect(run(api)).rejects.toMatchObject({ code: 'DRIVE_UNAVAILABLE' });
+    expect(google.requests.filter(({ method }) => method === 'POST')).toEqual([]);
+  });
+
   it.each([
     ['not-a-folder', 'the root is not a folder'],
     ['trashed', 'the root is in the trash'],

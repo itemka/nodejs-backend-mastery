@@ -84,6 +84,43 @@ describe('GmailExportEmailFinder.findReadyEmail', () => {
     expect(result).toMatchObject({ email: { messageId: 'newer' }, status: 'found' });
   });
 
+  it('skips a message deleted after listing and examines the remaining candidates', async () => {
+    const deleted = messageWith(exportReady, { id: 'deleted', internalDate: at(60_000) });
+    const { finder, google } = setup([deleted, toGmailMessage(exportReady)]);
+
+    google.on('GET', `${MESSAGES_PATH}/deleted`, () => googleError(404, 'notFound'));
+
+    await expect(finder.findReadyEmail({ excludeIds: [], requestedAfter })).resolves.toMatchObject({
+      email: { messageId: exportReady.id },
+      status: 'found',
+    });
+  });
+
+  it('reports not found when every listed message has been deleted', async () => {
+    const { finder, google } = setup([toGmailMessage(exportReady)]);
+
+    google.on('GET', `${MESSAGES_PATH}/*`, () => googleError(404, 'notFound'));
+
+    await expect(finder.findReadyEmail({ excludeIds: [], requestedAfter })).resolves.toEqual({
+      rejected: {},
+      status: 'not_found',
+    });
+  });
+
+  it.each([
+    [401, 'GOOGLE_AUTH_REQUIRED'],
+    [503, 'GMAIL_UNAVAILABLE'],
+    [400, 'INTEGRATION_UNCLASSIFIED'],
+  ])('propagates HTTP %s while reading a candidate', async (status, code) => {
+    const { finder, google } = setup([toGmailMessage(exportReady)]);
+
+    google.on('GET', `${MESSAGES_PATH}/*`, () => googleError(status));
+
+    await expect(finder.findReadyEmail({ excludeIds: [], requestedAfter })).rejects.toMatchObject({
+      code,
+    });
+  });
+
   it('skips rejected emails, counting the reasons, and falls back to an older trusted one', async () => {
     const consumed = messageWith(exportReady, { id: 'consumed', internalDate: at(120_000) });
     const { finder } = setup([consumed, toGmailMessage(forged), toGmailMessage(exportReady)]);
