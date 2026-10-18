@@ -84,6 +84,16 @@ Gmail's selector and signature prefix must identify exactly one Notion DKIM sign
 recipient is checked again before returning a download link. Provider-controlled Drive folder
 names are quoted and control characters escaped before terminal output.
 
+The Gmail finder follows result pages past rejected candidates. Its default budget is ten
+pages of ten candidates; reaching the budget with more results raises `EMAIL_SEARCH_LIMIT`
+instead of reporting that no email arrived. Investigate matching-message floods or review the
+scan budget before retrying.
+
+An ambiguous probe creation is reconciled by its generated name, app marker and parent. A
+single recovered probe is deleted; ambiguous matches or failed cleanup are reported by ID,
+and further write probes stop. If Drive cannot reveal the ID, the command reports the unknown
+outcome and directs you to inspect app-marked probes before retrying; it never retries the POST.
+
 ## State In Redis
 
 Every key starts with `{nba:<APP_ENV>}:`, so `prod`, `dev` and `test` share the

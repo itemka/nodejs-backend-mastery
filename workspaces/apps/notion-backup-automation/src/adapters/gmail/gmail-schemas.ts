@@ -11,6 +11,7 @@ export type GmailProfile = z.infer<typeof gmailProfileSchema>;
 
 export const gmailMessageListSchema = z.object({
   messages: z.array(z.object({ id: gmailMessageIdSchema })).optional(),
+  nextPageToken: z.string().min(1).optional(),
 });
 
 const gmailHeaderSchema = z.object({ name: z.string(), value: z.string() });

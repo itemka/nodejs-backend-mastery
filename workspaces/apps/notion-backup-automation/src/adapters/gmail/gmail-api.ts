@@ -9,6 +9,11 @@ import {
 
 const GMAIL_USER_URL = 'https://gmail.googleapis.com/gmail/v1/users/me';
 
+export interface GmailMessageIdsPage {
+  ids: string[];
+  nextPageToken: string | undefined;
+}
+
 /** The three Gmail REST calls the app makes, all read-only (`gmail.readonly`). */
 export class GmailApi {
   private readonly client: GoogleApiClient;
@@ -32,13 +37,20 @@ export class GmailApi {
     return this.client.json(gmailProfileSchema, { url: `${GMAIL_USER_URL}/profile` });
   }
 
-  /** `users.messages.list`: the IDs of up to `maxResults` messages matching a search query. */
-  async listMessageIds(query: string, maxResults: number): Promise<string[]> {
+  /** One `users.messages.list` page; the caller follows `nextPageToken`. */
+  async listMessageIds(
+    query: string,
+    maxResults: number,
+    pageToken?: string,
+  ): Promise<GmailMessageIdsPage> {
     const list = await this.client.json(gmailMessageListSchema, {
-      query: { maxResults, q: query },
+      query: { maxResults, pageToken, q: query },
       url: `${GMAIL_USER_URL}/messages`,
     });
 
-    return (list.messages ?? []).map((message) => message.id);
+    return {
+      ids: (list.messages ?? []).map((message) => message.id),
+      nextPageToken: list.nextPageToken,
+    };
   }
 }

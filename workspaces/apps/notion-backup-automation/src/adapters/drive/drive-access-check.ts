@@ -1,8 +1,9 @@
+import { IntegrationError } from '../../application/integration-error.js';
 import type { IdGenerator } from '../../shared/ids.js';
 import { randomIds } from '../../shared/ids.js';
 import type { GoogleApiClient } from '../google/google-api-client.js';
 import { GoogleApiError } from '../google/google-api-client.js';
-import type { DriveFile } from './drive-schemas.js';
+import type { DriveFile, DriveFileList } from './drive-schemas.js';
 import {
   DRIVE_API_URL,
   DRIVE_FOLDER_MIME_TYPE,
@@ -49,8 +50,8 @@ export const APP_OWNED_ROOT_NAME = 'Full Workspace';
  * - C3: a file can be created in the root, and deleted again;
  * - C4: a file can be created in the year folder, and deleted again.
  *
- * Every check runs, so one report shows the whole picture. Auth and availability failures
- * abort the check, since no verdict can be drawn from them.
+ * Auth and availability failures abort unless a created probe needs manual cleanup: preserve
+ * its ID in the report and skip further write probes so an outage cannot accumulate files.
  */
 export async function checkDriveAccess({
   api,
@@ -69,9 +70,7 @@ export async function checkDriveAccess({
   const probe = async (id: DriveCheckId, parentId: string, where: string): Promise<DriveCheck> => {
     const result = await probeWrite(api, parentId, `.nba-access-probe-${ids.shortId()}`);
 
-    if (result.leftoverId !== undefined) {
-      leftoverProbeIds.push(result.leftoverId);
-    }
+    leftoverProbeIds.push(...result.leftoverIds);
 
     return { detail: `${where}: ${result.detail}`, id, outcome: result.ok ? 'pass' : 'fail' };
   };
@@ -79,10 +78,19 @@ export async function checkDriveAccess({
   const c1 = await checkDriveRoot(api, rootId);
   const { check: c2, folderId: yearFolderId } = await checkYearFolder(api, rootId, year);
   const c3 = await probe('C3', rootId, 'root');
-  const c4: DriveCheck =
-    yearFolderId === undefined
-      ? { detail: `skipped: no single ${year} folder is visible`, id: 'C4', outcome: 'skip' }
-      : await probe('C4', yearFolderId, `${year} folder`);
+  let c4: DriveCheck;
+
+  if (yearFolderId === undefined) {
+    c4 = { detail: `skipped: no single ${year} folder is visible`, id: 'C4', outcome: 'skip' };
+  } else if (leftoverProbeIds.length > 0) {
+    c4 = {
+      detail: 'skipped: remove leftover root probes before another write check',
+      id: 'C4',
+      outcome: 'skip',
+    };
+  } else {
+    c4 = await probe('C4', yearFolderId, `${year} folder`);
+  }
 
   return { checks: [c1, c2, c3, c4], leftoverProbeIds, yearFolderId };
 }
@@ -178,7 +186,7 @@ async function checkYearFolder(
 
 interface ProbeResult {
   detail: string;
-  leftoverId: string | undefined;
+  leftoverIds: readonly string[];
   ok: boolean;
 }
 
@@ -203,7 +211,28 @@ async function probeWrite(
       url: `${DRIVE_API_URL}/files`,
     }));
   } catch (error) {
-    return { detail: `cannot create a file: ${refusal(error)}`, leftoverId: undefined, ok: false };
+    if (!isAmbiguousCreate(error)) {
+      return { detail: `cannot create a file: ${refusal(error)}`, leftoverIds: [], ok: false };
+    }
+
+    const recovered = await recoverProbeIds(api, parentId, name);
+
+    if (recovered.ids.length === 0) {
+      throw new IntegrationError(
+        'DRIVE_UNAVAILABLE',
+        'Probe creation outcome is unknown; inspect app-marked probe files in Drive before retrying',
+      );
+    }
+
+    if (!recovered.complete || recovered.ids.length !== 1 || recovered.ids[0] === undefined) {
+      return {
+        detail: 'probe creation outcome is ambiguous; remove the reported probes manually',
+        leftoverIds: recovered.ids,
+        ok: false,
+      };
+    }
+
+    probeId = recovered.ids[0];
   }
 
   try {
@@ -216,14 +245,92 @@ async function probeWrite(
     // A lost DELETE response can lead to a retry returning 404: the probe is already gone.
     if (!(error instanceof GoogleApiError) || error.status !== 404) {
       return {
-        detail: `created a probe file but cannot delete it: ${refusal(error)}`,
-        leftoverId: probeId,
+        detail: `created a probe file but cannot delete it: ${cleanupFailure(error)}`,
+        leftoverIds: [probeId],
         ok: false,
       };
     }
   }
 
-  return { detail: 'created and deleted a probe file', leftoverId: undefined, ok: true };
+  return { detail: 'created and deleted a probe file', leftoverIds: [], ok: true };
+}
+
+/** A lost response, server error, or unreadable successful reply may hide an accepted POST. */
+function isAmbiguousCreate(error: unknown): boolean {
+  return (
+    error instanceof GoogleApiError &&
+    ((error.code === 'DRIVE_UNAVAILABLE' && (error.status === undefined || error.status >= 500)) ||
+      (error.status !== undefined && error.status >= 200 && error.status < 300))
+  );
+}
+
+/** Exact, app-marked identity only: never delete an unrelated file returned by the provider. */
+async function recoverProbeIds(
+  api: GoogleApiClient,
+  parentId: string,
+  name: string,
+): Promise<{ complete: boolean; ids: string[] }> {
+  const escapedName = name.replaceAll(/['\\]/g, String.raw`\$&`);
+  const ids = new Set<string>();
+  let pageToken: string | undefined;
+  const maxPages = 10;
+
+  for (let pageNumber = 0; pageNumber < maxPages; pageNumber += 1) {
+    let page: DriveFileList;
+
+    try {
+      page = await api.json(driveFileListSchema, {
+        query: {
+          fields: 'nextPageToken,files(id,name,mimeType,parents,appProperties)',
+          includeItemsFromAllDrives: true,
+          pageSize: 100,
+          pageToken,
+          q: `'${parentId}' in parents and trashed = false and name = '${escapedName}' and mimeType = 'text/plain' and appProperties has { key='${PROBE_APP_PROPERTY}' and value='true' }`,
+          supportsAllDrives: true,
+        },
+        url: `${DRIVE_API_URL}/files`,
+      });
+    } catch (error) {
+      if (ids.size > 0) {
+        return { complete: false, ids: [...ids] };
+      }
+
+      const code = error instanceof IntegrationError ? error.code : 'DRIVE_UNAVAILABLE';
+
+      throw new IntegrationError(
+        code,
+        'Probe creation outcome is unknown and reconciliation failed; inspect app-marked probe files in Drive before retrying',
+      );
+    }
+
+    for (const file of page.files) {
+      if (
+        file.name === name &&
+        file.mimeType === 'text/plain' &&
+        file.parents?.includes(parentId) &&
+        file.appProperties?.[PROBE_APP_PROPERTY] === 'true'
+      ) {
+        ids.add(file.id);
+      }
+    }
+
+    if (page.nextPageToken === undefined) {
+      return { complete: true, ids: [...ids] };
+    }
+
+    pageToken = page.nextPageToken;
+  }
+
+  return { complete: false, ids: [...ids] };
+}
+
+/** Keep known leftover IDs reportable even when authentication or the service fails during DELETE. */
+function cleanupFailure(error: unknown): string {
+  if (error instanceof GoogleApiError && error.code === 'INTEGRATION_UNCLASSIFIED') {
+    return refusal(error);
+  }
+
+  return error instanceof IntegrationError ? error.code : 'unexpected cleanup failure';
 }
 
 /**

@@ -332,12 +332,168 @@ describe('checkDriveAccess', () => {
   it.each([
     [401, 'GOOGLE_AUTH_REQUIRED'],
     [503, 'DRIVE_UNAVAILABLE'],
-  ])('propagates HTTP %s during probe cleanup', async (status, code) => {
+  ])('reports the leftover ID after HTTP %s during probe cleanup', async (status, code) => {
     const { api, google } = fakeDrive({ creatableIn: [ROOT_ID] });
 
     google.on('DELETE', `${FILES}/*`, () => googleError(status));
 
-    await expect(run(api)).rejects.toMatchObject({ code });
+    const report = await run(api);
+
+    expect(report.leftoverProbeIds).toEqual(['probe-1']);
+    expect(report.checks[2]).toMatchObject({ outcome: 'fail' });
+    expect(report.checks[2]?.detail).toContain(code);
+  });
+
+  it.each(['network', 'server', 'invalid-success'] as const)(
+    'recovers and cleans up an ambiguous probe creation after a %s failure',
+    async (failure) => {
+      const { api, google } = fakeDrive({});
+      let probe: unknown;
+
+      google.on('POST', FILES, ({ body }) => {
+        probe = { ...(JSON.parse(body) as Record<string, unknown>), id: 'recovered-probe' };
+
+        if (failure === 'network') {
+          throw new TypeError('response lost after creation');
+        }
+
+        return failure === 'server' ? googleError(503) : Response.json({});
+      });
+      google.on('GET', FILES, ({ url }) =>
+        Response.json({
+          files: url.searchParams.get('q')?.includes('notionBackupProbe') ? [probe] : [],
+        }),
+      );
+
+      const report = await run(api);
+
+      expect(report.checks[2]?.outcome).toBe('pass');
+      expect(report.leftoverProbeIds).toEqual([]);
+      expect(google.requests.filter(({ method }) => method === 'POST')).toHaveLength(1);
+      expect(
+        google.requests.filter(({ method }) => method === 'DELETE').map(({ url }) => url.pathname),
+      ).toEqual(['/drive/v3/files/recovered-probe']);
+    },
+  );
+
+  it('reports an ambiguous probe ID and stops further write probes if recovered cleanup fails', async () => {
+    const { api, google } = fakeDrive({});
+    let probe: unknown;
+
+    google.on('POST', FILES, ({ body }) => {
+      probe = { ...(JSON.parse(body) as Record<string, unknown>), id: 'recovered-probe' };
+
+      throw new TypeError('response lost');
+    });
+    google.on('GET', FILES, ({ url }) =>
+      Response.json({
+        files: url.searchParams.get('q')?.includes('notionBackupProbe')
+          ? [probe]
+          : [{ id: 'year-folder', name: '2026' }],
+      }),
+    );
+    google.on('DELETE', `${FILES}/*`, () => googleError(503));
+
+    const report = await run(api);
+
+    expect(report.leftoverProbeIds).toEqual(['recovered-probe']);
+    expect(report.checks[2]?.outcome).toBe('fail');
+    expect(report.checks[3]?.outcome).toBe('skip');
+    expect(google.requests.filter(({ method }) => method === 'POST')).toHaveLength(1);
+  });
+
+  it.each([
+    ['name', { name: 'unrelated' }],
+    ['MIME type', { mimeType: 'application/zip' }],
+    ['parent', { parents: ['another-parent'] }],
+    ['app marker', { appProperties: {} }],
+  ])(
+    'does not delete a file with mismatched %s during reconciliation',
+    async (_field, mismatch) => {
+      const { api, google } = fakeDrive({});
+      const probe = {
+        appProperties: { notionBackupProbe: 'true' },
+        id: 'unrelated-file',
+        mimeType: 'text/plain',
+        name: '.nba-access-probe-probe0001',
+        parents: [ROOT_ID],
+        ...mismatch,
+      };
+
+      google.on('POST', FILES, () => {
+        throw new TypeError('response lost');
+      });
+      google.on('GET', FILES, () => Response.json({ files: [probe] }));
+
+      await expect(run(api)).rejects.toMatchObject({ code: 'DRIVE_UNAVAILABLE' });
+      expect(google.requests.filter(({ method }) => method === 'DELETE')).toEqual([]);
+      expect(google.requests.filter(({ method }) => method === 'POST')).toHaveLength(1);
+    },
+  );
+
+  it.each(['duplicates', 'page-limit', 'page-failure'] as const)(
+    'reports known IDs without deletion when reconciliation finds %s',
+    async (mode) => {
+      const { api, google } = fakeDrive({});
+      const probe = {
+        appProperties: { notionBackupProbe: 'true' },
+        id: 'recovered-a',
+        mimeType: 'text/plain',
+        name: '.nba-access-probe-probe0001',
+        parents: [ROOT_ID],
+      };
+
+      google.on('POST', FILES, () => {
+        throw new TypeError('response lost');
+      });
+      google.on('GET', FILES, ({ url }) => {
+        if (!url.searchParams.get('q')?.includes('notionBackupProbe')) {
+          return Response.json({ files: [] });
+        }
+
+        if (!url.searchParams.has('pageToken')) {
+          return Response.json({ files: [probe], nextPageToken: 'next-page' });
+        }
+
+        if (mode === 'page-failure') {
+          return googleError(503);
+        }
+
+        return Response.json(
+          mode === 'duplicates'
+            ? { files: [{ ...probe, id: 'recovered-b' }] }
+            : { nextPageToken: 'next-page' },
+        );
+      });
+
+      const report = await run(api);
+
+      expect(report.leftoverProbeIds).toEqual(
+        mode === 'duplicates' ? ['recovered-a', 'recovered-b'] : ['recovered-a'],
+      );
+      expect(report.checks[2]?.outcome).toBe('fail');
+      expect(google.requests.filter(({ method }) => method === 'DELETE')).toEqual([]);
+    },
+  );
+
+  it('surfaces unknown creation outcome when the recovery lookup is unavailable', async () => {
+    const { api, google } = fakeDrive({});
+
+    google.on('POST', FILES, () => {
+      throw new TypeError('response lost');
+    });
+    google.on('GET', FILES, ({ url }) =>
+      url.searchParams.get('q')?.includes('notionBackupProbe')
+        ? googleError(503)
+        : Response.json({ files: [] }),
+    );
+
+    await expect(run(api)).rejects.toMatchObject({
+      code: 'DRIVE_UNAVAILABLE',
+      message: expect.stringContaining('outcome is unknown'),
+    });
+    expect(google.requests.filter(({ method }) => method === 'POST')).toHaveLength(1);
+    expect(google.requests.filter(({ method }) => method === 'DELETE')).toEqual([]);
   });
 
   it('aborts on an auth failure instead of reporting a verdict', async () => {

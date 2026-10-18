@@ -12,6 +12,7 @@ export const driveFileSchema = z.object({
   id: driveIdSchema,
   mimeType: z.string().optional(),
   name: z.string().optional(),
+  parents: z.array(driveIdSchema).optional(),
   trashed: z.boolean().optional(),
 });
 
@@ -21,3 +22,5 @@ export const driveFileListSchema = z.object({
   files: z.array(driveFileSchema).default([]),
   nextPageToken: z.string().optional(),
 });
+
+export type DriveFileList = z.infer<typeof driveFileListSchema>;

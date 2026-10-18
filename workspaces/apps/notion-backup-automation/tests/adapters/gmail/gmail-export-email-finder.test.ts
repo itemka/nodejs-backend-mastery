@@ -24,7 +24,7 @@ const receivedAt = Number(exportReady.internalDate);
 /** The export was requested 3 minutes before the email arrived. */
 const requestedAfter = new Date(receivedAt - 3 * 60_000);
 
-function setup(messages: readonly GmailMessage[]) {
+function setup(messages: readonly GmailMessage[], options: { maxPages?: number } = {}) {
   const google = new FakeGoogle()
     .on('GET', MESSAGES_PATH, () =>
       Response.json({ messages: messages.map(({ id }) => ({ id, threadId: id })) }),
@@ -45,6 +45,7 @@ function setup(messages: readonly GmailMessage[]) {
     tokenProvider: { getAccessToken: () => Promise.resolve('fake-access-token') },
   });
   const finder = new GmailExportEmailFinder({
+    ...options,
     gmail: new GmailApi(api),
     logger: createLogger({
       level: 'debug',
@@ -60,6 +61,100 @@ function setup(messages: readonly GmailMessage[]) {
 const at = (offsetMs: number) => String(receivedAt + offsetMs);
 
 describe('GmailExportEmailFinder.findReadyEmail', () => {
+  it('paginates past ten rejected replays to find the real export', async () => {
+    const replays = Array.from({ length: 10 }, (_, index) =>
+      messageWith(withHeader(exportReady, 'To', 'attacker@example.com'), {
+        id: `replay-${index}`,
+        internalDate: at(60_000),
+      }),
+    );
+    const { finder, google } = setup([...replays, toGmailMessage(exportReady)]);
+
+    google.on('GET', MESSAGES_PATH, ({ url }) =>
+      Response.json(
+        url.searchParams.has('pageToken')
+          ? { messages: [{ id: exportReady.id }] }
+          : { messages: replays.map(({ id }) => ({ id })), nextPageToken: 'next-page' },
+      ),
+    );
+
+    await expect(finder.findReadyEmail({ excludeIds: [], requestedAfter })).resolves.toMatchObject({
+      email: { messageId: exportReady.id },
+      status: 'found',
+    });
+    const pages = google.requests.filter(({ url }) => url.pathname.endsWith('/messages'));
+
+    expect(pages.map(({ url }) => url.searchParams.get('pageToken'))).toEqual([null, 'next-page']);
+  });
+
+  it('continues past empty pages and returns not found only at the end', async () => {
+    const { finder, google } = setup([]);
+
+    google.on('GET', MESSAGES_PATH, ({ url }) =>
+      Response.json(url.searchParams.has('pageToken') ? {} : { nextPageToken: 'next-page' }),
+    );
+
+    await expect(finder.findReadyEmail({ excludeIds: [], requestedAfter })).resolves.toEqual({
+      rejected: {},
+      status: 'not_found',
+    });
+    expect(google.requests.filter(({ url }) => url.pathname.endsWith('/messages'))).toHaveLength(2);
+  });
+
+  it('raises an explicit scan-limit failure instead of not found when more pages remain', async () => {
+    const { finder, google } = setup([], { maxPages: 2 });
+
+    google.on('GET', MESSAGES_PATH, () => Response.json({ nextPageToken: 'repeated-page' }));
+
+    await expect(finder.findReadyEmail({ excludeIds: [], requestedAfter })).rejects.toMatchObject({
+      code: 'EMAIL_SEARCH_LIMIT',
+    });
+    expect(google.requests.filter(({ url }) => url.pathname.endsWith('/messages'))).toHaveLength(2);
+  });
+
+  it('returns not found when the final permitted page is the end of the results', async () => {
+    const { finder } = setup([], { maxPages: 1 });
+
+    await expect(finder.findReadyEmail({ excludeIds: [], requestedAfter })).resolves.toEqual({
+      rejected: {},
+      status: 'not_found',
+    });
+  });
+
+  it('stops paging once a trusted email is found', async () => {
+    const { finder, google } = setup([toGmailMessage(exportReady)], { maxPages: 1 });
+
+    google.on('GET', MESSAGES_PATH, () =>
+      Response.json({ messages: [{ id: exportReady.id }], nextPageToken: 'not-needed' }),
+    );
+
+    await expect(finder.findReadyEmail({ excludeIds: [], requestedAfter })).resolves.toMatchObject({
+      status: 'found',
+    });
+    expect(google.requests.filter(({ url }) => url.pathname.endsWith('/messages'))).toHaveLength(1);
+  });
+
+  it.each([0, -1, 1.5, Number.POSITIVE_INFINITY, Number.NaN])(
+    'rejects an invalid page limit of %s',
+    (maxPages) => {
+      expect(() => setup([], { maxPages })).toThrow(RangeError);
+    },
+  );
+
+  it('propagates an outage on a later search page', async () => {
+    const { finder, google } = setup([]);
+
+    google.on('GET', MESSAGES_PATH, ({ url }) =>
+      url.searchParams.has('pageToken')
+        ? googleError(503)
+        : Response.json({ nextPageToken: 'next-page' }),
+    );
+
+    await expect(finder.findReadyEmail({ excludeIds: [], requestedAfter })).rejects.toMatchObject({
+      code: 'GMAIL_UNAVAILABLE',
+    });
+  });
+
   it('finds the export email and searches from 10 minutes before the request', async () => {
     const { finder, google } = setup([toGmailMessage(exportReady)]);
 
@@ -68,7 +163,10 @@ describe('GmailExportEmailFinder.findReadyEmail', () => {
       status: 'found',
     });
 
-    const [list, get] = google.requests;
+    const list = google.requests.find(({ url }) => url.pathname.endsWith('/messages'));
+    const get = google.requests.find(({ url }) =>
+      url.pathname.endsWith(`/messages/${exportReady.id}`),
+    );
 
     expect(list?.url.searchParams.get('q')).toBe(
       `from:notify@mail.notion.com subject:"Your workspace export is ready" after:${Math.floor(requestedAfter.getTime() / 1000) - 600}`,

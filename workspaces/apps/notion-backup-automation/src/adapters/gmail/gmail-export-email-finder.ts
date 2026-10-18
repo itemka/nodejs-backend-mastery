@@ -21,7 +21,9 @@ export interface GmailExportEmailFinderOptions {
   gmail: GmailApi;
   /** Logs message IDs, verdicts and rejection reasons only: never a link, subject or body. */
   logger: Logger;
-  /** How many search hits are inspected; Notion sends one email per export. */
+  /** Maximum pages scanned per call; default 10 bounds work even for empty or repeated pages. */
+  maxPages?: number;
+  /** Search hits per page; the default 10 scans at most 100 candidates across 10 pages. */
   maxResults?: number;
 }
 
@@ -29,11 +31,25 @@ export interface GmailExportEmailFinderOptions {
 export class GmailExportEmailFinder implements ExportEmailFinder {
   private readonly gmail: GmailApi;
   private readonly logger: Logger;
+  private readonly maxPages: number;
   private readonly maxResults: number;
 
-  constructor({ gmail, logger, maxResults = 10 }: GmailExportEmailFinderOptions) {
+  constructor({ gmail, logger, maxPages = 10, maxResults = 10 }: GmailExportEmailFinderOptions) {
+    if (
+      !Number.isInteger(maxPages) ||
+      maxPages < 1 ||
+      !Number.isInteger(maxResults) ||
+      maxResults < 1 ||
+      maxResults > 500
+    ) {
+      throw new RangeError(
+        'Expected positive integer page limits and maxResults no greater than 500',
+      );
+    }
+
     this.gmail = gmail;
     this.logger = logger;
+    this.maxPages = maxPages;
     this.maxResults = maxResults;
   }
 
@@ -46,46 +62,62 @@ export class GmailExportEmailFinder implements ExportEmailFinder {
     requestedAfter,
   }: ExportEmailSearch): Promise<ExportEmailSearchResult> {
     const notBefore = new Date(requestedAfter.getTime() - SEARCH_SKEW_MS);
-    const ids = await this.gmail.listMessageIds(exportEmailQuery(notBefore), this.maxResults);
-    const messages: GmailMessage[] = [];
-
-    for (const id of ids) {
-      try {
-        messages.push(await this.gmail.getMessage(id));
-      } catch (error) {
-        // A listed message can be deleted before it is read; other failures must still abort.
-        if (!(error instanceof GoogleApiError) || error.status !== 404) {
-          throw error;
-        }
-      }
-    }
-
-    messages.sort((a, b) => Number(b.internalDate) - Number(a.internalDate));
-
     const { emailAddress: expectedRecipient } = await this.gmail.getProfile();
     const rejected: Partial<Record<ExportEmailRejection, number>> = {};
+    let pageToken: string | undefined;
+    let hits = 0;
 
-    for (const message of messages) {
-      const rejection = checkExportEmail(message, { excludeIds, expectedRecipient, notBefore });
+    for (let page = 0; page < this.maxPages; page += 1) {
+      const { ids, nextPageToken } = await this.gmail.listMessageIds(
+        exportEmailQuery(notBefore),
+        this.maxResults,
+        pageToken,
+      );
+      const messages: GmailMessage[] = [];
 
-      if (rejection !== undefined) {
-        rejected[rejection] = (rejected[rejection] ?? 0) + 1;
-        this.logger.info('gmail.export_email.rejected', { messageId: message.id, rejection });
-        continue;
+      for (const id of ids) {
+        try {
+          messages.push(await this.gmail.getMessage(id));
+        } catch (error) {
+          // A listed message can disappear; other failures must still abort discovery.
+          if (!(error instanceof GoogleApiError) || error.status !== 404) {
+            throw error;
+          }
+        }
       }
 
-      this.requireLink(message);
+      hits += ids.length;
+      messages.sort((a, b) => Number(b.internalDate) - Number(a.internalDate));
 
-      const receivedAt = new Date(Number(message.internalDate)).toISOString();
+      for (const message of messages) {
+        const rejection = checkExportEmail(message, { excludeIds, expectedRecipient, notBefore });
 
-      this.logger.info('gmail.export_email.found', { messageId: message.id, receivedAt });
+        if (rejection !== undefined) {
+          rejected[rejection] = (rejected[rejection] ?? 0) + 1;
+          this.logger.info('gmail.export_email.rejected', { messageId: message.id, rejection });
+          continue;
+        }
 
-      return { email: { messageId: message.id, receivedAt }, status: 'found' };
+        this.requireLink(message);
+        const receivedAt = new Date(Number(message.internalDate)).toISOString();
+
+        this.logger.info('gmail.export_email.found', { messageId: message.id, receivedAt });
+
+        return { email: { messageId: message.id, receivedAt }, status: 'found' };
+      }
+
+      if (nextPageToken === undefined) {
+        this.logger.info('gmail.export_email.not_found', { hits, rejected });
+
+        return { rejected, status: 'not_found' };
+      }
+
+      pageToken = nextPageToken;
     }
 
-    this.logger.info('gmail.export_email.not_found', { hits: messages.length, rejected });
+    this.logger.warn('gmail.export_email.search_limit', { hits, pages: this.maxPages, rejected });
 
-    return { rejected, status: 'not_found' };
+    throw new IntegrationError('EMAIL_SEARCH_LIMIT');
   }
 
   /** Re-reads the email and re-runs the trust checks; the job already owns the email. */
