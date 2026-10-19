@@ -126,7 +126,7 @@ export function extractDownloadLink(message: GmailMessage): DownloadLinkResult {
 
   const href = hrefOf(anchors[0]?.[1] ?? '');
 
-  return href !== undefined && isAllowedLink(href)
+  return href !== undefined && isAllowedDownloadLink(href)
     ? { link: href, ok: true }
     : { ok: false, problem: 'link_invalid' };
 }
@@ -335,7 +335,7 @@ function hrefOf(attributes: string): string | undefined {
 }
 
 /** Only `https://mg.mail.notion.com/c/<token>`: no other host, port, credentials or path. */
-function isAllowedLink(href: string): boolean {
+export function isAllowedDownloadLink(href: string): boolean {
   let url: URL;
 
   try {
