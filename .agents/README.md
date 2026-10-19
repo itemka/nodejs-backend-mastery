@@ -13,7 +13,7 @@ Root entry points stay thin:
 ## What Belongs Here
 
 - Cross-tool always-on rules.
-- Reusable workflows for brainstorming, planning, coding, testing, review,
+- Reusable workflows for brainstorming, proposal interrogation, planning, coding, testing, review,
   docs, debugging, refactoring, deprecation and migration, commits, PR
   descriptions, and subagent orchestration.
 - Portable role specs used by specialist or worker agents.
@@ -38,7 +38,7 @@ notes, a handoff summary, or that plan file — is decided by
   follow before editing the repo. Keep these concise because they are likely
   to be loaded often.
 - [skills/](./skills/) — Canonical reusable workflows for development tasks
-  such as brainstorming, planning, implementation, coding discipline,
+  such as brainstorming, proposal interrogation, planning, implementation, coding discipline,
   refactoring, debugging, validation, review, docs, agent-doc maintenance,
   architecture diagrams, backend API changes, data-storage changes,
   deprecation and migration, commits, PR descriptions, branch naming, hooks,
@@ -60,6 +60,10 @@ notes, a handoff summary, or that plan file — is decided by
 Claude-native path-scoped rules live in `.claude/rules/` and are a time-boxed pilot governed by
 [ADR-0004](../docs/adr/0004-path-scoped-claude-rules.md): each file declares `paths` globs, holds
 Claude Code product behavior only, and carries nothing another tool must also know.
+
+The [grill-me](./skills/grill-me/SKILL.md) skill is a user-requested, time-boxed pilot under
+[ADR-0003](../docs/adr/0003-ai-agent-surface-promotion-bar.md) with a keep-or-remove review on
+**2026-11-20**: keep it only if 2–3 real sessions show it is distinct from `brainstorm` and `plan`.
 
 ## AI-Agent Guidance Rule
 
