@@ -4,6 +4,7 @@ import type { IntegrationErrorOptions } from '../../application/integration-erro
 import { IntegrationError } from '../../application/integration-error.js';
 import type { GoogleTokenProvider } from '../../application/ports.js';
 import type { ErrorCode } from '../../domain/error-catalog.js';
+import { abortable } from '../../shared/abortable.js';
 import type { Sleep } from '../../shared/sleep.js';
 import { pause, systemSleep } from '../../shared/sleep.js';
 import { GoogleTokenUnavailableError } from './token-provider.js';
@@ -141,7 +142,8 @@ export class GoogleApiClient {
     for (let attempt = 1; ; attempt += 1) {
       signal?.throwIfAborted();
 
-      const token = await this.accessToken();
+      // A token refresh takes no signal, so the abort must not wait for it.
+      const token = await abortable(this.accessToken(), signal);
       const timeout = AbortSignal.timeout(this.timeoutMs);
       let response: Response;
 

@@ -201,6 +201,29 @@ describe('GoogleApiClient', () => {
     );
   });
 
+  it('ends a token refresh that never finishes as soon as the signal aborts', async () => {
+    const controller = new AbortController();
+    const google = new FakeGoogle();
+    const client = new GoogleApiClient({
+      fetch: google.fetch,
+      service: 'drive',
+      tokenProvider: {
+        getAccessToken: () => {
+          controller.abort(new Error('transfer budget exceeded'));
+
+          return new Promise(() => {
+            // The token endpoint stalls.
+          });
+        },
+      },
+    });
+
+    await expect(client.send({ signal: controller.signal, url: URL })).rejects.toThrow(
+      'transfer budget exceeded',
+    );
+    expect(google.requests).toEqual([]);
+  });
+
   it('sends nothing when the signal has already aborted', async () => {
     const { client, google } = setup();
 

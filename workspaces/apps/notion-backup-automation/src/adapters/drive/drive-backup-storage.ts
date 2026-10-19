@@ -208,17 +208,18 @@ export class DriveBackupStorage implements BackupStorage {
       'id,name',
       signal,
     );
-    const newest = folders
+    const years = folders
       .map((folder) => folder.name ?? '')
       .filter((name) => YEAR_FOLDER_PATTERN.test(name))
-      .toSorted()
-      .at(-1);
+      .map(Number);
 
-    if (newest === undefined) {
+    if (years.length === 0) {
       throw inaccessible(`No year folder is visible in the backup root, so ${year} is not created`);
     }
 
-    if (year <= newest) {
+    const newest = Math.max(...years);
+
+    if (Number(year) <= newest) {
       throw inaccessible(
         `The ${year} folder is not visible; the app creates only years after ${newest}`,
       );
@@ -318,6 +319,9 @@ export class DriveBackupStorage implements BackupStorage {
 
       return 'written';
     } catch (error) {
+      // An abort ends the whole upload; only other failures leave the sidecar to a later run.
+      signal?.throwIfAborted();
+
       this.logger.warn('drive.sidecar.failed', {
         code: errorCode(error),
         driveFileId: backup.driveFileId,

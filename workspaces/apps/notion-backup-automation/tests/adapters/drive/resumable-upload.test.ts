@@ -20,6 +20,7 @@ import { googleError } from '../../support/fake-google.js';
 import { tempFile } from '../../support/temp-file.js';
 
 const UNIT = UPLOAD_CHUNK_UNIT;
+const UPLOADS = 'www.googleapis.com/upload/drive/v3/files';
 const MiB = 1024 * 1024;
 const NAME = 'notion-workspace-2026-10-01.zip';
 
@@ -254,18 +255,32 @@ describe('ResumableUploader', () => {
     expect(drive.named(NAME).map((file) => file.id)).toEqual([fileId]);
   });
 
-  it('rejects a complete but unexpected reply to the last chunk', async () => {
-    const { drive, uploader } = setup();
+  it('asks the session again when the reply to the last chunk names no file', async () => {
+    const { drive, sleeps, uploader } = setup();
 
     drive.onChunk = ({ length }) => ({
       persist: length,
       response: () => Response.json({ kind: 'drive#file' }),
     });
 
+    const { fileId } = await uploader.upload(metadata, bytesSource(randomBytes(10)));
+
+    expect(drive.contentRanges).toEqual([range(0, 10, 10), 'bytes */10']);
+    expect(sleeps).toEqual([500]);
+    expect(drive.named(NAME).map((file) => file.id)).toEqual([fileId]);
+  });
+
+  it('fails with the unexpected reply when Drive never names the file', async () => {
+    const { drive, uploader } = setup();
+
+    drive.google.on('PUT', UPLOADS, () => Response.json({ kind: 'drive#file' }));
+
     await expect(uploader.upload(metadata, bytesSource(randomBytes(10)))).rejects.toMatchObject({
       code: 'INTEGRATION_UNCLASSIFIED',
       message: 'Drive returned an unexpected response (HTTP 200) to the last chunk',
     });
+    // The chunk, then a status query after each of the first 4 failures.
+    expect(drive.contentRanges).toHaveLength(5);
   });
 
   it('starts a new session from byte 0 when Drive expires the session (404)', async () => {
@@ -430,6 +445,26 @@ describe('ResumableUploader', () => {
       'transfer budget exceeded',
     );
     expect(drive.contentRanges).toEqual([]);
+  });
+
+  it('ends a token refresh that never finishes as soon as the signal aborts', async () => {
+    const controller = new AbortController();
+    const { drive, uploader } = setup({
+      tokenProvider: {
+        getAccessToken: () => {
+          controller.abort(new Error('transfer budget exceeded'));
+
+          return new Promise(() => {
+            // The token endpoint stalls.
+          });
+        },
+      },
+    });
+
+    await expect(
+      uploader.upload(metadata, bytesSource(randomBytes(10)), controller.signal),
+    ).rejects.toThrow('transfer budget exceeded');
+    expect(drive.sessionCount).toBe(0);
   });
 
   it('reports an abort while Drive’s error reply is read as the abort', async () => {

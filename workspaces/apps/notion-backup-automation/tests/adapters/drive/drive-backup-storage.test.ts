@@ -642,6 +642,32 @@ describe('DriveBackupStorage.upload', () => {
     expect(drive.named(`${NAME}.sha256`)).toHaveLength(1);
   });
 
+  it('rejects with the abort when the signal aborts during the sidecar, and keeps the ZIP', async () => {
+    const controller = new AbortController();
+    const { drive, storage } = setup();
+
+    drive.add({ name: '2026' });
+
+    // Chunk 2 is the sidecar's only chunk; the abort lands before its checksum is read.
+    drive.onChunk = ({ index, length }) => {
+      if (index === 2) {
+        controller.abort(new Error('transfer budget exceeded'));
+      }
+
+      return { persist: length };
+    };
+
+    await expect(
+      storage.upload({ ...(await fileUpload(randomBytes(1000))), signal: controller.signal }),
+    ).rejects.toThrow('transfer budget exceeded');
+    // The verified ZIP stays, so the next run finds it and writes the sidecar.
+    expect(drive.named(NAME)).toHaveLength(1);
+    expect(drive.named(`${NAME}.sha256`)).toEqual([]);
+    await expect(storage.findExisting({ period: '2026-10' })).resolves.toMatchObject({
+      fileName: NAME,
+    });
+  });
+
   it('keeps the ZIP and reports the sidecar as failed when only the sidecar fails', async () => {
     const { drive, logs, storage } = setup();
 

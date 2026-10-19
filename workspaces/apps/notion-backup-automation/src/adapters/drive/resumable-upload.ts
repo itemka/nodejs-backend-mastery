@@ -407,7 +407,8 @@ export class ResumableUploader {
   ): Promise<GoogleApiError | Response> {
     signal?.throwIfAborted();
 
-    const token = await serviceAccessToken(this.tokenProvider, 'drive');
+    // A token refresh takes no signal, so the abort must not wait for it.
+    const token = await abortable(serviceAccessToken(this.tokenProvider, 'drive'), signal);
     const timeout = AbortSignal.timeout(this.timeoutMs);
 
     try {
@@ -448,18 +449,13 @@ export class ResumableUploader {
     }
 
     if (result.status === 200 || result.status === 201) {
-      const fileId = await uploadedFileId(result);
+      const reply = await uploadedFileId(result);
 
-      // The reply was cut off after Drive created the file: asking the session again returns it.
-      return fileId === undefined
-        ? {
-            error: new IntegrationError(
-              'DRIVE_UNAVAILABLE',
-              "Drive's reply to the last chunk was cut off",
-            ),
-            kind: 'failed',
-          }
-        : { fileId, kind: 'complete' };
+      // Drive may have created the file although the reply does not name it: asking the session
+      // again returns the file.
+      return typeof reply === 'string'
+        ? { fileId: reply, kind: 'complete' }
+        : { error: reply, kind: 'failed' };
     }
 
     if (result.status === 308) {
@@ -677,26 +673,25 @@ function sessionUrlOf(location: null | string): URL {
 }
 
 /**
- * The new file's ID from the reply to the last chunk; undefined when the body could not be read
- * (cut off), so the caller asks the session again. A complete but unexpected reply is an error.
+ * The new file's ID from the reply to the last chunk, or why the reply names none: it was cut
+ * off (`DRIVE_UNAVAILABLE`), or it is not a file (`INTEGRATION_UNCLASSIFIED`). Either way the
+ * caller asks the session again, and fails with this error only when no attempt is left.
  */
-async function uploadedFileId(response: Response): Promise<string | undefined> {
+async function uploadedFileId(response: Response): Promise<IntegrationError | string> {
   let body: unknown;
 
   try {
     body = await response.json();
   } catch {
-    return undefined;
+    return new IntegrationError('DRIVE_UNAVAILABLE', "Drive's reply to the last chunk was cut off");
   }
 
   const parsed = uploadedFileSchema.safeParse(body);
 
-  if (!parsed.success) {
-    throw new IntegrationError(
-      'INTEGRATION_UNCLASSIFIED',
-      `Drive returned an unexpected response (HTTP ${response.status}) to the last chunk`,
-    );
-  }
-
-  return parsed.data.id;
+  return parsed.success
+    ? parsed.data.id
+    : new IntegrationError(
+        'INTEGRATION_UNCLASSIFIED',
+        `Drive returned an unexpected response (HTTP ${response.status}) to the last chunk`,
+      );
 }
