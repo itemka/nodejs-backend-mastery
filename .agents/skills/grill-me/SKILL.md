@@ -61,7 +61,7 @@ Keep the scope proportional to the proposal and its consequences.
    question that depends on another unanswered question in the same round. Do not repeat
    answered questions unless new evidence contradicts them; explain why when reopening one.
    Partial answers and silence leave the other decisions open, not accepted by default.
-6. Continue until no important unresolved frontier remains or the user explicitly stops.
+6. Continue until the frontier is empty or the user explicitly stops.
    Do not manufacture questions to prolong the session. A user-deferred issue stays visible
    as an open question or accepted risk; it is not a resolved decision. If progress depends
    on unavailable evidence, state the blocker instead of inventing an answer or looping.
