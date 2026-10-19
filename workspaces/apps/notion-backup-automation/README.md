@@ -4,7 +4,8 @@ A backup agent that will request the official Notion workspace export every mont
 the ZIP in Google Drive. It runs as Vercel Functions.
 
 **Status:** Google OAuth, the Drive access check and the Gmail export-email finder (Phase 2),
-with a local CLI. The only function is still `GET /api/health`.
+and the Drive backup storage with its resumable uploader (Phase 3), with a local CLI. The only
+function is still `GET /api/health`.
 
 ## Layout
 
@@ -17,8 +18,8 @@ with a local CLI. The only function is still `GET /api/health`.
 | `src/adapters/persistence/` | Upstash Redis adapters with Lua scripts (`lua/*.lua`), and the in-memory job repository.                                          |
 | `src/adapters/google/`      | OAuth: loopback consent with PKCE, the Picker grant, the token provider, and the REST client shared by Gmail and Drive.           |
 | `src/adapters/gmail/`       | The export-email finder and its parser: the trust checks and the download-link extraction.                                        |
-| `src/adapters/drive/`       | The S6 access check (C1–C4) and the app-owned root of S6 fallback 2.                                                              |
-| `src/cli/`                  | The local CLI: `auth:google`, `drive:check`, `drive:init`, `doctor`.                                                              |
+| `src/adapters/drive/`       | The backup storage (year folders, verified uploads, the sidecar), the resumable uploader, and the S6 access check (C1–C4).        |
+| `src/cli/`                  | The local CLI: `auth:google`, `drive:check`, `drive:init`, `doctor`, `dev:upload`.                                                |
 | `src/shared/`               | The redacting JSON-line logger, envelope crypto (AES-256-GCM), the `.env.local` writer, masking, `SecretValue`, clock, IDs.       |
 | `tests/`                    | Vitest. `tests/contract/` holds the repository contract; `tests/live/` the opt-in live suites; `tests/fixtures/` recorded shapes. |
 | `vercel.json`               | Region and per-function limits.                                                                                                   |
@@ -59,6 +60,7 @@ pnpm --filter notion-backup-automation auth:google [--print] [--pick-folders]
 pnpm --filter notion-backup-automation drive:check [--year YYYY]
 pnpm --filter notion-backup-automation cli drive:init
 pnpm --filter notion-backup-automation cli doctor [--email-since YYYY-MM-DD]
+APP_ENV=dev pnpm --filter notion-backup-automation cli dev:upload <file.zip>
 ```
 
 | Command                      | What it does                                                                                                                                                                                                                                                                                                                                                  |
@@ -68,6 +70,7 @@ pnpm --filter notion-backup-automation cli doctor [--email-since YYYY-MM-DD]
 | `drive:check`                | S6: C1 the root is visible, C2 exactly one year folder is visible in it, C3 a file can be created and deleted in the root, C4 the same in the year folder. Exits 0 when C1 and C3 pass.                                                                                                                                                                       |
 | `drive:init`                 | S6 fallback 2: creates the app-owned `Full Workspace` folder at the top of My Drive (once), and prints its ID and the manual steps.                                                                                                                                                                                                                           |
 | `doctor`                     | Refreshes the Google token and lists its scopes, reads the masked mailbox, finds the newest trusted export email since `--email-since` (a day in `BACKUP_TIME_ZONE`; default: the last 30 days), checks the Drive root (C1), pings Redis, and opens the Notion session secret of `APP_ENV`. Exits 1 if a check fails; an expired Testing token names the fix. |
+| `dev:upload`                 | Only with `APP_ENV=dev`. Uploads a local file as today's backup into `_dev/<YYYY>/` in the Drive root, through the same storage code the worker uses, and prints the Drive file ID, size, SHA-256 and the sidecar outcome. A second run with the same file uploads nothing. Exits 1 if the sidecar failed.                                                    |
 
 While the Google OAuth app is in **Testing**, refresh tokens expire after 7 days. When `doctor`
 reports `GOOGLE_AUTH_REQUIRED`, run `auth:google` again.
@@ -93,6 +96,61 @@ An ambiguous probe creation is reconciled by its generated name, app marker and 
 single recovered probe is deleted; ambiguous matches or failed cleanup are reported by ID,
 and further write probes stop. If Drive cannot reveal the ID, the command reports the unknown
 outcome and directs you to inspect app-marked probes before retrying; it never retries the POST.
+
+## Drive Storage
+
+The app has the `drive.file` scope only: it sees the files it created, and the folders you
+granted it through the Picker. Backups go to the existing `Backups/Notion/Full Workspace`
+folder, whose ID is `GOOGLE_DRIVE_BACKUP_ROOT_FOLDER_ID`.
+
+**Setup (S6 outcome, mode `existing`).** Run `auth:google --pick-folders` and pick
+`Full Workspace` and its `2026` folder; grants add up across runs and belong to the app. Then
+`drive:check` must pass C1–C4. Picking a folder does not reveal its existing children, so each
+folder the app must see has to be picked. Later years need no grant: the app creates them.
+
+```text
+Full Workspace/                       GOOGLE_DRIVE_BACKUP_ROOT_FOLDER_ID (picked)
+├── 2026/                             your folder (picked); found by its exact name
+│   ├── notion-workspace-2026-10-01.zip
+│   └── notion-workspace-2026-10-01.zip.sha256
+├── 2027/                             created by the app, appProperties.notionBackupYear
+└── _dev/                             created by the app for APP_ENV=dev, appProperties.notionBackupDev
+    └── 2026/
+```
+
+- **Year folders** are found by exact name under the root, or created. Two folders with the
+  same year fail with `DRIVE_ROOT_INACCESSIBLE`. `drive.file` hides a folder whose grant is
+  lost, so a hidden folder looks missing. The root must be visible before anything is created.
+  In your root, the app creates only years after every year folder it can see. A hidden `2026`
+  therefore fails with `DRIVE_ROOT_INACCESSIBLE` instead of getting a second `2026` next to it;
+  pick it again with `auth:google --pick-folders`. In the `drive:init` root and in `_dev`, the
+  app created every folder, so it creates any missing year.
+- **`APP_ENV=dev`** writes everything under `_dev`, so test uploads never reach the real year
+  folders.
+- **Each ZIP** carries `appProperties` `notionBackupPeriod`, `notionBackupJobId` and
+  `notionBackupSha256`. It counts as a backup only while Drive's own `sha256Checksum` matches
+  `notionBackupSha256`, so an unfinished or corrupted upload is never adopted. Before uploading,
+  the app looks for a verified ZIP with the same SHA-256 and reuses it.
+- **Uploads** use Drive's resumable protocol in 16 MiB chunks. A dropped connection, 429 or 5xx
+  asks Drive how many bytes it holds and resumes from there; a short `Retry-After` is waited out,
+  a longer one ends the attempt with `DRIVE_UNAVAILABLE`. An expired session (404) starts again
+  from byte 0. Drive creates the file only after the last chunk, so a failed upload leaves
+  nothing behind.
+- **Verification:** Drive's size and SHA-256 must match the local ones; this is the same
+  SHA-256 check that later finds the backup again. Drive is asked again for up to 7 s while it
+  has not computed the SHA-256. On a mismatch, no SHA-256, or a failed read, the new file is
+  deleted; a mismatch fails with `DRIVE_CHECKSUM_MISMATCH`.
+- **The sidecar** `<name>.zip.sha256` holds `<sha256>  <name>.zip`, so
+  `shasum -a 256 -c notion-workspace-YYYY-MM-DD.zip.sha256` checks a downloaded copy. It is
+  written once per ZIP name and SHA-256 (`WRITE_SHA256_SIDECAR`, default `true`). If it fails,
+  the ZIP stays and the failure is logged.
+- **Streams** (`TRANSFER_MODE=stream`) are hashed while they upload. Once Drive's SHA-256
+  matches, a verified copy with the same SHA-256 wins and the new file is deleted; otherwise
+  `notionBackupSha256` is recorded on it. Any failure on the way deletes the new file. If Drive
+  refuses to delete a duplicate, the result names it as `leftoverFileId`.
+- **Aborts:** the upload's `AbortSignal` (the transfer budget) ends requests, waits and stream
+  reads at once, from the year-folder lookup to the sidecar. Deleting an unverified new file
+  still runs after an abort.
 
 ## State In Redis
 

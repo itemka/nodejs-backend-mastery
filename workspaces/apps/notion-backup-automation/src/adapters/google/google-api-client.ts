@@ -1,10 +1,12 @@
-import { setTimeout as sleepFor } from 'node:timers/promises';
 import { z } from 'zod';
 
 import type { IntegrationErrorOptions } from '../../application/integration-error.js';
 import { IntegrationError } from '../../application/integration-error.js';
 import type { GoogleTokenProvider } from '../../application/ports.js';
 import type { ErrorCode } from '../../domain/error-catalog.js';
+import { abortable } from '../../shared/abortable.js';
+import type { Sleep } from '../../shared/sleep.js';
+import { pause, systemSleep } from '../../shared/sleep.js';
 import { GoogleTokenUnavailableError } from './token-provider.js';
 
 export type GoogleService = 'drive' | 'gmail';
@@ -22,7 +24,7 @@ const scopeReasons = new Set(['ACCESS_TOKEN_SCOPE_INSUFFICIENT', 'insufficientPe
 const rateLimitReasons = new Set(['rateLimitExceeded', 'userRateLimitExceeded']);
 
 /** In-tick retries wait at most this long; a longer `Retry-After` is left to the job's backoff. */
-const MAX_IN_TICK_DELAY_SEC = 10;
+export const MAX_IN_TICK_DELAY_SEC = 10;
 
 /** A failed Google API call: the cataloged code, plus the HTTP status and Google's reason. */
 export class GoogleApiError extends IntegrationError {
@@ -46,8 +48,15 @@ export class GoogleApiError extends IntegrationError {
 export interface GoogleApiRequest {
   /** Sent as JSON. */
   body?: unknown;
+  /**
+   * Retry like GET and DELETE although the method is not idempotent by definition, because
+   * repeating this request has no further effect (setting the same properties again).
+   */
+  idempotent?: boolean;
   method?: 'DELETE' | 'GET' | 'PATCH' | 'POST';
   query?: Readonly<Record<string, boolean | number | string | undefined>>;
+  /** Cancels the request and its retry waits; the call then rejects with the signal's reason. */
+  signal?: AbortSignal | undefined;
   url: string;
 }
 
@@ -56,7 +65,7 @@ export interface GoogleApiClientOptions {
   /** Attempts for idempotent requests (GET, DELETE); others are sent once. */
   maxAttempts?: number;
   service: GoogleService;
-  sleep?: (ms: number) => Promise<void>;
+  sleep?: Sleep;
   timeoutMs?: number;
   tokenProvider: GoogleTokenProvider;
 }
@@ -80,7 +89,7 @@ export class GoogleApiClient {
   private readonly fetch: typeof fetch;
   private readonly maxAttempts: number;
   private readonly service: GoogleService;
-  private readonly sleep: (ms: number) => Promise<void>;
+  private readonly sleep: Sleep;
   private readonly timeoutMs: number;
   private readonly tokenProvider: GoogleTokenProvider;
 
@@ -88,7 +97,7 @@ export class GoogleApiClient {
     fetch = globalThis.fetch,
     maxAttempts = 3,
     service,
-    sleep = (ms) => sleepFor(ms),
+    sleep = systemSleep,
     timeoutMs = 30_000,
     tokenProvider,
   }: GoogleApiClientOptions) {
@@ -108,6 +117,8 @@ export class GoogleApiClient {
     try {
       body = await response.json();
     } catch {
+      request.signal?.throwIfAborted();
+
       throw this.unexpectedResponse(response.status);
     }
 
@@ -123,11 +134,17 @@ export class GoogleApiClient {
   /** Sends the request and returns the successful response, body unread. */
   async send(request: GoogleApiRequest): Promise<Response> {
     const method = request.method ?? 'GET';
-    const attempts = method === 'GET' || method === 'DELETE' ? this.maxAttempts : 1;
+    const attempts =
+      method === 'GET' || method === 'DELETE' || request.idempotent === true ? this.maxAttempts : 1;
     const url = buildUrl(request);
+    const { signal } = request;
 
     for (let attempt = 1; ; attempt += 1) {
-      const token = await this.accessToken();
+      signal?.throwIfAborted();
+
+      // A token refresh takes no signal, so the abort must not wait for it.
+      const token = await abortable(this.accessToken(), signal);
+      const timeout = AbortSignal.timeout(this.timeoutMs);
       let response: Response;
 
       try {
@@ -139,33 +156,32 @@ export class GoogleApiClient {
           },
           method,
           redirect: 'error',
-          signal: AbortSignal.timeout(this.timeoutMs),
+          signal: signal === undefined ? timeout : AbortSignal.any([signal, timeout]),
         });
       } catch {
+        signal?.throwIfAborted();
+
         if (attempt < attempts) {
-          await this.sleep(backoffMs(attempt));
+          await pause(this.sleep, backoffMs(attempt), signal);
           continue;
         }
 
-        throw new GoogleApiError(
-          unavailableCodes[this.service],
-          `${serviceNames[this.service]} did not respond`,
-        );
+        throw serviceUnavailable(this.service);
       }
 
       if (response.ok) {
         return response;
       }
 
-      const error = await this.toError(response);
+      const error = await googleApiErrorOf(this.service, response, signal);
       const delaySec = error.retryAfterSec ?? backoffMs(attempt) / 1000;
 
       if (
-        error.code === unavailableCodes[this.service] &&
+        isServiceUnavailable(error, this.service) &&
         attempt < attempts &&
         delaySec <= MAX_IN_TICK_DELAY_SEC
       ) {
-        await this.sleep(delaySec * 1000);
+        await pause(this.sleep, delaySec * 1000, signal);
         continue;
       }
 
@@ -173,47 +189,8 @@ export class GoogleApiClient {
     }
   }
 
-  private async accessToken(): Promise<string> {
-    try {
-      return await this.tokenProvider.getAccessToken();
-    } catch (error) {
-      if (error instanceof GoogleTokenUnavailableError) {
-        throw new GoogleApiError(unavailableCodes[this.service], error.message, {
-          ...(error.status === undefined ? {} : { status: error.status }),
-        });
-      }
-
-      throw error;
-    }
-  }
-
-  private async toError(response: Response): Promise<GoogleApiError> {
-    const { status } = response;
-    const reason = await readReason(response);
-    const detail = `${serviceNames[this.service]} returned HTTP ${status}${reason === undefined ? '' : ` (${reason})`}`;
-    const options = {
-      ...(reason === undefined ? {} : { reason }),
-      status,
-    };
-
-    if (status === 401 || (status === 403 && reason !== undefined && scopeReasons.has(reason))) {
-      return new GoogleApiError('GOOGLE_AUTH_REQUIRED', detail, options);
-    }
-
-    if (
-      status === 429 ||
-      status >= 500 ||
-      (status === 403 && reason !== undefined && rateLimitReasons.has(reason))
-    ) {
-      const retryAfterSec = parseRetryAfter(response.headers.get('retry-after'), Date.now());
-
-      return new GoogleApiError(unavailableCodes[this.service], detail, {
-        ...options,
-        ...(retryAfterSec === undefined ? {} : { retryAfterSec }),
-      });
-    }
-
-    return new GoogleApiError('INTEGRATION_UNCLASSIFIED', detail, options);
+  private accessToken(): Promise<string> {
+    return serviceAccessToken(this.tokenProvider, this.service);
   }
 
   private unexpectedResponse(status: number): GoogleApiError {
@@ -223,6 +200,79 @@ export class GoogleApiClient {
       { status },
     );
   }
+}
+
+/** An access token; a transient token-endpoint failure becomes the service's `*_UNAVAILABLE`. */
+export async function serviceAccessToken(
+  tokenProvider: GoogleTokenProvider,
+  service: GoogleService,
+): Promise<string> {
+  try {
+    return await tokenProvider.getAccessToken();
+  } catch (error) {
+    if (error instanceof GoogleTokenUnavailableError) {
+      throw new GoogleApiError(unavailableCodes[service], error.message, {
+        ...(error.status === undefined ? {} : { status: error.status }),
+      });
+    }
+
+    throw error;
+  }
+}
+
+/** A Google network failure or timeout: the service's `*_UNAVAILABLE`, with no status. */
+export function serviceUnavailable(service: GoogleService): GoogleApiError {
+  return new GoogleApiError(unavailableCodes[service], `${serviceNames[service]} did not respond`);
+}
+
+/**
+ * Classifies a failed response, reading its body for Google's reason:
+ * - 401 and scope 403s → `GOOGLE_AUTH_REQUIRED`;
+ * - 429, 5xx and rate-limit 403s → the service's `*_UNAVAILABLE`, with `Retry-After`;
+ * - anything else → `INTEGRATION_UNCLASSIFIED`.
+ * An abort while the body is read throws the signal's reason instead.
+ */
+export async function googleApiErrorOf(
+  service: GoogleService,
+  response: Response,
+  signal?: AbortSignal,
+): Promise<GoogleApiError> {
+  const { status } = response;
+  const reason = await readReason(response);
+
+  // An aborted body read looks like a body without a reason.
+  signal?.throwIfAborted();
+
+  const reasonText = reason === undefined ? '' : ` (${reason})`;
+  const detail = `${serviceNames[service]} returned HTTP ${status}${reasonText}`;
+  const options = {
+    ...(reason === undefined ? {} : { reason }),
+    status,
+  };
+
+  if (status === 401 || (status === 403 && reason !== undefined && scopeReasons.has(reason))) {
+    return new GoogleApiError('GOOGLE_AUTH_REQUIRED', detail, options);
+  }
+
+  if (
+    status === 429 ||
+    status >= 500 ||
+    (status === 403 && reason !== undefined && rateLimitReasons.has(reason))
+  ) {
+    const retryAfterSec = parseRetryAfter(response.headers.get('retry-after'), Date.now());
+
+    return new GoogleApiError(unavailableCodes[service], detail, {
+      ...options,
+      ...(retryAfterSec === undefined ? {} : { retryAfterSec }),
+    });
+  }
+
+  return new GoogleApiError('INTEGRATION_UNCLASSIFIED', detail, options);
+}
+
+/** Whether the error is the service's transient `*_UNAVAILABLE`, which is worth retrying. */
+export function isServiceUnavailable(error: GoogleApiError, service: GoogleService): boolean {
+  return error.code === unavailableCodes[service];
 }
 
 function buildUrl({ query = {}, url }: GoogleApiRequest): URL {
@@ -238,7 +288,7 @@ function buildUrl({ query = {}, url }: GoogleApiRequest): URL {
 }
 
 /** 0.5 s, 1 s, 2 s, … */
-function backoffMs(attempt: number): number {
+export function backoffMs(attempt: number): number {
   return 500 * 2 ** (attempt - 1);
 }
 

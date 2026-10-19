@@ -137,6 +137,102 @@ describe('GoogleApiClient', () => {
     expect(google.requests).toHaveLength(1);
   });
 
+  it('retries a PATCH marked idempotent', async () => {
+    const { client, google, sleeps } = setup();
+    let calls = 0;
+
+    google.on('PATCH', URL_PATH, () =>
+      (calls += 1) === 1 ? googleError(503) : Response.json({ id: 'root-id' }),
+    );
+
+    await expect(
+      client.json(fileSchema, { body: {}, idempotent: true, method: 'PATCH', url: URL }),
+    ).resolves.toEqual({ id: 'root-id' });
+    expect(sleeps).toEqual([500]);
+  });
+
+  it('ends a retry wait as soon as the signal aborts, with its reason', async () => {
+    const google = new FakeGoogle().on('GET', URL_PATH, () =>
+      googleError(503, undefined, { 'Retry-After': '10' }),
+    );
+    // The real timer: the 10 s wait must not run to its end.
+    const client = new GoogleApiClient({
+      fetch: google.fetch,
+      service: 'drive',
+      tokenProvider: { getAccessToken: () => Promise.resolve('fake-access-token') },
+    });
+    const controller = new AbortController();
+    const started = Date.now();
+
+    setTimeout(() => {
+      controller.abort(new Error('transfer budget exceeded'));
+    }, 20);
+
+    await expect(client.send({ signal: controller.signal, url: URL })).rejects.toThrow(
+      'transfer budget exceeded',
+    );
+    expect(Date.now() - started).toBeLessThan(2000);
+    expect(google.requests).toHaveLength(1);
+  });
+
+  it('rejects with the signal’s reason when it aborts while an error reply is read', async () => {
+    const controller = new AbortController();
+    const reason = new Error('transfer budget exceeded');
+    // The reply's body fails because of the abort, which hides Google's reason.
+    const client = new GoogleApiClient({
+      fetch: () =>
+        Promise.resolve(
+          new Response(
+            new ReadableStream({
+              pull: (stream) => {
+                controller.abort(reason);
+                stream.error(reason);
+              },
+            }),
+            { status: 400 },
+          ),
+        ),
+      service: 'drive',
+      tokenProvider: { getAccessToken: () => Promise.resolve('fake-access-token') },
+    });
+
+    await expect(client.send({ signal: controller.signal, url: URL })).rejects.toThrow(
+      'transfer budget exceeded',
+    );
+  });
+
+  it('ends a token refresh that never finishes as soon as the signal aborts', async () => {
+    const controller = new AbortController();
+    const google = new FakeGoogle();
+    const client = new GoogleApiClient({
+      fetch: google.fetch,
+      service: 'drive',
+      tokenProvider: {
+        getAccessToken: () => {
+          controller.abort(new Error('transfer budget exceeded'));
+
+          return new Promise(() => {
+            // The token endpoint stalls.
+          });
+        },
+      },
+    });
+
+    await expect(client.send({ signal: controller.signal, url: URL })).rejects.toThrow(
+      'transfer budget exceeded',
+    );
+    expect(google.requests).toEqual([]);
+  });
+
+  it('sends nothing when the signal has already aborted', async () => {
+    const { client, google } = setup();
+
+    await expect(
+      client.send({ signal: AbortSignal.abort(new Error('cancelled')), url: URL }),
+    ).rejects.toThrow('cancelled');
+    expect(google.requests).toEqual([]);
+  });
+
   it('retries a network failure, then reports the service as unavailable', async () => {
     const google = new FakeGoogle();
     const client = new GoogleApiClient({

@@ -1,6 +1,7 @@
 import type { JobEvent } from '../domain/job-event.js';
 import type { FoundEmail } from '../domain/job-lifecycle.js';
 import type { BackupJob } from '../domain/job.js';
+import type { Period } from '../domain/period.js';
 import type { EnvelopeMeta } from '../shared/envelope-crypto.js';
 import type { SecretValue } from '../shared/secret-value.js';
 import type { HealthField, HealthSnapshot } from './health-snapshot.js';
@@ -126,4 +127,83 @@ export interface ExportEmailFinder {
    * signed file URL it redirects to: it is never stored, logged or returned.
    */
   getDownloadLink(messageId: string): Promise<SecretValue<string>>;
+}
+
+/** A backup ZIP in Drive whose content Drive's checksum confirms. */
+export interface StoredBackup {
+  readonly driveFileId: string;
+  readonly fileName: string;
+  /** The job that uploaded it. */
+  readonly jobId: string;
+  readonly sha256: string;
+  readonly sizeBytes: number;
+  readonly yearFolderId: string;
+}
+
+/**
+ * The ZIP to upload:
+ * - `file`: a verified file, with the SHA-256 the verifier computed (`TRANSFER_MODE=tmp`);
+ * - `stream`: bytes hashed while they are uploaded (`TRANSFER_MODE=stream`).
+ */
+export type BackupContent =
+  | { readonly kind: 'file'; readonly path: string; readonly sha256: string }
+  | { readonly kind: 'stream'; readonly stream: AsyncIterable<Uint8Array> };
+
+export interface BackupUpload {
+  readonly content: BackupContent;
+  /** `notion-workspace-YYYY-MM-DD.zip`. */
+  readonly fileName: string;
+  readonly jobId: string;
+  readonly period: Period;
+  /** Stops the upload, such as when the transfer runs out of time. */
+  readonly signal?: AbortSignal;
+}
+
+/**
+ * The `.sha256` sidecar after an upload:
+ * - `written` or `exists`: it is in Drive;
+ * - `disabled`: `WRITE_SHA256_SIDECAR=false`;
+ * - `failed`: the ZIP is stored, but the sidecar is not (logged).
+ */
+export type SidecarOutcome = 'disabled' | 'exists' | 'failed' | 'written';
+
+export interface UploadedBackup extends StoredBackup {
+  /**
+   * Set when a streamed upload duplicated this stored backup and Drive refused to delete the
+   * duplicate. It carries no SHA-256 mark, so it is never adopted; delete it in Drive.
+   */
+  readonly leftoverFileId?: string;
+  readonly sidecar: SidecarOutcome;
+  /** False when Drive already held a verified copy with the same SHA-256. */
+  readonly uploaded: boolean;
+}
+
+export interface BackupQuery {
+  readonly jobId?: string;
+  readonly period: Period;
+  readonly sha256?: string;
+}
+
+/**
+ * Backup ZIPs in Drive, under `<root>/<YYYY>/`, or `<root>/_dev/<YYYY>/` for `APP_ENV=dev`. A
+ * file counts as a backup only when Drive's SHA-256 matches the one the app recorded on it.
+ * Throws `IntegrationError` `DRIVE_ROOT_INACCESSIBLE` when the root or a year folder cannot be
+ * used. An aborted `signal` ends any call with its reason.
+ */
+export interface BackupStorage {
+  /** The root is a visible, writable folder. */
+  checkAccess(signal?: AbortSignal): Promise<void>;
+  /**
+   * The period's year folder, found by its exact name or created; returns its ID. In a root the
+   * app did not create, only a year after every visible year folder is created.
+   */
+  ensureYearFolder(period: Period, signal?: AbortSignal): Promise<string>;
+  /** The newest verified backup of the period, of that job and SHA-256 when they are given. */
+  findExisting(query: BackupQuery, signal?: AbortSignal): Promise<StoredBackup | undefined>;
+  /**
+   * Uploads the ZIP, unless a verified copy with the same SHA-256 exists (for a stream, the
+   * duplicate is deleted once its SHA-256 is known). It succeeds only once Drive's SHA-256
+   * matches. Otherwise the new file is deleted: `DRIVE_CHECKSUM_MISMATCH` on a mismatch.
+   */
+  upload(request: BackupUpload): Promise<UploadedBackup>;
 }

@@ -10,7 +10,10 @@ export const GMAIL_SCOPE = 'https://www.googleapis.com/auth/gmail.readonly';
 export const DRIVE_SCOPE = 'https://www.googleapis.com/auth/drive.file';
 
 export interface RecordedRequest {
+  /** The body as UTF-8 text. */
   readonly body: string;
+  /** The body as sent, for binary uploads. */
+  readonly bytes: Uint8Array;
   readonly headers: Headers;
   readonly method: string;
   readonly url: URL;
@@ -35,8 +38,13 @@ export class FakeGoogle {
 
   readonly fetch: typeof fetch = async (input, init) => {
     const request = new Request(input, init);
+    const bytes = new Uint8Array(await request.arrayBuffer());
     const recorded: RecordedRequest = {
-      body: await request.text(),
+      // Decoded on demand: most upload bodies are binary and never read as text.
+      get body() {
+        return new TextDecoder().decode(bytes);
+      },
+      bytes,
       headers: request.headers,
       method: request.method,
       url: new URL(request.url),

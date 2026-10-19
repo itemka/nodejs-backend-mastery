@@ -4,6 +4,7 @@ export type ParsedCommand =
   | { readonly command: 'auth:google'; readonly pickFolders: boolean; readonly print: boolean }
   /** `emailSince` is a local date, `YYYY-MM-DD`, in the backup time zone. */
   | { readonly command: 'doctor'; readonly emailSince: string | undefined }
+  | { readonly command: 'dev:upload'; readonly path: string }
   | { readonly command: 'drive:check'; readonly year: string | undefined }
   | { readonly command: 'drive:init' }
   | { readonly command: 'help' };
@@ -30,6 +31,9 @@ Commands:
   doctor [--email-since YYYY-MM-DD]
       Checks the local configuration, Google, Gmail, Drive and Redis. The export email search
       starts at the start of --email-since, a day in BACKUP_TIME_ZONE (default: 30 days ago).
+  dev:upload <file.zip>
+      With APP_ENV=dev only: uploads the file as today's backup into _dev/<YYYY>/ in the Drive
+      root, with its .sha256 sidecar. A file already there with the same SHA-256 is not sent again.
 
 The commands read .env.local in the app directory.`;
 
@@ -71,6 +75,16 @@ export function parseCommand(argv: readonly string[]): ParsedCommand {
       };
     }
 
+    case 'dev:upload': {
+      const { positionals } = parse(rest, {}, true);
+
+      if (positionals.length !== 1 || positionals[0] === undefined || positionals[0] === '') {
+        throw new UsageError('dev:upload takes exactly one file');
+      }
+
+      return { command: 'dev:upload', path: positionals[0] };
+    }
+
     case 'drive:check': {
       const { year } = parse(rest, { year: { type: 'string' } }).values;
 
@@ -95,9 +109,13 @@ export function parseCommand(argv: readonly string[]): ParsedCommand {
 
 type OptionConfig = Record<string, { type: 'boolean' | 'string' }>;
 
-function parse<T extends OptionConfig>(args: readonly string[], options: T) {
+function parse<T extends OptionConfig>(
+  args: readonly string[],
+  options: T,
+  allowPositionals = false,
+) {
   try {
-    return parseArgs({ allowPositionals: false, args: [...args], options, strict: true });
+    return parseArgs({ allowPositionals, args: [...args], options, strict: true });
   } catch (error) {
     throw new UsageError(error instanceof Error ? error.message : 'Invalid arguments');
   }
