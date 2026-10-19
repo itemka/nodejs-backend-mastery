@@ -57,10 +57,10 @@ async function fileUpload(
   content: Uint8Array,
   overrides: Partial<Omit<BackupUpload, 'content'>> = {},
 ): Promise<BackupUpload> {
-  const { md5, sha256 } = digestsOf(content);
+  const { sha256 } = digestsOf(content);
 
   return {
-    content: { kind: 'file', md5, path: await tempFile(content), sha256 },
+    content: { kind: 'file', path: await tempFile(content), sha256 },
     fileName: NAME,
     jobId: '2026-10',
     period: '2026-10',
@@ -469,24 +469,7 @@ describe('DriveBackupStorage.upload', () => {
     expect(drive.named(`${NAME}.sha256`)).toEqual([]);
   });
 
-  it('accepts Drive’s MD5 when Drive reports no SHA-256', async () => {
-    const { drive, storage } = setup();
-    const content = randomBytes(1000);
-
-    drive.add({ name: '2026' });
-    drive.checksums = (file) => ({
-      md5Checksum: createHash('md5')
-        .update(file.content ?? new Uint8Array())
-        .digest('hex'),
-    });
-
-    await expect(storage.upload(await fileUpload(content))).resolves.toMatchObject({
-      sidecar: 'written',
-      uploaded: true,
-    });
-  });
-
-  it('asks again while Drive has no checksum yet', async () => {
+  it('asks again while Drive has no SHA-256 yet', async () => {
     const { drive, sleeps, storage } = setup({ writeSidecar: false });
 
     drive.add({ name: '2026' });
@@ -499,7 +482,7 @@ describe('DriveBackupStorage.upload', () => {
     expect(sleeps).toEqual([1000]);
   });
 
-  it('deletes the upload and throws DRIVE_UNAVAILABLE when Drive never reports a checksum', async () => {
+  it('deletes the upload and throws DRIVE_UNAVAILABLE when Drive never reports a SHA-256', async () => {
     const { drive, sleeps, storage } = setup();
 
     drive.add({ name: '2026' });
@@ -507,10 +490,46 @@ describe('DriveBackupStorage.upload', () => {
 
     await expect(storage.upload(await fileUpload(randomBytes(1000)))).rejects.toMatchObject({
       code: 'DRIVE_UNAVAILABLE',
-      message: 'Drive reported no checksum for the upload; the file was deleted',
+      message: 'Drive reported no SHA-256 for the upload; the file was deleted',
     });
-    expect(sleeps).toEqual([1000, 1000]);
+    expect(sleeps).toEqual([1000, 2000, 4000]);
     expect(drive.named(NAME)).toEqual([]);
+  });
+
+  it('deletes the upload when its checksum cannot be read', async () => {
+    const { drive, sleeps, storage } = setup();
+
+    drive.add({ name: '2026' });
+
+    drive.checksums = () => {
+      throw new TypeError('connection reset');
+    };
+
+    await expect(storage.upload(await fileUpload(randomBytes(1000)))).rejects.toMatchObject({
+      code: 'DRIVE_UNAVAILABLE',
+    });
+    // The Drive client's own retries of the read.
+    expect(sleeps).toEqual([500, 1000]);
+    expect(drive.named(NAME)).toEqual([]);
+  });
+
+  it('writes one sidecar per ZIP name, also for ZIPs with the same bytes', async () => {
+    const { drive, storage } = setup();
+    const content = randomBytes(1000);
+    const sha256 = sha256Of(content);
+    const november = 'notion-workspace-2026-11-01.zip';
+
+    drive.add({ name: '2026' });
+
+    await storage.upload(await fileUpload(content));
+    await expect(
+      storage.upload(await fileUpload(content, { fileName: november, period: '2026-11' })),
+    ).resolves.toMatchObject({ sidecar: 'written', uploaded: true });
+
+    const [sidecar] = drive.named(`${november}.sha256`);
+
+    expect(Buffer.from(sidecar?.content ?? []).toString()).toBe(`${sha256}  ${november}\n`);
+    expect(drive.named(`${NAME}.sha256`)).toHaveLength(1);
   });
 
   it('keeps the ZIP and reports the sidecar as failed when only the sidecar fails', async () => {
@@ -614,6 +633,50 @@ describe('DriveBackupStorage.upload', () => {
       await expect(storage.findExisting({ period: '2026-10' })).resolves.toMatchObject({
         driveFileId: result.driveFileId,
       });
+    });
+
+    it('keeps a verified copy with the same SHA-256 and deletes the new upload', async () => {
+      const { drive, storage } = setup();
+      const content = randomBytes(1000);
+
+      drive.add({ name: '2026' });
+
+      const first = await storage.upload(await fileUpload(content));
+      const again = await storage.upload({
+        content: { kind: 'stream', stream: piecesOf(content, 100) },
+        fileName: NAME,
+        jobId: '2026-10',
+        period: '2026-10',
+      });
+
+      expect(again).toEqual({ ...first, sidecar: 'exists', uploaded: false });
+      expect(drive.named(NAME).map((file) => file.id)).toEqual([first.driveFileId]);
+    });
+
+    it('deletes the upload when the copy lookup fails', async () => {
+      const { drive, storage } = setup();
+
+      drive.add({ name: '2026' });
+      // Only the lookup after the upload asks for ZIPs with a SHA-256.
+      drive.google.on('GET', FILES, ({ url }) =>
+        url.searchParams.get('q')?.includes('notionBackupSha256') === true
+          ? googleError(400, 'invalidQuery')
+          : Response.json({
+              files: drive.childrenOf(ROOT_ID).map(({ id, name }) => ({ id, name })),
+            }),
+      );
+
+      await expect(
+        storage.upload({
+          content: { kind: 'stream', stream: piecesOf(randomBytes(100), 10) },
+          fileName: NAME,
+          jobId: '2026-10',
+          period: '2026-10',
+        }),
+      ).rejects.toMatchObject({ code: 'INTEGRATION_UNCLASSIFIED' });
+      // It was uploaded, then deleted.
+      expect(drive.sessionCount).toBe(1);
+      expect(drive.named(NAME)).toEqual([]);
     });
 
     it('deletes the upload when its SHA-256 cannot be recorded', async () => {

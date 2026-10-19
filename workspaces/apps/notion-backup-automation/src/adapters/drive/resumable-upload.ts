@@ -260,9 +260,23 @@ export interface ResumableUploaderOptions {
 
 type ChunkOutcome =
   | { readonly committed: number; readonly kind: 'incomplete' }
-  | { readonly error: GoogleApiError; readonly kind: 'failed' }
+  | { readonly error: IntegrationError; readonly kind: 'failed' }
   | { readonly fileId: string; readonly kind: 'complete' }
   | { readonly kind: 'expired' };
+
+/** Where one upload session stands. */
+interface SessionProgress {
+  /** The last request failed, so the next one asks Drive for its position. */
+  askStatus: boolean;
+  /** Failed requests in a row without progress. */
+  failures: number;
+  /** Drive holds every byte before this offset. */
+  offset: number;
+  /** The end of the bytes sent so far. */
+  sent: number;
+  /** The total size, once known. */
+  total: number | undefined;
+}
 
 const uploadedFileSchema = z.object({ id: driveIdSchema });
 const committedRangePattern = /^bytes=0-(\d{1,15})$/;
@@ -403,7 +417,18 @@ export class ResumableUploader {
     }
 
     if (result.status === 200 || result.status === 201) {
-      return { fileId: await uploadedFileId(result), kind: 'complete' };
+      const fileId = await uploadedFileId(result);
+
+      // The reply was cut off after Drive created the file: asking the session again returns it.
+      return fileId === undefined
+        ? {
+            error: new IntegrationError(
+              'DRIVE_UNAVAILABLE',
+              "Drive's reply to the last chunk was cut off",
+            ),
+            kind: 'failed',
+          }
+        : { fileId, kind: 'complete' };
     }
 
     if (result.status === 308) {
@@ -427,45 +452,57 @@ export class ResumableUploader {
     throw error;
   }
 
+  /**
+   * Moves to the offset Drive confirmed. A chunk Drive kept none of counts as a failure; a
+   * position outside the bytes sent is a protocol error.
+   */
+  private async advance(
+    progress: SessionProgress,
+    committed: number,
+    chunkSent: boolean,
+    signal: AbortSignal | undefined,
+  ): Promise<void> {
+    const { offset, sent, total } = progress;
+
+    if (committed < offset || committed > sent || (total !== undefined && committed >= total)) {
+      throw new IntegrationError(
+        'INTEGRATION_UNCLASSIFIED',
+        'Drive reported an upload position that does not match the bytes sent',
+      );
+    }
+
+    if (committed > offset) {
+      progress.failures = 0;
+    } else if (chunkSent) {
+      progress.failures += 1;
+      await this.backOff(
+        new IntegrationError('DRIVE_UNAVAILABLE', 'Drive kept none of the uploaded bytes'),
+        progress.failures,
+        signal,
+      );
+    }
+
+    progress.offset = committed;
+    progress.askStatus = false;
+  }
+
   /** Sends the source through one session: the file ID, or `expired`. */
   private async sendAll(
     sessionUrl: URL,
     source: UploadSource,
     signal: AbortSignal | undefined,
   ): Promise<'expired' | { fileId: string }> {
-    /** Drive holds every byte before this offset. */
-    let offset = 0;
-    /** The end of the bytes sent so far. */
-    let sent = 0;
-    let total = source.size;
-    let failures = 0;
-    let askStatus = false;
+    const progress: SessionProgress = {
+      askStatus: false,
+      failures: 0,
+      offset: 0,
+      sent: 0,
+      total: source.size,
+    };
 
     for (;;) {
-      let outcome: ChunkOutcome;
-      let chunkEnd: number | undefined;
-
-      if (askStatus) {
-        outcome = await this.put(sessionUrl, `bytes */${total ?? '*'}`, undefined, signal);
-      } else {
-        const chunk = await source.read(offset, this.chunkSize);
-
-        chunkEnd = offset + chunk.bytes.length;
-
-        if (chunk.end) {
-          total = chunkEnd;
-        }
-
-        sent = Math.max(sent, chunkEnd);
-        outcome = await this.put(
-          sessionUrl,
-          chunk.bytes.length === 0
-            ? `bytes */${total ?? '*'}`
-            : `bytes ${offset}-${chunkEnd - 1}/${total ?? '*'}`,
-          chunk.bytes,
-          signal,
-        );
-      }
+      const chunkSent = !progress.askStatus;
+      const outcome = await this.sendNext(sessionUrl, source, progress, signal);
 
       switch (outcome.kind) {
         case 'complete': {
@@ -477,45 +514,47 @@ export class ResumableUploader {
         }
 
         case 'failed': {
-          failures += 1;
-          await this.backOff(outcome.error, failures, signal);
-          askStatus = true;
+          progress.failures += 1;
+          await this.backOff(outcome.error, progress.failures, signal);
+          progress.askStatus = true;
           break;
         }
 
         case 'incomplete': {
-          const { committed } = outcome;
-
-          if (
-            committed < offset ||
-            committed > sent ||
-            (total !== undefined && committed >= total)
-          ) {
-            throw new IntegrationError(
-              'INTEGRATION_UNCLASSIFIED',
-              'Drive reported an upload position that does not match the bytes sent',
-            );
-          }
-
-          if (committed > offset) {
-            failures = 0;
-          } else if (chunkEnd !== undefined) {
-            // A chunk was sent, and Drive kept none of it: a failure like any other.
-            failures += 1;
-            await this.backOff(
-              new IntegrationError('DRIVE_UNAVAILABLE', 'Drive kept none of the uploaded bytes'),
-              failures,
-              signal,
-            );
-          }
-
-          offset = committed;
-          source.release(offset);
-          askStatus = false;
+          await this.advance(progress, outcome.committed, chunkSent, signal);
+          source.release(progress.offset);
           break;
         }
       }
     }
+  }
+
+  /** Sends the next chunk from Drive's offset, or after a failure, asks for that offset. */
+  private async sendNext(
+    sessionUrl: URL,
+    source: UploadSource,
+    progress: SessionProgress,
+    signal: AbortSignal | undefined,
+  ): Promise<ChunkOutcome> {
+    if (progress.askStatus) {
+      return this.put(sessionUrl, `bytes */${progress.total ?? '*'}`, undefined, signal);
+    }
+
+    const { offset } = progress;
+    const chunk = await source.read(offset, this.chunkSize);
+    const chunkEnd = offset + chunk.bytes.length;
+
+    if (chunk.end) {
+      progress.total = chunkEnd;
+    }
+
+    progress.sent = Math.max(progress.sent, chunkEnd);
+
+    const total = progress.total ?? '*';
+    const range =
+      chunk.bytes.length === 0 ? `bytes */${total}` : `bytes ${offset}-${chunkEnd - 1}/${total}`;
+
+    return this.put(sessionUrl, range, chunk.bytes, signal);
   }
 
   /** Opens an upload session. Nothing exists in Drive yet, so a failed start is retried. */
@@ -604,13 +643,17 @@ function sessionUrlOf(location: null | string): URL {
   return url;
 }
 
-async function uploadedFileId(response: Response): Promise<string> {
+/**
+ * The new file's ID from the reply to the last chunk; undefined when the body could not be read
+ * (cut off), so the caller asks the session again. A complete but unexpected reply is an error.
+ */
+async function uploadedFileId(response: Response): Promise<string | undefined> {
   let body: unknown;
 
   try {
     body = await response.json();
   } catch {
-    body = undefined;
+    return undefined;
   }
 
   const parsed = uploadedFileSchema.safeParse(body);

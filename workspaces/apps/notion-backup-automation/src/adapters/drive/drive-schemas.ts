@@ -9,23 +9,20 @@ export const ZIP_MIME_TYPE = 'application/zip';
 /** Drive IDs are interpolated into URLs and queries, so they are limited to ID characters. */
 export const driveIdSchema = z.string().regex(/^[\w-]{1,200}$/);
 
-/** A hex digest, compared in lower case. */
-const hexDigest = (length: number) =>
-  z
-    .string()
-    .regex(new RegExp(`^[0-9a-fA-F]{${length}}$`))
-    .transform((value) => value.toLowerCase());
-
 export const driveFileSchema = z.object({
   appProperties: z.record(z.string(), z.string()).optional(),
   capabilities: z.object({ canAddChildren: z.boolean().optional() }).optional(),
   createdTime: z.iso.datetime({ offset: true }).optional(),
   id: driveIdSchema,
-  md5Checksum: hexDigest(32).optional(),
   mimeType: z.string().optional(),
   name: z.string().optional(),
   parents: z.array(driveIdSchema).optional(),
-  sha256Checksum: hexDigest(64).optional(),
+  /** Hex, compared in lower case. */
+  sha256Checksum: z
+    .string()
+    .regex(/^[\dA-Fa-f]{64}$/)
+    .transform((value) => value.toLowerCase())
+    .optional(),
   /** Drive returns int64 values as decimal strings. */
   size: z
     .string()
@@ -46,5 +43,7 @@ export type DriveFileList = z.infer<typeof driveFileListSchema>;
 
 /** Escapes a string literal for a Drive `q` expression. */
 export function driveQueryString(value: string): string {
-  return `'${value.replaceAll(/['\\]/g, String.raw`\$&`)}'`;
+  const escaped = value.replaceAll(/['\\]/g, String.raw`\$&`);
+
+  return `'${escaped}'`;
 }

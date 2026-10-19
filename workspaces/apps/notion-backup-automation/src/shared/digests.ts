@@ -1,29 +1,22 @@
 import { createHash } from 'node:crypto';
 import { createReadStream } from 'node:fs';
 
-/** The checksums Drive reports for a file, and its size. */
+/** The SHA-256 of some bytes, which Drive's `sha256Checksum` must match, and their size. */
 export interface Digests {
-  readonly md5: string;
   readonly sha256: string;
   readonly sizeBytes: number;
 }
 
-/** SHA-256 and MD5 of the same bytes, in one pass. */
+/** Hashes bytes as they arrive. */
 export class Digester {
-  readonly #md5 = createHash('md5');
   readonly #sha256 = createHash('sha256');
   #sizeBytes = 0;
 
   digest(): Digests {
-    return {
-      md5: this.#md5.digest('hex'),
-      sha256: this.#sha256.digest('hex'),
-      sizeBytes: this.#sizeBytes,
-    };
+    return { sha256: this.#sha256.digest('hex'), sizeBytes: this.#sizeBytes };
   }
 
   update(bytes: Uint8Array): void {
-    this.#md5.update(bytes);
     this.#sha256.update(bytes);
     this.#sizeBytes += bytes.length;
   }

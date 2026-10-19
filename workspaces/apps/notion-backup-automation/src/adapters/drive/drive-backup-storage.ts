@@ -43,12 +43,14 @@ export const backupProperties = {
   year: 'notionBackupYear',
 } as const;
 
-const BACKUP_FIELDS = 'id,name,size,sha256Checksum,md5Checksum,appProperties,createdTime';
-const CHECKSUM_FIELDS = 'id,size,sha256Checksum,md5Checksum';
+const BACKUP_FIELDS = 'id,name,size,sha256Checksum,appProperties,createdTime';
+const CHECKSUM_FIELDS = 'id,size,sha256Checksum';
 const MAX_LIST_PAGES = 10;
-/** Drive may report the checksums a moment after the upload; it is asked this often. */
-const CHECKSUM_READS = 3;
-const CHECKSUM_READ_DELAY_MS = 1000;
+/**
+ * Drive may report the SHA-256 a moment after the upload: it is asked again after each of these
+ * waits. Upload and discovery check the same SHA-256, so a stored backup can always be found.
+ */
+const CHECKSUM_RETRY_DELAYS_MS = [1000, 2000, 4000] as const;
 
 /**
  * Drive refuses a folder the app cannot see or write with these: 404, or 403 for a missing
@@ -180,7 +182,7 @@ export class DriveBackupStorage implements BackupStorage {
       const source = await openFileSource(content.path);
 
       try {
-        const digests = { md5: content.md5, sha256: content.sha256, sizeBytes: source.size };
+        const digests = { sha256: content.sha256, sizeBytes: source.size };
         const fileId = await this.uploadVerified(
           zipMetadata(fileName, yearFolderId, {
             ...properties,
@@ -204,22 +206,31 @@ export class DriveBackupStorage implements BackupStorage {
       }
     } else {
       const source = new HashingStreamSource(content.stream);
+      let fileId: string;
 
       try {
-        // The SHA-256 is known only at the end, so it is recorded after Drive's check.
-        const fileId = await this.uploadVerified(
+        fileId = await this.uploadVerified(
           zipMetadata(fileName, yearFolderId, properties),
           source,
           () => source.digests(),
           signal,
         );
-        const { sha256, sizeBytes } = source.digests();
-
-        await this.recordSha256(fileId, sha256);
-        stored = { driveFileId: fileId, fileName, jobId, sha256, sizeBytes, yearFolderId };
       } finally {
         await source.close();
       }
+
+      const { sha256, sizeBytes } = source.digests();
+      const existing = await this.keepStreamedUpload(fileId, yearFolderId, period, sha256);
+
+      if (existing !== undefined) {
+        return {
+          ...existing,
+          sidecar: await this.ensureSidecar(existing, signal),
+          uploaded: false,
+        };
+      }
+
+      stored = { driveFileId: fileId, fileName, jobId, sha256, sizeBytes, yearFolderId };
     }
 
     this.logger.info('drive.backup.uploaded', {
@@ -284,17 +295,21 @@ export class DriveBackupStorage implements BackupStorage {
       return 'disabled';
     }
 
+    const name = sha256SidecarName(backup.fileName);
+
     try {
+      // Name and digest together: two ZIPs with the same bytes but different names each get one.
       const existing = await this.list(
         [
           `${driveQueryString(backup.yearFolderId)} in parents`,
           'trashed = false',
+          `name = ${driveQueryString(name)}`,
           hasProperty(backupProperties.sidecarOf, backup.sha256),
         ],
-        'id',
+        'id,name',
       );
 
-      if (existing.length > 0) {
+      if (existing.some((file) => file.name === name)) {
         return 'exists';
       }
 
@@ -306,7 +321,7 @@ export class DriveBackupStorage implements BackupStorage {
         {
           appProperties: { [backupProperties.sidecarOf]: backup.sha256 },
           mimeType: 'text/plain',
-          name: sha256SidecarName(backup.fileName),
+          name,
           parents: [backup.yearFolderId],
         },
         bytesSource(bytes),
@@ -413,29 +428,27 @@ export class DriveBackupStorage implements BackupStorage {
     );
   }
 
-  /** Drive's size and checksums, asked again while Drive has not computed them yet. */
-  private async readChecksums(fileId: string): Promise<DriveFile> {
-    for (let read = 1; ; read += 1) {
-      const file = await this.api.json(driveFileSchema, {
-        query: { fields: CHECKSUM_FIELDS, supportsAllDrives: true },
-        url: `${DRIVE_API_URL}/files/${fileId}`,
-      });
+  /**
+   * A streamed upload learns its SHA-256 only at the end. A verified copy with that SHA-256 wins
+   * and the new file is deleted; otherwise the new file is marked with its SHA-256. On any
+   * failure the new file is deleted: unmarked, it could never be found again.
+   */
+  private async keepStreamedUpload(
+    fileId: string,
+    yearFolderId: string,
+    period: Period,
+    sha256: string,
+  ): Promise<StoredBackup | undefined> {
+    try {
+      const existing = await this.findIn(yearFolderId, { period, sha256 });
 
-      if (
-        file.sha256Checksum !== undefined ||
-        file.md5Checksum !== undefined ||
-        read >= CHECKSUM_READS
-      ) {
-        return file;
+      if (existing !== undefined) {
+        this.logger.info('drive.backup.exists', { driveFileId: existing.driveFileId });
+        await this.deleteUploaded(fileId);
+
+        return existing;
       }
 
-      await this.sleep(CHECKSUM_READ_DELAY_MS);
-    }
-  }
-
-  /** Marks a streamed upload as verified; an unmarked file is deleted, so it never lingers. */
-  private async recordSha256(fileId: string, sha256: string): Promise<void> {
-    try {
       await this.api.send({
         body: { appProperties: { [backupProperties.sha256]: sha256 } },
         // Setting the same property again changes nothing.
@@ -444,11 +457,34 @@ export class DriveBackupStorage implements BackupStorage {
         query: { fields: 'id', supportsAllDrives: true },
         url: `${DRIVE_API_URL}/files/${fileId}`,
       });
+
+      return undefined;
     } catch (error) {
       await this.deleteUploaded(fileId);
 
       throw error;
     }
+  }
+
+  /** Drive's size and SHA-256, asked again while Drive has not computed the SHA-256 yet. */
+  private async readChecksum(fileId: string): Promise<DriveFile> {
+    const read = () =>
+      this.api.json(driveFileSchema, {
+        query: { fields: CHECKSUM_FIELDS, supportsAllDrives: true },
+        url: `${DRIVE_API_URL}/files/${fileId}`,
+      });
+    let file = await read();
+
+    for (const delayMs of CHECKSUM_RETRY_DELAYS_MS) {
+      if (file.sha256Checksum !== undefined) {
+        break;
+      }
+
+      await this.sleep(delayMs);
+      file = await read();
+    }
+
+    return file;
   }
 
   /** The root, or `_dev` in it; created only when `create` is set. */
@@ -479,8 +515,8 @@ export class DriveBackupStorage implements BackupStorage {
   }
 
   /**
-   * Uploads, then compares Drive's size and SHA-256 (or MD5, when Drive reports no SHA-256)
-   * with the local digests. A mismatch, or no checksum at all, deletes the new file.
+   * Uploads, then compares Drive's size and SHA-256 with the local digests. Unless they match,
+   * the new file is deleted: a mismatch, no SHA-256, or a failure to read it.
    */
   private async uploadVerified(
     metadata: DriveUploadMetadata,
@@ -496,7 +532,16 @@ export class DriveBackupStorage implements BackupStorage {
       throw accessError(error, 'Cannot create a file in the year folder');
     }
 
-    const file = await this.readChecksums(fileId);
+    let file: DriveFile;
+
+    try {
+      file = await this.readChecksum(fileId);
+    } catch (error) {
+      await this.deleteUploaded(fileId);
+
+      throw error;
+    }
+
     const problem = checksumProblem(file, expected());
 
     if (problem === undefined) {
@@ -508,10 +553,10 @@ export class DriveBackupStorage implements BackupStorage {
 
     this.logger.warn('drive.upload.unverified', { driveFileId: fileId, problem });
 
-    if (problem === 'no checksum') {
+    if (problem === 'no SHA-256') {
       throw new IntegrationError(
         'DRIVE_UNAVAILABLE',
-        `Drive reported no checksum for the upload; ${outcome}`,
+        `Drive reported no SHA-256 for the upload; ${outcome}`,
       );
     }
 
@@ -559,23 +604,20 @@ function verifiedBackup(file: DriveFile, yearFolderId: string): StoredBackup | u
   };
 }
 
+/** Discovery (`verifiedBackup`) checks the same SHA-256, so an accepted upload is always found. */
 function checksumProblem(
   file: DriveFile,
   expected: Digests,
-): 'MD5' | 'no checksum' | 'SHA-256' | 'size' | undefined {
+): 'no SHA-256' | 'SHA-256' | 'size' | undefined {
   if (file.size !== undefined && file.size !== expected.sizeBytes) {
     return 'size';
   }
 
-  if (file.sha256Checksum !== undefined) {
-    return file.sha256Checksum === expected.sha256 ? undefined : 'SHA-256';
+  if (file.sha256Checksum === undefined) {
+    return 'no SHA-256';
   }
 
-  if (file.md5Checksum !== undefined) {
-    return file.md5Checksum === expected.md5 ? undefined : 'MD5';
-  }
-
-  return 'no checksum';
+  return file.sha256Checksum === expected.sha256 ? undefined : 'SHA-256';
 }
 
 function inaccessible(detail: string): IntegrationError {
@@ -590,9 +632,9 @@ function accessError(error: unknown, detail: string): unknown {
     (error.status === 404 ||
       (error.status === 403 && error.reason !== undefined && accessDeniedReasons.has(error.reason)))
   ) {
-    return inaccessible(
-      `${detail} (HTTP ${error.status}${error.reason === undefined ? '' : `, ${error.reason}`})`,
-    );
+    const reason = error.reason === undefined ? '' : `, ${error.reason}`;
+
+    return inaccessible(`${detail} (HTTP ${error.status}${reason})`);
   }
 
   return error;

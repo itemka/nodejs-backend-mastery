@@ -142,11 +142,11 @@ export interface StoredBackup {
 
 /**
  * The ZIP to upload:
- * - `file`: a verified file, with the digests the verifier computed (`TRANSFER_MODE=tmp`);
+ * - `file`: a verified file, with the SHA-256 the verifier computed (`TRANSFER_MODE=tmp`);
  * - `stream`: bytes hashed while they are uploaded (`TRANSFER_MODE=stream`).
  */
 export type BackupContent =
-  | { readonly kind: 'file'; readonly md5: string; readonly path: string; readonly sha256: string }
+  | { readonly kind: 'file'; readonly path: string; readonly sha256: string }
   | { readonly kind: 'stream'; readonly stream: AsyncIterable<Uint8Array> };
 
 export interface BackupUpload {
@@ -193,9 +193,9 @@ export interface BackupStorage {
   /** The newest verified backup of the period, of that job and SHA-256 when they are given. */
   findExisting(query: BackupQuery): Promise<StoredBackup | undefined>;
   /**
-   * Uploads the ZIP, unless a verified copy with the same SHA-256 exists. It succeeds only once
-   * Drive's checksum matches; on a mismatch the uploaded file is deleted and
-   * `DRIVE_CHECKSUM_MISMATCH` is thrown.
+   * Uploads the ZIP, unless a verified copy with the same SHA-256 exists (for a stream, the
+   * duplicate is deleted once its SHA-256 is known). It succeeds only once Drive's SHA-256
+   * matches. Otherwise the new file is deleted: `DRIVE_CHECKSUM_MISMATCH` on a mismatch.
    */
   upload(request: BackupUpload): Promise<UploadedBackup>;
 }

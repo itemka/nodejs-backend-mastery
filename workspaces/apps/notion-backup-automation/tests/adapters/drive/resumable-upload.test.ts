@@ -226,6 +226,47 @@ describe('ResumableUploader', () => {
     expect(drive.named(NAME).map((file) => file.id)).toEqual([fileId]);
   });
 
+  it('asks the session again when the reply to the last chunk is cut off', async () => {
+    const { drive, sleeps, uploader } = setup();
+    const total = UNIT + 10;
+
+    drive.onChunk = ({ index, length }) =>
+      index === 2
+        ? {
+            persist: length,
+            response: () =>
+              new Response('{"kind":"drive#file","id":"fi', {
+                headers: { 'Content-Type': 'application/json' },
+                status: 200,
+              }),
+          }
+        : undefined;
+
+    const { fileId } = await uploader.upload(metadata, bytesSource(randomBytes(total)));
+
+    expect(drive.contentRanges).toEqual([
+      range(0, UNIT, total),
+      range(UNIT, total, total),
+      `bytes */${total}`,
+    ]);
+    expect(sleeps).toEqual([500]);
+    expect(drive.named(NAME).map((file) => file.id)).toEqual([fileId]);
+  });
+
+  it('rejects a complete but unexpected reply to the last chunk', async () => {
+    const { drive, uploader } = setup();
+
+    drive.onChunk = ({ length }) => ({
+      persist: length,
+      response: () => Response.json({ kind: 'drive#file' }),
+    });
+
+    await expect(uploader.upload(metadata, bytesSource(randomBytes(10)))).rejects.toMatchObject({
+      code: 'INTEGRATION_UNCLASSIFIED',
+      message: 'Drive returned an unexpected response (HTTP 200) to the last chunk',
+    });
+  });
+
   it('starts a new session from byte 0 when Drive expires the session (404)', async () => {
     const { drive, uploader } = setup();
     const total = 2 * UNIT + 1;
@@ -366,7 +407,6 @@ describe('ResumableUploader', () => {
       ]);
       expect(stored(drive, fileId).equals(content)).toBe(true);
       expect(source.digests()).toEqual({
-        md5: createHash('md5').update(content).digest('hex'),
         sha256: createHash('sha256').update(content).digest('hex'),
         sizeBytes: total,
       });

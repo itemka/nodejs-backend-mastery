@@ -224,7 +224,8 @@ export async function googleApiErrorOf(
 ): Promise<GoogleApiError> {
   const { status } = response;
   const reason = await readReason(response);
-  const detail = `${serviceNames[service]} returned HTTP ${status}${reason === undefined ? '' : ` (${reason})`}`;
+  const reasonText = reason === undefined ? '' : ` (${reason})`;
+  const detail = `${serviceNames[service]} returned HTTP ${status}${reasonText}`;
   const options = {
     ...(reason === undefined ? {} : { reason }),
     status,

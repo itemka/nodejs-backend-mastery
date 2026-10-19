@@ -62,7 +62,6 @@ interface UploadMetadata {
 }
 
 interface Checksums {
-  md5Checksum?: string;
   sha256Checksum?: string;
 }
 
@@ -72,7 +71,10 @@ interface Checksums {
  * is (chunk sizes, the committed offset), so a protocol slip fails the test with a 400.
  */
 export class FakeDrive {
-  /** Drive's reported checksums; `read` counts the GETs of that file. Tests override it. */
+  /**
+   * Drive's reported checksum; `read` counts the reads of that file. Tests override it, and a
+   * throwing override drops the connection.
+   */
   checksums: (file: FakeFile, read: number) => Checksums = (file) => digests(file.content);
   readonly files = new Map<string, FakeFile>();
   readonly google = new FakeGoogle();
@@ -430,10 +432,7 @@ export class FakeDrive {
 function digests(content: Uint8Array | undefined): Checksums {
   return content === undefined
     ? {}
-    : {
-        md5Checksum: createHash('md5').update(content).digest('hex'),
-        sha256Checksum: createHash('sha256').update(content).digest('hex'),
-      };
+    : { sha256Checksum: createHash('sha256').update(content).digest('hex') };
 }
 
 function concat(pieces: readonly Uint8Array[]): Uint8Array {

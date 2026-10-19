@@ -64,7 +64,7 @@ export async function runDevUpload(
     writeSidecar: env.WRITE_SHA256_SIDECAR,
   });
   const result = await storage.upload({
-    content: { kind: 'file', md5: digests.md5, path: file, sha256: digests.sha256 },
+    content: { kind: 'file', path: file, sha256: digests.sha256 },
     fileName,
     jobId: jobIdFor(period, 'manual'),
     period,

@@ -132,15 +132,17 @@ Full Workspace/                       GOOGLE_DRIVE_BACKUP_ROOT_FOLDER_ID (picked
   a longer one ends the attempt with `DRIVE_UNAVAILABLE`. An expired session (404) starts again
   from byte 0. Drive creates the file only after the last chunk, so a failed upload leaves
   nothing behind.
-- **Verification:** Drive's size and SHA-256 (MD5 when Drive reports no SHA-256) must match the
-  local digests. On a mismatch the new file is deleted and the upload fails with
-  `DRIVE_CHECKSUM_MISMATCH`.
+- **Verification:** Drive's size and SHA-256 must match the local ones; this is the same
+  SHA-256 check that later finds the backup again. Drive is asked again for up to 7 s while it
+  has not computed the SHA-256. On a mismatch, no SHA-256, or a failed read, the new file is
+  deleted; a mismatch fails with `DRIVE_CHECKSUM_MISMATCH`.
 - **The sidecar** `<name>.zip.sha256` holds `<sha256>  <name>.zip`, so
   `shasum -a 256 -c notion-workspace-YYYY-MM-DD.zip.sha256` checks a downloaded copy. It is
-  written once per ZIP (`WRITE_SHA256_SIDECAR`, default `true`). If it fails, the ZIP stays and
-  the failure is logged.
-- **Streams** (`TRANSFER_MODE=stream`) are hashed while they upload; `notionBackupSha256` is
-  recorded after Drive's checksum matches.
+  written once per ZIP name and SHA-256 (`WRITE_SHA256_SIDECAR`, default `true`). If it fails,
+  the ZIP stays and the failure is logged.
+- **Streams** (`TRANSFER_MODE=stream`) are hashed while they upload. Once Drive's SHA-256
+  matches, a verified copy with the same SHA-256 wins and the new file is deleted; otherwise
+  `notionBackupSha256` is recorded on it. Any failure on the way deletes the new file.
 
 ## State In Redis
 
