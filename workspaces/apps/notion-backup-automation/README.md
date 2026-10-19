@@ -4,8 +4,8 @@ A backup agent that will request the official Notion workspace export every mont
 the ZIP in Google Drive. It runs as Vercel Functions.
 
 **Status:** Google OAuth, the Drive access check and the Gmail export-email finder (Phase 2),
-and the Drive backup storage with its resumable uploader (Phase 3), with a local CLI. The only
-function is still `GET /api/health`.
+the Drive backup storage with its resumable uploader (Phase 3), and the ZIP transfer from the
+export link to Drive (Phase 4), with a local CLI. The only function is still `GET /api/health`.
 
 ## Layout
 
@@ -19,6 +19,7 @@ function is still `GET /api/health`.
 | `src/adapters/google/`      | OAuth: loopback consent with PKCE, the Picker grant, the token provider, and the REST client shared by Gmail and Drive.           |
 | `src/adapters/gmail/`       | The export-email finder and its parser: the trust checks and the download-link extraction.                                        |
 | `src/adapters/drive/`       | The backup storage (year folders, verified uploads, the sidecar), the resumable uploader, and the S6 access check (C1–C4).        |
+| `src/adapters/transfer/`    | The export transfer: the link hop, the cookie download to `/tmp/nba`, the ZIP verifier, and the upload through the storage.       |
 | `src/cli/`                  | The local CLI: `auth:google`, `drive:check`, `drive:init`, `doctor`, `dev:upload`.                                                |
 | `src/shared/`               | The redacting JSON-line logger, envelope crypto (AES-256-GCM), the `.env.local` writer, masking, `SecretValue`, clock, IDs.       |
 | `tests/`                    | Vitest. `tests/contract/` holds the repository contract; `tests/live/` the opt-in live suites; `tests/fixtures/` recorded shapes. |
@@ -144,13 +145,48 @@ Full Workspace/                       GOOGLE_DRIVE_BACKUP_ROOT_FOLDER_ID (picked
   `shasum -a 256 -c notion-workspace-YYYY-MM-DD.zip.sha256` checks a downloaded copy. It is
   written once per ZIP name and SHA-256 (`WRITE_SHA256_SIDECAR`, default `true`). If it fails,
   the ZIP stays and the failure is logged.
-- **Streams** (`TRANSFER_MODE=stream`) are hashed while they upload. Once Drive's SHA-256
-  matches, a verified copy with the same SHA-256 wins and the new file is deleted; otherwise
-  `notionBackupSha256` is recorded on it. Any failure on the way deletes the new file. If Drive
-  refuses to delete a duplicate, the result names it as `leftoverFileId`.
+- **Streams** (`content.kind: 'stream'`; no transfer uses them yet) are hashed while they
+  upload. Once Drive's SHA-256 matches, a verified copy with the same SHA-256 wins and the new
+  file is deleted; otherwise `notionBackupSha256` is recorded on it. Any failure on the way
+  deletes the new file. If Drive refuses to delete a duplicate, the result names it as
+  `leftoverFileId`.
 - **Aborts:** the upload's `AbortSignal` (the transfer budget) ends requests, waits and stream
   reads at once, from the year-folder lookup to the sidecar. Deleting an unverified new file
   still runs after an abort.
+
+## ZIP Transfer
+
+`TmpExportTransfer` (`TRANSFER_MODE=tmp`, the Phase 0 choice) moves one export from the email's
+link to Drive within one invocation. The job saves a progress marker before each step through
+`onStep`; the transfer budget is its `AbortSignal`.
+
+1. **Link.** The Mailgun link is read again from Gmail and followed one hop, without cookies and
+   with `redirect: 'manual'`. Only a redirect to `https://file.notion.com/f/…` with
+   `table=user_export` and a numeric `expirationTimestamp` is accepted; anything else is
+   `EMAIL_UNRECOGNIZED`. A link past its expiry ends the run as `link_expired`, with no request
+   to `file.notion.com`.
+2. **Download** (`DOWNLOADING`). The request carries a `Cookie` header built from the saved
+   Notion session: only Notion's unexpired cookies whose domain and path match
+   `file.notion.com`. No session, or no matching cookie, is `NOTION_SESSION_EXPIRED` before the
+   file host is asked. A 403 before the expiry is `NOTION_SESSION_EXPIRED`; after it, `link_expired`. Any
+   redirect from the file host is refused, so the cookies go nowhere else. The ZIP streams to
+   `/tmp/nba/<jobId>.zip.part` (0600), hashed on the way, and is renamed only once its length
+   matches `Content-Length`. It must fit the free space minus 16 MiB
+   (`TMP_SPACE_INSUFFICIENT`). Network errors, 30 s without data, a short body, and 429 or 5xx
+   with a `Retry-After` of at most 10 s get 3 attempts within the call, the same rule for the
+   link hop; then `DOWNLOAD_FAILED`, with a longer `Retry-After` passed on.
+3. **Verify** (`VERIFYING`). yauzl reads the central directory and every entry, rejecting
+   absolute or `..` names, encryption, unsupported compression and wrong sizes; the app checks
+   each entry's CRC-32 itself. An archive with no files is invalid too. Failures are
+   `ZIP_INVALID` with a static reason, never an entry name.
+4. **Upload** (`UPLOADING`) through the Drive storage above, from the file, with the SHA-256
+   computed during the download.
+
+`/tmp/nba` is emptied before the download and removed after every run, whether it completes,
+fails or is aborted. Only `tmp` mode exists: measured on Vercel (S4), a 250 MiB ZIP verifies in
+about 1 s and uploads in about 10 s, so `stream` mode is not needed. `TRANSFER_MODE` accepts
+only `tmp`; any other value fails the config check (`CONFIG_INCOMPLETE`). The ZIP fixtures and
+how each was made are in `tests/fixtures/zips/`.
 
 ## State In Redis
 

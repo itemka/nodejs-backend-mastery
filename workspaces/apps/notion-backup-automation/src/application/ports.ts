@@ -2,6 +2,7 @@ import type { JobEvent } from '../domain/job-event.js';
 import type { FoundEmail } from '../domain/job-lifecycle.js';
 import type { BackupJob } from '../domain/job.js';
 import type { Period } from '../domain/period.js';
+import type { TransferMarker } from '../domain/statuses.js';
 import type { EnvelopeMeta } from '../shared/envelope-crypto.js';
 import type { SecretValue } from '../shared/secret-value.js';
 import type { HealthField, HealthSnapshot } from './health-snapshot.js';
@@ -143,7 +144,8 @@ export interface StoredBackup {
 /**
  * The ZIP to upload:
  * - `file`: a verified file, with the SHA-256 the verifier computed (`TRANSFER_MODE=tmp`);
- * - `stream`: bytes hashed while they are uploaded (`TRANSFER_MODE=stream`).
+ * - `stream`: bytes hashed while they are uploaded. No transfer uses it yet: S4 showed that
+ *   `/tmp` holds a 250 MiB ZIP, so only the tmp transfer is built.
  */
 export type BackupContent =
   | { readonly kind: 'file'; readonly path: string; readonly sha256: string }
@@ -206,4 +208,41 @@ export interface BackupStorage {
    * matches. Otherwise the new file is deleted: `DRIVE_CHECKSUM_MISMATCH` on a mismatch.
    */
   upload(request: BackupUpload): Promise<UploadedBackup>;
+}
+
+export interface TransferRequest {
+  /** The export email the job claimed. */
+  readonly emailMessageId: string;
+  /** `notion-workspace-YYYY-MM-DD.zip`. */
+  readonly fileName: string;
+  readonly jobId: string;
+  /**
+   * Called before each step (DOWNLOADING, VERIFYING, UPLOADING), so the job saves the progress
+   * marker before the work starts. A rejection stops the run.
+   */
+  readonly onStep?: (marker: TransferMarker) => Promise<void>;
+  readonly period: Period;
+  /** The transfer budget: an abort ends the run with the signal's reason. */
+  readonly signal?: AbortSignal;
+}
+
+/**
+ * - `stored`: the ZIP passed its checks and Drive's SHA-256 matches; `entryCount` is the number
+ *   of files in it;
+ * - `link_expired`: the link's `expirationTimestamp` passed before or during the download, so
+ *   nothing was stored.
+ */
+export type TransferResult =
+  | { readonly backup: UploadedBackup; readonly entryCount: number; readonly outcome: 'stored' }
+  | { readonly outcome: 'link_expired' };
+
+/**
+ * Moves one export ZIP from the email's download link to Drive within one invocation: the link,
+ * the download with the saved Notion session's cookies, the ZIP check, and the verified upload.
+ * Temporary files are deleted whatever the outcome. Failures throw `IntegrationError`, such as
+ * `NOTION_SESSION_EXPIRED`, `DOWNLOAD_FAILED`, `TMP_SPACE_INSUFFICIENT`, `ZIP_INVALID` or a
+ * `BackupStorage` code; an aborted signal ends the run with its reason.
+ */
+export interface ExportTransfer {
+  run(request: TransferRequest): Promise<TransferResult>;
 }

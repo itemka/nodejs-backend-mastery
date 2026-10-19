@@ -13,6 +13,12 @@ describe('errorCatalog', () => {
     }
   });
 
+  it('never advises a transfer mode that is not built', () => {
+    for (const code of errorCodes) {
+      expect(errorCatalog[code].howToFix).not.toMatch(/TRANSFER_MODE/);
+    }
+  });
+
   it('covers the supported job error codes', () => {
     expect(errorCodes.toSorted()).toEqual(
       [

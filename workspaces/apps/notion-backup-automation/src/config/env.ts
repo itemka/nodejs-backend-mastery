@@ -138,7 +138,8 @@ const agentShape = {
 
 const transferShape = {
   NOTIFIERS: commaList(z.enum(['console']), ['console']),
-  TRANSFER_MODE: z.enum(['tmp', 'stream']).default('tmp'),
+  // Only the tmp transfer exists (S4: a 250 MiB ZIP fits), so `stream` fails the config check.
+  TRANSFER_MODE: z.enum(['tmp']).default('tmp'),
   WRITE_SHA256_SIDECAR: flag(true),
 };
 

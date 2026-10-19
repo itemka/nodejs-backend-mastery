@@ -211,6 +211,13 @@ describe('loadEnv', () => {
     ).toEqual(['APP_BASE_URL']);
   });
 
+  it('rejects TRANSFER_MODE=stream: only the tmp transfer exists', () => {
+    expect(
+      configError(() => loadEnv(workerEnvSchema, { ...workerVars, TRANSFER_MODE: 'stream' }))
+        .invalid,
+    ).toEqual(['TRANSFER_MODE']);
+  });
+
   it('rejects an unknown APP_ENV instead of defaulting to prod', () => {
     expect(
       configError(() => loadEnv(mcpEnvSchema, { ...mcpVars, APP_ENV: 'staging' })).invalid,
