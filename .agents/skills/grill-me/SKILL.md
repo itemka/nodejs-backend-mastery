@@ -4,7 +4,7 @@ description: Interrogate an idea, requirements, architecture, or implementation 
 license: MIT
 metadata:
   created: '2026-10-20'
-  status: 'pilot'
+  status: 'baseline'
   portability: 'cross-tool'
   last-reviewed: '2026-10-20'
 ---

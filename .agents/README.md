@@ -61,12 +61,10 @@ Claude-native path-scoped rules live in `.claude/rules/` and are a time-boxed pi
 [ADR-0004](../docs/adr/0004-path-scoped-claude-rules.md): each file declares `paths` globs, holds
 Claude Code product behavior only, and carries nothing another tool must also know.
 
-The [grill-me](./skills/grill-me/SKILL.md) skill is a time-boxed pilot explicitly approved by the
-repository owner on **2026-10-20** as a one-time exception to
-[ADR-0003](../docs/adr/0003-ai-agent-surface-promotion-bar.md)'s repetition requirement. The workflow
-can run through ad-hoc prompting, so it does not qualify for the ADR's normal pilot exception.
-Keep-or-remove review: **2026-11-20**; keep it only if 2–3 real sessions show it is distinct from
-`brainstorm` and `plan`.
+The [grill-me](./skills/grill-me/SKILL.md) skill is a permanent, one-time exception to
+[ADR-0003](../docs/adr/0003-ai-agent-surface-promotion-bar.md)'s repetition requirement, approved
+by the repository owner on **2026-10-20**: it was added before the usual 2–3 prompted runs. The
+exception does not change the ADR's bar for other surfaces.
 
 ## AI-Agent Guidance Rule
 
