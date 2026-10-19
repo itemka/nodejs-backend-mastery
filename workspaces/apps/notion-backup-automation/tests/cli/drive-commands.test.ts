@@ -70,6 +70,7 @@ describe('drive:check', () => {
 
     await expect(main(['drive:check'], context)).resolves.toBe(0);
     expect(text()).toContain('The root works, but your 2026 folder does not.');
+    expect(text()).toContain('pick "2026" with auth:google --pick-folders');
   });
 
   it('fails and points to the Picker grant when the app cannot use the root', async () => {

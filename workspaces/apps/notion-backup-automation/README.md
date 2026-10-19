@@ -119,8 +119,12 @@ Full Workspace/                       GOOGLE_DRIVE_BACKUP_ROOT_FOLDER_ID (picked
 ```
 
 - **Year folders** are found by exact name under the root, or created. Two folders with the
-  same year fail with `DRIVE_ROOT_INACCESSIBLE`. The root must be visible before anything is
-  created, so a lost grant can never put a second `2026` next to yours.
+  same year fail with `DRIVE_ROOT_INACCESSIBLE`. `drive.file` hides a folder whose grant is
+  lost, so a hidden folder looks missing. The root must be visible before anything is created.
+  In your root, the app creates only years after every year folder it can see. A hidden `2026`
+  therefore fails with `DRIVE_ROOT_INACCESSIBLE` instead of getting a second `2026` next to it;
+  pick it again with `auth:google --pick-folders`. In the `drive:init` root and in `_dev`, the
+  app created every folder, so it creates any missing year.
 - **`APP_ENV=dev`** writes everything under `_dev`, so test uploads never reach the real year
   folders.
 - **Each ZIP** carries `appProperties` `notionBackupPeriod`, `notionBackupJobId` and
@@ -144,8 +148,9 @@ Full Workspace/                       GOOGLE_DRIVE_BACKUP_ROOT_FOLDER_ID (picked
   matches, a verified copy with the same SHA-256 wins and the new file is deleted; otherwise
   `notionBackupSha256` is recorded on it. Any failure on the way deletes the new file. If Drive
   refuses to delete a duplicate, the result names it as `leftoverFileId`.
-- **Aborts:** the upload's `AbortSignal` (the transfer budget) ends requests and waits at once,
-  also after the last chunk. Deleting an unverified new file still runs after an abort.
+- **Aborts:** the upload's `AbortSignal` (the transfer budget) ends requests, waits and stream
+  reads at once, from the year-folder lookup to the sidecar. Deleting an unverified new file
+  still runs after an abort.
 
 ## State In Redis
 

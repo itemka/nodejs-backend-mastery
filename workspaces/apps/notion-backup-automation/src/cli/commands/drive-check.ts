@@ -48,7 +48,7 @@ export async function runDriveCheck(
   if (passed('C1') && passed('C3')) {
     context.print(
       ui.warn(
-        `The root works, but your ${year} folder does not. The app will create its own ${year} folder: rename yours to "${year} (manual)" and move its ZIPs into the new one.`,
+        `The root works, but your ${year} folder does not. The app creates ${year} only when it is later than every year folder it can see, as a lost grant may hide yours. Otherwise pick "${year}" with auth:google --pick-folders and run drive:check again; if that fails, use the app-owned root (drive:init).`,
       ),
     );
 

@@ -69,7 +69,8 @@ export async function runDevUpload(
     jobId: jobIdFor(period, 'manual'),
     period,
   });
-  const location = `${DEV_FOLDER_NAME}/${yearOfPeriod(period)}/${fileName}`;
+  // A copy found in Drive keeps the name it was uploaded under, maybe on an earlier day.
+  const location = `${DEV_FOLDER_NAME}/${yearOfPeriod(period)}/${result.fileName}`;
 
   context.print(ui.heading('Dev upload'));
   context.print(

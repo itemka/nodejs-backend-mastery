@@ -175,6 +175,32 @@ describe('GoogleApiClient', () => {
     expect(google.requests).toHaveLength(1);
   });
 
+  it('rejects with the signal’s reason when it aborts while an error reply is read', async () => {
+    const controller = new AbortController();
+    const reason = new Error('transfer budget exceeded');
+    // The reply's body fails because of the abort, which hides Google's reason.
+    const client = new GoogleApiClient({
+      fetch: () =>
+        Promise.resolve(
+          new Response(
+            new ReadableStream({
+              pull: (stream) => {
+                controller.abort(reason);
+                stream.error(reason);
+              },
+            }),
+            { status: 400 },
+          ),
+        ),
+      service: 'drive',
+      tokenProvider: { getAccessToken: () => Promise.resolve('fake-access-token') },
+    });
+
+    await expect(client.send({ signal: controller.signal, url: URL })).rejects.toThrow(
+      'transfer budget exceeded',
+    );
+  });
+
   it('sends nothing when the signal has already aborted', async () => {
     const { client, google } = setup();
 

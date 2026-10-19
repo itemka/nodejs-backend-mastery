@@ -235,10 +235,79 @@ describe('DriveBackupStorage.ensureYearFolder', () => {
 
   it('ignores a year folder in the trash', async () => {
     const { drive, storage } = setup();
+
+    drive.add({ name: '2025' });
     const trashed = drive.add({ name: '2026', trashed: true });
 
     await expect(storage.ensureYearFolder('2026-10')).resolves.not.toBe(trashed.id);
-    expect(drive.childrenOf(ROOT_ID).map((file) => file.name)).toEqual(['2026']);
+    expect(drive.childrenOf(ROOT_ID).map((file) => file.name)).toEqual(['2025', '2026']);
+  });
+
+  it('creates no second 2026 when your 2026 folder is hidden by a lost grant', async () => {
+    const { drive, storage } = setup();
+    const yours = drive.add({ name: '2026' });
+
+    drive.invisible.add(yours.id);
+
+    await expect(storage.ensureYearFolder('2026-10')).rejects.toMatchObject({
+      code: 'DRIVE_ROOT_INACCESSIBLE',
+      message: 'No year folder is visible in the backup root, so 2026 is not created',
+    });
+    expect(folderCreations(drive)).toEqual([]);
+  });
+
+  it('in your root, creates only years after the newest visible year folder', async () => {
+    const { drive, storage } = setup();
+    const yours = drive.add({ name: '2026' });
+
+    drive.add({ appProperties: { notionBackupYear: '2027' }, name: '2027' });
+    drive.invisible.add(yours.id);
+
+    await expect(storage.ensureYearFolder('2026-12')).rejects.toMatchObject({
+      code: 'DRIVE_ROOT_INACCESSIBLE',
+      message: 'The 2026 folder is not visible; the app creates only years after 2027',
+    });
+    expect(folderCreations(drive)).toEqual([]);
+
+    const created = await storage.ensureYearFolder('2028-01');
+
+    expect(drive.files.get(created)).toMatchObject({ name: '2028', parents: [ROOT_ID] });
+  });
+
+  it('in the app-owned root, creates any missing year folder', async () => {
+    const { drive, storage } = setup();
+    const root = drive.files.get(ROOT_ID);
+
+    if (root !== undefined) {
+      root.appProperties = { notionBackupRoot: 'true' };
+    }
+
+    const created = await storage.ensureYearFolder('2026-10');
+
+    expect(drive.files.get(created)).toMatchObject({ name: '2026', parents: [ROOT_ID] });
+  });
+
+  it('stops resolving the year folder once the signal aborts, and creates no folder', async () => {
+    const controller = new AbortController();
+    const { drive, storage } = setup();
+
+    drive.add({ name: '2026' });
+    // The abort lands while Drive answers the root check.
+    drive.google.on('GET', `${FILES}/${ROOT_ID}`, () => {
+      controller.abort(new Error('transfer budget exceeded'));
+
+      return Response.json({
+        capabilities: { canAddChildren: true },
+        id: ROOT_ID,
+        mimeType: FOLDER_MIME_TYPE,
+        trashed: false,
+      });
+    });
+
+    await expect(storage.ensureYearFolder('2027-01', controller.signal)).rejects.toThrow(
+      'transfer budget exceeded',
+    );
+    expect(folderCreations(drive)).toEqual([]);
   });
 
   it('fails with DRIVE_ROOT_INACCESSIBLE when two year folders share the name', async () => {
@@ -267,6 +336,7 @@ describe('DriveBackupStorage.ensureYearFolder', () => {
   it('fails with DRIVE_ROOT_INACCESSIBLE when Drive refuses the new year folder', async () => {
     const { drive, storage } = setup();
 
+    drive.add({ name: '2026' });
     drive.google.on('POST', FILES, () => googleError(403, 'insufficientFilePermissions'));
 
     await expect(storage.ensureYearFolder('2027-01')).rejects.toMatchObject({
@@ -673,6 +743,31 @@ describe('DriveBackupStorage.upload', () => {
       await expect(storage.findExisting({ period: '2026-10' })).resolves.toMatchObject({
         driveFileId: result.driveFileId,
       });
+    });
+
+    it('ends on abort while the stream stalls, and leaves no file', async () => {
+      const controller = new AbortController();
+      const { drive, storage } = setup();
+      const year = drive.add({ name: '2026' });
+
+      async function* stalling(): AsyncGenerator<Uint8Array> {
+        yield randomBytes(100);
+        controller.abort(new Error('transfer budget exceeded'));
+        await new Promise<never>(() => {
+          // The stream never delivers another byte.
+        });
+      }
+
+      await expect(
+        storage.upload({
+          content: { kind: 'stream', stream: stalling() },
+          fileName: NAME,
+          jobId: '2026-10',
+          period: '2026-10',
+          signal: controller.signal,
+        }),
+      ).rejects.toThrow('transfer budget exceeded');
+      expect(drive.childrenOf(year.id)).toEqual([]);
     });
 
     it('reports a duplicate that Drive refuses to delete', async () => {

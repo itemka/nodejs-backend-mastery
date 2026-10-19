@@ -16,6 +16,7 @@ import type { Sleep } from '../../shared/sleep.js';
 import { pause, systemSleep } from '../../shared/sleep.js';
 import type { GoogleApiClient } from '../google/google-api-client.js';
 import { GoogleApiError } from '../google/google-api-client.js';
+import { ROOT_APP_PROPERTY } from './drive-access-check.js';
 import type { DriveFile } from './drive-schemas.js';
 import {
   DRIVE_API_URL,
@@ -44,6 +45,7 @@ export const backupProperties = {
 } as const;
 
 const BACKUP_FIELDS = 'id,name,size,sha256Checksum,appProperties,createdTime';
+const YEAR_FOLDER_PATTERN = /^\d{4}$/;
 const CHECKSUM_FIELDS = 'id,size,sha256Checksum';
 const MAX_LIST_PAGES = 10;
 /**
@@ -70,16 +72,25 @@ export interface DriveBackupStorageOptions {
   writeSidecar: boolean;
 }
 
+/** The folder that holds the year folders: the root, or `_dev` in it. */
+interface BaseFolder {
+  /** Created by the app (`_dev`, the `drive:init` root), so every folder in it is visible. */
+  readonly appCreated: boolean;
+  readonly id: string;
+}
+
 /**
  * `BackupStorage` on Drive REST v3 with `drive.file`. Year folders are found by exact name
  * under the root (the S6 "existing" mode finds your picked `2026` folder), or created with
- * `appProperties.notionBackupYear` (later years, the app-owned root, `_dev`). The root must be
- * visible first: without the S6 grant a second `2026` folder would appear next to yours.
+ * `appProperties.notionBackupYear` (later years, the app-owned root, `_dev`). `drive.file` hides
+ * a folder whose grant is lost, so a hidden folder looks missing. The root must therefore be
+ * visible first, and in your own root the app creates only years after every year folder it can
+ * see. Otherwise a second `2026` folder would appear next to yours.
  */
 export class DriveBackupStorage implements BackupStorage {
   private readonly api: GoogleApiClient;
-  /** The root, or `_dev` in it, once resolved. */
-  private baseFolderId: string | undefined;
+  /** Once resolved. */
+  private base: BaseFolder | undefined;
   private readonly devFolder: boolean;
   private readonly logger: Logger;
   private readonly rootFolderId: string;
@@ -105,54 +116,36 @@ export class DriveBackupStorage implements BackupStorage {
     this.writeSidecar = writeSidecar;
   }
 
-  async checkAccess(): Promise<void> {
-    let root: DriveFile;
-
-    try {
-      root = await this.api.json(driveFileSchema, {
-        query: {
-          fields: 'id,mimeType,trashed,capabilities(canAddChildren)',
-          supportsAllDrives: true,
-        },
-        url: `${DRIVE_API_URL}/files/${this.rootFolderId}`,
-      });
-    } catch (error) {
-      throw accessError(error, 'The backup root is not visible');
-    }
-
-    if (root.mimeType !== DRIVE_FOLDER_MIME_TYPE) {
-      throw inaccessible('The backup root is not a folder');
-    }
-
-    if (root.trashed === true) {
-      throw inaccessible('The backup root is in the trash');
-    }
-
-    if (root.capabilities?.canAddChildren === false) {
-      throw inaccessible('The backup root is not writable');
-    }
+  async checkAccess(signal?: AbortSignal): Promise<void> {
+    await this.readRoot(signal);
   }
 
-  async ensureYearFolder(period: Period): Promise<string> {
-    const baseId = await this.resolveBase(true);
+  async ensureYearFolder(period: Period, signal?: AbortSignal): Promise<string> {
+    const base = await this.resolveBase(true, signal);
     const year = yearFolderName(period);
+    const existing = await this.findFolder(base.id, year, signal);
 
-    return (
-      (await this.findFolder(baseId, year)) ??
-      (await this.createFolder(baseId, year, { [backupProperties.year]: year }))
-    );
+    if (existing !== undefined) {
+      return existing;
+    }
+
+    if (!base.appCreated) {
+      await this.assertNewYear(base.id, year, signal);
+    }
+
+    return this.createFolder(base.id, year, { [backupProperties.year]: year }, signal);
   }
 
-  async findExisting(query: BackupQuery): Promise<StoredBackup | undefined> {
-    const baseId = await this.resolveBase(false);
+  async findExisting(query: BackupQuery, signal?: AbortSignal): Promise<StoredBackup | undefined> {
+    const base = await this.resolveBase(false, signal);
 
-    if (baseId === undefined) {
+    if (base === undefined) {
       return undefined;
     }
 
-    const yearFolderId = await this.findFolder(baseId, yearFolderName(query.period));
+    const yearFolderId = await this.findFolder(base.id, yearFolderName(query.period), signal);
 
-    return yearFolderId === undefined ? undefined : this.findIn(yearFolderId, query);
+    return yearFolderId === undefined ? undefined : this.findIn(yearFolderId, query, signal);
   }
 
   async upload({
@@ -164,7 +157,7 @@ export class DriveBackupStorage implements BackupStorage {
   }: BackupUpload): Promise<UploadedBackup> {
     signal?.throwIfAborted();
 
-    const yearFolderId = await this.ensureYearFolder(period);
+    const yearFolderId = await this.ensureYearFolder(period, signal);
     const target: UploadTarget = { fileName, jobId, period, yearFolderId };
 
     if (content.kind === 'stream') {
@@ -196,16 +189,54 @@ export class DriveBackupStorage implements BackupStorage {
     return this.uploaded(storedBackup(target, fileId, content.sha256, source.size), signal);
   }
 
+  /**
+   * In your root, a missing year folder may be one whose grant is lost, so the app creates only
+   * years after every year folder it can see. Your picked `2026` must stay visible; `2027` and
+   * later are the app's own.
+   */
+  private async assertNewYear(
+    baseId: string,
+    year: string,
+    signal: AbortSignal | undefined,
+  ): Promise<void> {
+    const folders = await this.list(
+      [
+        `${driveQueryString(baseId)} in parents`,
+        'trashed = false',
+        `mimeType = ${driveQueryString(DRIVE_FOLDER_MIME_TYPE)}`,
+      ],
+      'id,name',
+      signal,
+    );
+    const newest = folders
+      .map((folder) => folder.name ?? '')
+      .filter((name) => YEAR_FOLDER_PATTERN.test(name))
+      .toSorted()
+      .at(-1);
+
+    if (newest === undefined) {
+      throw inaccessible(`No year folder is visible in the backup root, so ${year} is not created`);
+    }
+
+    if (year <= newest) {
+      throw inaccessible(
+        `The ${year} folder is not visible; the app creates only years after ${newest}`,
+      );
+    }
+  }
+
   private async createFolder(
     parentId: string,
     name: string,
     appProperties: Record<string, string>,
+    signal: AbortSignal | undefined,
   ): Promise<string> {
     try {
       const folder = await this.api.json(driveFileSchema, {
         body: { appProperties, mimeType: DRIVE_FOLDER_MIME_TYPE, name, parents: [parentId] },
         method: 'POST',
         query: { fields: 'id', supportsAllDrives: true },
+        signal,
         url: `${DRIVE_API_URL}/files`,
       });
 
@@ -296,7 +327,11 @@ export class DriveBackupStorage implements BackupStorage {
     }
   }
 
-  private async findFolder(parentId: string, name: string): Promise<string | undefined> {
+  private async findFolder(
+    parentId: string,
+    name: string,
+    signal: AbortSignal | undefined,
+  ): Promise<string | undefined> {
     const listed = await this.list(
       [
         `${driveQueryString(parentId)} in parents`,
@@ -305,6 +340,7 @@ export class DriveBackupStorage implements BackupStorage {
         `name = ${driveQueryString(name)}`,
       ],
       'id,name',
+      signal,
     );
     const folders = listed.filter((folder) => folder.name === name);
 
@@ -450,31 +486,78 @@ export class DriveBackupStorage implements BackupStorage {
     return file;
   }
 
+  /** The root, checked: a visible, writable folder that is not in the trash. */
+  private async readRoot(signal: AbortSignal | undefined): Promise<DriveFile> {
+    let root: DriveFile;
+
+    try {
+      root = await this.api.json(driveFileSchema, {
+        query: {
+          fields: 'id,mimeType,trashed,capabilities(canAddChildren),appProperties',
+          supportsAllDrives: true,
+        },
+        signal,
+        url: `${DRIVE_API_URL}/files/${this.rootFolderId}`,
+      });
+    } catch (error) {
+      throw accessError(error, 'The backup root is not visible');
+    }
+
+    if (root.mimeType !== DRIVE_FOLDER_MIME_TYPE) {
+      throw inaccessible('The backup root is not a folder');
+    }
+
+    if (root.trashed === true) {
+      throw inaccessible('The backup root is in the trash');
+    }
+
+    if (root.capabilities?.canAddChildren === false) {
+      throw inaccessible('The backup root is not writable');
+    }
+
+    return root;
+  }
+
   /** The root, or `_dev` in it; created only when `create` is set. */
-  private async resolveBase(create: true): Promise<string>;
-  private async resolveBase(create: boolean): Promise<string | undefined>;
-  private async resolveBase(create: boolean): Promise<string | undefined> {
-    if (this.baseFolderId !== undefined) {
-      return this.baseFolderId;
+  private async resolveBase(create: true, signal: AbortSignal | undefined): Promise<BaseFolder>;
+  private async resolveBase(
+    create: boolean,
+    signal: AbortSignal | undefined,
+  ): Promise<BaseFolder | undefined>;
+  private async resolveBase(
+    create: boolean,
+    signal: AbortSignal | undefined,
+  ): Promise<BaseFolder | undefined> {
+    if (this.base !== undefined) {
+      return this.base;
     }
 
-    await this.checkAccess();
+    const root = await this.readRoot(signal);
 
-    let baseId: string | undefined = this.rootFolderId;
+    if (!this.devFolder) {
+      this.base = {
+        appCreated: root.appProperties?.[ROOT_APP_PROPERTY] === 'true',
+        id: this.rootFolderId,
+      };
 
-    if (this.devFolder) {
-      baseId = await this.findFolder(this.rootFolderId, DEV_FOLDER_NAME);
-
-      if (baseId === undefined && create) {
-        baseId = await this.createFolder(this.rootFolderId, DEV_FOLDER_NAME, {
-          [backupProperties.devFolder]: 'true',
-        });
-      }
+      return this.base;
     }
 
-    this.baseFolderId = baseId;
+    // Only the app makes `_dev`.
+    const devId =
+      (await this.findFolder(this.rootFolderId, DEV_FOLDER_NAME, signal)) ??
+      (create
+        ? await this.createFolder(
+            this.rootFolderId,
+            DEV_FOLDER_NAME,
+            { [backupProperties.devFolder]: 'true' },
+            signal,
+          )
+        : undefined);
 
-    return baseId;
+    this.base = devId === undefined ? undefined : { appCreated: true, id: devId };
+
+    return this.base;
   }
 
   /**

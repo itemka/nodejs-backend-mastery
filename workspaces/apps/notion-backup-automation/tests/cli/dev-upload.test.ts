@@ -5,6 +5,7 @@ import { main } from '../../src/cli/main.js';
 import { testCli } from '../support/cli-context.js';
 import { FakeDrive, ROOT_ID } from '../support/fake-drive.js';
 import { fakeCredentials, googleError } from '../support/fake-google.js';
+import { ManualClock } from '../support/manual-clock.js';
 import { tempFile } from '../support/temp-file.js';
 
 const NAME = 'notion-workspace-2026-10-18.zip';
@@ -60,6 +61,25 @@ describe('dev:upload', () => {
       `✓ _dev/2026/${NAME} is already in Drive with the same SHA-256; nothing was uploaded.`,
     );
     expect(second.text()).toContain('  sidecar        already in Drive');
+  });
+
+  it('names the copy in Drive when the same file was uploaded on an earlier day', async () => {
+    const drive = new FakeDrive();
+    const file = await tempFile(randomBytes(5000));
+    const first = await testCli({ env, fetch: drive.fetch });
+    const later = await testCli({
+      clock: new ManualClock('2026-10-19T10:00:00.000Z'),
+      env,
+      fetch: drive.fetch,
+    });
+
+    await main(['dev:upload', file], first.context);
+
+    await expect(main(['dev:upload', file], later.context)).resolves.toBe(0);
+    expect(later.text()).toContain(
+      `✓ _dev/2026/${NAME} is already in Drive with the same SHA-256; nothing was uploaded.`,
+    );
+    expect(drive.named('notion-workspace-2026-10-19.zip')).toEqual([]);
   });
 
   it('refuses to run unless APP_ENV=dev, before any Drive request', async () => {

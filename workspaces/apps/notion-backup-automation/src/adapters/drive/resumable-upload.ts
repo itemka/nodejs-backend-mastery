@@ -3,6 +3,7 @@ import { z } from 'zod';
 
 import { IntegrationError } from '../../application/integration-error.js';
 import type { GoogleTokenProvider } from '../../application/ports.js';
+import { abortable } from '../../shared/abortable.js';
 import type { Digests } from '../../shared/digests.js';
 import { Digester } from '../../shared/digests.js';
 import type { Sleep } from '../../shared/sleep.js';
@@ -121,6 +122,8 @@ export class HashingStreamSource implements UploadSource {
   #digests: Digests | undefined;
   readonly #iterator: AsyncIterator<Uint8Array, unknown>;
   #pieces: Uint8Array[] = [];
+  /** A `next()` is waiting for the stream, such as one an abort left behind. */
+  #pulling = false;
   /** The stream offset of the first buffered byte. */
   #start = 0;
 
@@ -128,11 +131,26 @@ export class HashingStreamSource implements UploadSource {
     this.#iterator = stream[Symbol.asyncIterator]();
   }
 
-  /** Stops reading the stream, if it has not ended. */
+  /**
+   * Stops reading the stream, if it has not ended. After an abort a `next()` may still wait for a
+   * stalled stream; an async iterator answers `return()` only after it, so that is not awaited.
+   */
   async close(): Promise<void> {
-    if (this.#digests === undefined) {
-      await this.#iterator.return?.();
+    if (this.#digests !== undefined) {
+      return;
     }
+
+    const closing = this.#iterator.return?.();
+
+    if (this.#pulling) {
+      void closing?.catch(() => {
+        // The stream is abandoned: its failure to close reaches no one.
+      });
+
+      return;
+    }
+
+    await closing;
   }
 
   /** The digests of the whole stream; available once it has ended. */
@@ -193,7 +211,17 @@ export class HashingStreamSource implements UploadSource {
   }
 
   async #pull(): Promise<void> {
-    const { done, value } = await this.#iterator.next();
+    let result: IteratorResult<Uint8Array, unknown>;
+
+    this.#pulling = true;
+
+    try {
+      result = await this.#iterator.next();
+    } finally {
+      this.#pulling = false;
+    }
+
+    const { done, value } = result;
 
     if (done === true) {
       this.#digests = this.#digester.digest();
@@ -446,7 +474,7 @@ export class ResumableUploader {
       return { kind: 'expired' };
     }
 
-    const error = await googleApiErrorOf('drive', result);
+    const error = await googleApiErrorOf('drive', result, signal);
 
     if (isServiceUnavailable(error, 'drive')) {
       return { error, kind: 'failed' };
@@ -544,7 +572,8 @@ export class ResumableUploader {
     }
 
     const { offset } = progress;
-    const chunk = await source.read(offset, this.chunkSize);
+    // A stream may stall indefinitely; the abort must not wait for it.
+    const chunk = await abortable(source.read(offset, this.chunkSize), signal);
     const chunkEnd = offset + chunk.bytes.length;
 
     if (chunk.end) {
@@ -592,7 +621,8 @@ export class ResumableUploader {
         return sessionUrlOf(location);
       }
 
-      const error = result instanceof Response ? await googleApiErrorOf('drive', result) : result;
+      const error =
+        result instanceof Response ? await googleApiErrorOf('drive', result, signal) : result;
 
       if (!isServiceUnavailable(error, 'drive')) {
         throw error;

@@ -408,6 +408,52 @@ describe('ResumableUploader', () => {
     expect(drive.contentRanges).toHaveLength(1);
   });
 
+  it('ends a read the source never finishes as soon as the signal aborts', async () => {
+    const { drive, uploader } = setup();
+    const controller = new AbortController();
+    const stalled: UploadSource = {
+      read: () => {
+        controller.abort(new Error('transfer budget exceeded'));
+
+        return new Promise(() => {
+          // A stalled stream never delivers the chunk.
+        });
+      },
+      release: () => {
+        // Nothing is buffered.
+      },
+      restartable: false,
+      size: undefined,
+    };
+
+    await expect(uploader.upload(metadata, stalled, controller.signal)).rejects.toThrow(
+      'transfer budget exceeded',
+    );
+    expect(drive.contentRanges).toEqual([]);
+  });
+
+  it('reports an abort while Drive’s error reply is read as the abort', async () => {
+    const { drive, uploader } = setup();
+    const controller = new AbortController();
+    const reason = new Error('transfer budget exceeded');
+
+    // The reply's body fails because of the abort, which hides Drive's reason.
+    drive.onStart = () =>
+      new Response(
+        new ReadableStream({
+          pull: (stream) => {
+            controller.abort(reason);
+            stream.error(reason);
+          },
+        }),
+        { status: 400 },
+      );
+
+    await expect(
+      uploader.upload(metadata, bytesSource(randomBytes(10)), controller.signal),
+    ).rejects.toThrow('transfer budget exceeded');
+  });
+
   it('rejects a chunk size that is not a multiple of 256 KiB', () => {
     expect(() => new ResumableUploader({ chunkSize: 1000, tokenProvider })).toThrow(RangeError);
   });

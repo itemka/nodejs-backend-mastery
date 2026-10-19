@@ -171,7 +171,7 @@ export class GoogleApiClient {
         return response;
       }
 
-      const error = await googleApiErrorOf(this.service, response);
+      const error = await googleApiErrorOf(this.service, response, signal);
       const delaySec = error.retryAfterSec ?? backoffMs(attempt) / 1000;
 
       if (
@@ -228,13 +228,19 @@ export function serviceUnavailable(service: GoogleService): GoogleApiError {
  * - 401 and scope 403s → `GOOGLE_AUTH_REQUIRED`;
  * - 429, 5xx and rate-limit 403s → the service's `*_UNAVAILABLE`, with `Retry-After`;
  * - anything else → `INTEGRATION_UNCLASSIFIED`.
+ * An abort while the body is read throws the signal's reason instead.
  */
 export async function googleApiErrorOf(
   service: GoogleService,
   response: Response,
+  signal?: AbortSignal,
 ): Promise<GoogleApiError> {
   const { status } = response;
   const reason = await readReason(response);
+
+  // An aborted body read looks like a body without a reason.
+  signal?.throwIfAborted();
+
   const reasonText = reason === undefined ? '' : ` (${reason})`;
   const detail = `${serviceNames[service]} returned HTTP ${status}${reasonText}`;
   const options = {

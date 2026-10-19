@@ -188,15 +188,18 @@ export interface BackupQuery {
  * Backup ZIPs in Drive, under `<root>/<YYYY>/`, or `<root>/_dev/<YYYY>/` for `APP_ENV=dev`. A
  * file counts as a backup only when Drive's SHA-256 matches the one the app recorded on it.
  * Throws `IntegrationError` `DRIVE_ROOT_INACCESSIBLE` when the root or a year folder cannot be
- * used.
+ * used. An aborted `signal` ends any call with its reason.
  */
 export interface BackupStorage {
   /** The root is a visible, writable folder. */
-  checkAccess(): Promise<void>;
-  /** The period's year folder, found by its exact name or created; returns its ID. */
-  ensureYearFolder(period: Period): Promise<string>;
+  checkAccess(signal?: AbortSignal): Promise<void>;
+  /**
+   * The period's year folder, found by its exact name or created; returns its ID. In a root the
+   * app did not create, only a year after every visible year folder is created.
+   */
+  ensureYearFolder(period: Period, signal?: AbortSignal): Promise<string>;
   /** The newest verified backup of the period, of that job and SHA-256 when they are given. */
-  findExisting(query: BackupQuery): Promise<StoredBackup | undefined>;
+  findExisting(query: BackupQuery, signal?: AbortSignal): Promise<StoredBackup | undefined>;
   /**
    * Uploads the ZIP, unless a verified copy with the same SHA-256 exists (for a stream, the
    * duplicate is deleted once its SHA-256 is known). It succeeds only once Drive's SHA-256
