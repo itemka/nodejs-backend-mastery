@@ -20,6 +20,7 @@ describe('parseCommand', () => {
     [['drive:init'], { command: 'drive:init' }],
     [['doctor'], { command: 'doctor', emailSince: undefined }],
     [['doctor', '--email-since', '2026-10-01'], { command: 'doctor', emailSince: '2026-10-01' }],
+    [['dev:upload', 'backup.zip'], { command: 'dev:upload', path: 'backup.zip' }],
   ])('%j', (argv, expected) => {
     expect(parseCommand(argv)).toEqual(expected);
   });
@@ -33,6 +34,9 @@ describe('parseCommand', () => {
     [['drive:init', '--force']],
     [['doctor', '--email-since', 'yesterday']],
     [['doctor', '--email-since', '2026-02-30']],
+    [['dev:upload']],
+    [['dev:upload', 'a.zip', 'b.zip']],
+    [['dev:upload', '--force', 'a.zip']],
   ])('rejects %j', (argv) => {
     expect(() => parseCommand(argv)).toThrow(UsageError);
   });

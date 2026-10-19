@@ -182,6 +182,18 @@ export const driveEnvSchema = z.object({
   BACKUP_TIME_ZONE: policyShape.BACKUP_TIME_ZONE,
 });
 
+/**
+ * `dev:upload`: uploads under `_dev` when `APP_ENV=dev`. The time zone names the file and picks
+ * the year folder.
+ */
+export const devUploadEnvSchema = z.object({
+  ...googleApiShape,
+  ...driveShape,
+  APP_ENV: coreShape.APP_ENV,
+  BACKUP_TIME_ZONE: policyShape.BACKUP_TIME_ZONE,
+  WRITE_SHA256_SIDECAR: transferShape.WRITE_SHA256_SIDECAR,
+});
+
 /** `/mcp`: starts and inspects jobs. It never needs Gemini, the QStash signing keys or Google. */
 export const mcpEnvSchema = z.object({
   ...coreShape,

@@ -10,7 +10,7 @@ graph LR
     style 25 fill:#8c8c8c,stroke:#626262,color:#ffffff
     26["<div style='font-weight: bold'>Gmail API</div><div style='font-size: 70%; margin-top: 0px'>[Software System]</div><div style='font-size: 80%; margin-top:10px'>Read-only mailbox access and<br />Notion export-email<br />discovery; email content and<br />download links stay out of<br />logs.</div>"]
     style 26 fill:#8c8c8c,stroke:#626262,color:#ffffff
-    27["<div style='font-weight: bold'>Google Drive API</div><div style='font-size: 70%; margin-top: 0px'>[Software System]</div><div style='font-size: 80%; margin-top:10px'>Folder visibility checks,<br />app-owned root creation, and<br />creation/deletion of<br />temporary access probes<br />through drive.file.</div>"]
+    27["<div style='font-weight: bold'>Google Drive API</div><div style='font-size: 70%; margin-top: 0px'>[Software System]</div><div style='font-size: 80%; margin-top:10px'>Folder visibility checks,<br />year-folder and app-owned<br />root creation, temporary<br />access probes, and resumable<br />backup uploads checked<br />against Drive's checksums,<br />through drive.file.</div>"]
     style 27 fill:#8c8c8c,stroke:#626262,color:#ffffff
     28["<div style='font-weight: bold'>Upstash Redis</div><div style='font-size: 70%; margin-top: 0px'>[Software System]</div><div style='font-size: 80%; margin-top:10px'>Managed backup state and<br />encrypted Notion session<br />storage; doctor checks<br />connectivity and decrypts the<br />stored session locally.</div>"]
     style 28 fill:#8c8c8c,stroke:#626262,color:#ffffff
@@ -20,7 +20,7 @@ graph LR
 
       22["<div style='font-weight: bold'>Health function</div><div style='font-size: 70%; margin-top: 0px'>[Container: Vercel Function (Node.js)]</div><div style='font-size: 80%; margin-top:10px'>Public GET /api/health<br />returning ok and the short<br />commit SHA, with no caching<br />and no other data.</div>"]
       style 22 fill:#ffffff,stroke:#444444,color:#444444
-      23["<div style='font-weight: bold'>Local CLI</div><div style='font-size: 70%; margin-top: 0px'>[Container: Node.js + TypeScript CLI]</div><div style='font-size: 80%; margin-top:10px'>auth:google, drive:check,<br />drive:init, and doctor:<br />Google consent, trusted<br />export-email discovery, Drive<br />probes, and Redis/session<br />diagnostics.</div>"]
+      23["<div style='font-weight: bold'>Local CLI</div><div style='font-size: 70%; margin-top: 0px'>[Container: Node.js + TypeScript CLI]</div><div style='font-size: 80%; margin-top:10px'>auth:google, drive:check,<br />drive:init, doctor, and<br />dev:upload: Google consent,<br />trusted export-email<br />discovery, Drive probes,<br />Redis/session diagnostics,<br />and checksum-verified test<br />uploads into the _dev folder.</div>"]
       style 23 fill:#ffffff,stroke:#444444,color:#444444
       24["<div style='font-weight: bold'>Local configuration</div><div style='font-size: 70%; margin-top: 0px'>[Container: .env.local file]</div><div style='font-size: 80%; margin-top:10px'>Google OAuth credentials and<br />refresh token, plus<br />connection and encryption<br />settings; auth:google saves<br />the token with mode 0600.</div>"]
       style 24 fill:#ffffff,stroke:#444444,color:#444444
@@ -32,7 +32,7 @@ graph LR
     23-. "<div>Reads settings and<br />credentials; writes the<br />Google refresh token</div><div style='font-size: 70%'>[Local file I/O]</div>" .->24
     23-. "<div>Exchanges authorization codes<br />and refreshes access tokens</div><div style='font-size: 70%'>[OAuth 2.0 over HTTPS]</div>" .->25
     23-. "<div>Reads the mailbox profile and<br />finds and validates export<br />emails</div><div style='font-size: 70%'>[REST over HTTPS (gmail.readonly)]</div>" .->26
-    23-. "<div>Checks folders, manages<br />access probes, and finds or<br />creates the app-owned root</div><div style='font-size: 70%'>[REST over HTTPS (drive.file)]</div>" .->27
+    23-. "<div>Checks folders, manages<br />access probes, finds or<br />creates the app-owned root,<br />and uploads test backups to<br />_dev</div><div style='font-size: 70%'>[REST over HTTPS (drive.file)]</div>" .->27
     23-. "<div>Pings Redis and reads the<br />encrypted Notion session for<br />local validation</div><div style='font-size: 70%'>[Redis REST over HTTPS]</div>" .->28
 
   end

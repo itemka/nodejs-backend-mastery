@@ -15,6 +15,7 @@ import { createLogger, logLevels } from '../shared/logger.js';
 import { redactString } from '../shared/redact.js';
 import { parseCommand, USAGE, UsageError } from './args.js';
 import { runAuthGoogle } from './commands/auth-google.js';
+import { runDevUpload } from './commands/dev-upload.js';
 import { runDoctor } from './commands/doctor.js';
 import { runDriveCheck } from './commands/drive-check.js';
 import { runDriveInit } from './commands/drive-init.js';
@@ -41,6 +42,10 @@ export async function main(argv: readonly string[], context: CliContext): Promis
     switch (parsed.command) {
       case 'auth:google': {
         return await runAuthGoogle(parsed, context);
+      }
+
+      case 'dev:upload': {
+        return await runDevUpload(parsed, context);
       }
 
       case 'doctor': {
