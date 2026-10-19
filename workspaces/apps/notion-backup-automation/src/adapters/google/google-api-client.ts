@@ -1,10 +1,11 @@
-import { setTimeout as sleepFor } from 'node:timers/promises';
 import { z } from 'zod';
 
 import type { IntegrationErrorOptions } from '../../application/integration-error.js';
 import { IntegrationError } from '../../application/integration-error.js';
 import type { GoogleTokenProvider } from '../../application/ports.js';
 import type { ErrorCode } from '../../domain/error-catalog.js';
+import type { Sleep } from '../../shared/sleep.js';
+import { pause, systemSleep } from '../../shared/sleep.js';
 import { GoogleTokenUnavailableError } from './token-provider.js';
 
 export type GoogleService = 'drive' | 'gmail';
@@ -53,6 +54,8 @@ export interface GoogleApiRequest {
   idempotent?: boolean;
   method?: 'DELETE' | 'GET' | 'PATCH' | 'POST';
   query?: Readonly<Record<string, boolean | number | string | undefined>>;
+  /** Cancels the request and its retry waits; the call then rejects with the signal's reason. */
+  signal?: AbortSignal | undefined;
   url: string;
 }
 
@@ -61,7 +64,7 @@ export interface GoogleApiClientOptions {
   /** Attempts for idempotent requests (GET, DELETE); others are sent once. */
   maxAttempts?: number;
   service: GoogleService;
-  sleep?: (ms: number) => Promise<void>;
+  sleep?: Sleep;
   timeoutMs?: number;
   tokenProvider: GoogleTokenProvider;
 }
@@ -85,7 +88,7 @@ export class GoogleApiClient {
   private readonly fetch: typeof fetch;
   private readonly maxAttempts: number;
   private readonly service: GoogleService;
-  private readonly sleep: (ms: number) => Promise<void>;
+  private readonly sleep: Sleep;
   private readonly timeoutMs: number;
   private readonly tokenProvider: GoogleTokenProvider;
 
@@ -93,7 +96,7 @@ export class GoogleApiClient {
     fetch = globalThis.fetch,
     maxAttempts = 3,
     service,
-    sleep = (ms) => sleepFor(ms),
+    sleep = systemSleep,
     timeoutMs = 30_000,
     tokenProvider,
   }: GoogleApiClientOptions) {
@@ -113,6 +116,8 @@ export class GoogleApiClient {
     try {
       body = await response.json();
     } catch {
+      request.signal?.throwIfAborted();
+
       throw this.unexpectedResponse(response.status);
     }
 
@@ -131,9 +136,13 @@ export class GoogleApiClient {
     const attempts =
       method === 'GET' || method === 'DELETE' || request.idempotent === true ? this.maxAttempts : 1;
     const url = buildUrl(request);
+    const { signal } = request;
 
     for (let attempt = 1; ; attempt += 1) {
+      signal?.throwIfAborted();
+
       const token = await this.accessToken();
+      const timeout = AbortSignal.timeout(this.timeoutMs);
       let response: Response;
 
       try {
@@ -145,11 +154,13 @@ export class GoogleApiClient {
           },
           method,
           redirect: 'error',
-          signal: AbortSignal.timeout(this.timeoutMs),
+          signal: signal === undefined ? timeout : AbortSignal.any([signal, timeout]),
         });
       } catch {
+        signal?.throwIfAborted();
+
         if (attempt < attempts) {
-          await this.sleep(backoffMs(attempt));
+          await pause(this.sleep, backoffMs(attempt), signal);
           continue;
         }
 
@@ -168,7 +179,7 @@ export class GoogleApiClient {
         attempt < attempts &&
         delaySec <= MAX_IN_TICK_DELAY_SEC
       ) {
-        await this.sleep(delaySec * 1000);
+        await pause(this.sleep, delaySec * 1000, signal);
         continue;
       }
 

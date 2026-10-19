@@ -10,6 +10,7 @@ import { GoogleApiClient } from '../../../src/adapters/google/google-api-client.
 import type { BackupUpload } from '../../../src/application/ports.js';
 import { digestsOf } from '../../../src/shared/digests.js';
 import { createLogger } from '../../../src/shared/logger.js';
+import type { Sleep } from '../../../src/shared/sleep.js';
 import type { FakeFile } from '../../support/fake-drive.js';
 import { FakeDrive, FOLDER_MIME_TYPE, ROOT_ID } from '../../support/fake-drive.js';
 import { googleError } from '../../support/fake-google.js';
@@ -19,14 +20,18 @@ const FILES = 'www.googleapis.com/drive/v3/files';
 const NAME = 'notion-workspace-2026-10-01.zip';
 const tokenProvider = { getAccessToken: () => Promise.resolve('fake-access-token') };
 
-function setup({ devFolder = false, writeSidecar = true } = {}) {
+function setup({
+  devFolder = false,
+  sleep: waitFor,
+  writeSidecar = true,
+}: { devFolder?: boolean; sleep?: Sleep; writeSidecar?: boolean } = {}) {
   const drive = new FakeDrive();
   const sleeps: number[] = [];
 
-  const sleep = (ms: number) => {
+  const sleep: Sleep = (ms, signal) => {
     sleeps.push(ms);
 
-    return Promise.resolve();
+    return waitFor === undefined ? Promise.resolve() : waitFor(ms, signal);
   };
 
   const logs: string[] = [];
@@ -105,6 +110,18 @@ function addBackup(
     parentId,
   );
 }
+
+/** A wait that ends only on abort: a test using it hangs unless the abort interrupts the wait. */
+const untilAborted: Sleep = (_ms, signal) =>
+  new Promise((_resolve, reject) => {
+    signal?.addEventListener(
+      'abort',
+      () => {
+        reject(new Error('wait aborted'));
+      },
+      { once: true },
+    );
+  });
 
 function sha256Of(content: Uint8Array): string {
   return createHash('sha256').update(content).digest('hex');
@@ -496,6 +513,29 @@ describe('DriveBackupStorage.upload', () => {
     expect(drive.named(NAME)).toEqual([]);
   });
 
+  it('stops waiting for the SHA-256 on abort, deletes the upload and writes nothing more', async () => {
+    const controller = new AbortController();
+    const { drive, sleeps, storage } = setup({ sleep: untilAborted });
+
+    drive.add({ name: '2026' });
+
+    drive.checksums = () => {
+      setTimeout(() => {
+        controller.abort(new Error('transfer budget exceeded'));
+      }, 0);
+
+      return {};
+    };
+
+    await expect(
+      storage.upload({ ...(await fileUpload(randomBytes(1000))), signal: controller.signal }),
+    ).rejects.toThrow('transfer budget exceeded');
+    expect(sleeps).toEqual([1000]);
+    // Cleanup does not take the aborted signal.
+    expect(drive.named(NAME)).toEqual([]);
+    expect(drive.named(`${NAME}.sha256`)).toEqual([]);
+  });
+
   it('deletes the upload when its checksum cannot be read', async () => {
     const { drive, sleeps, storage } = setup();
 
@@ -633,6 +673,37 @@ describe('DriveBackupStorage.upload', () => {
       await expect(storage.findExisting({ period: '2026-10' })).resolves.toMatchObject({
         driveFileId: result.driveFileId,
       });
+    });
+
+    it('reports a duplicate that Drive refuses to delete', async () => {
+      const { drive, logs, storage } = setup();
+      const content = randomBytes(1000);
+
+      drive.add({ name: '2026' });
+
+      const first = await storage.upload(await fileUpload(content));
+
+      drive.google.on('DELETE', `${FILES}/*`, () =>
+        googleError(403, 'insufficientFilePermissions'),
+      );
+
+      const again = await storage.upload({
+        content: { kind: 'stream', stream: piecesOf(content, 100) },
+        fileName: NAME,
+        jobId: '2026-10',
+        period: '2026-10',
+      });
+      const duplicate = drive.named(NAME).find((file) => file.id !== first.driveFileId);
+
+      expect(again).toEqual({
+        ...first,
+        leftoverFileId: duplicate?.id,
+        sidecar: 'exists',
+        uploaded: false,
+      });
+      // Unmarked, so it is never adopted.
+      expect(duplicate?.appProperties).not.toHaveProperty('notionBackupSha256');
+      expect(logs.some((line) => line.includes('drive.backup.duplicate_kept'))).toBe(true);
     });
 
     it('keeps a verified copy with the same SHA-256 and deletes the new upload', async () => {

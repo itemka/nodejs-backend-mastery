@@ -14,6 +14,7 @@ import {
   ResumableUploader,
   UPLOAD_CHUNK_UNIT,
 } from '../../../src/adapters/drive/resumable-upload.js';
+import { systemSleep } from '../../../src/shared/sleep.js';
 import { FakeDrive, ROOT_ID } from '../../support/fake-drive.js';
 import { googleError } from '../../support/fake-google.js';
 import { tempFile } from '../../support/temp-file.js';
@@ -384,6 +385,26 @@ describe('ResumableUploader', () => {
     await expect(
       uploader.upload(metadata, bytesSource(randomBytes(2 * UNIT)), controller.signal),
     ).rejects.toThrow('transfer budget exceeded');
+    expect(drive.contentRanges).toHaveLength(1);
+  });
+
+  it('ends a backoff wait as soon as the signal aborts', async () => {
+    // The real timer: the 10 s Retry-After must not run to its end.
+    const { drive, uploader } = setup({ sleep: systemSleep });
+    const controller = new AbortController();
+    const started = Date.now();
+
+    drive.onChunk = () => ({
+      response: () => googleError(503, undefined, { 'Retry-After': '10' }),
+    });
+    setTimeout(() => {
+      controller.abort(new Error('transfer budget exceeded'));
+    }, 20);
+
+    await expect(
+      uploader.upload(metadata, bytesSource(randomBytes(10)), controller.signal),
+    ).rejects.toThrow('transfer budget exceeded');
+    expect(Date.now() - started).toBeLessThan(2000);
     expect(drive.contentRanges).toHaveLength(1);
   });
 

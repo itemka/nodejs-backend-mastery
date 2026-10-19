@@ -142,7 +142,10 @@ Full Workspace/                       GOOGLE_DRIVE_BACKUP_ROOT_FOLDER_ID (picked
   the ZIP stays and the failure is logged.
 - **Streams** (`TRANSFER_MODE=stream`) are hashed while they upload. Once Drive's SHA-256
   matches, a verified copy with the same SHA-256 wins and the new file is deleted; otherwise
-  `notionBackupSha256` is recorded on it. Any failure on the way deletes the new file.
+  `notionBackupSha256` is recorded on it. Any failure on the way deletes the new file. If Drive
+  refuses to delete a duplicate, the result names it as `leftoverFileId`.
+- **Aborts:** the upload's `AbortSignal` (the transfer budget) ends requests and waits at once,
+  also after the last chunk. Deleting an unverified new file still runs after an abort.
 
 ## State In Redis
 

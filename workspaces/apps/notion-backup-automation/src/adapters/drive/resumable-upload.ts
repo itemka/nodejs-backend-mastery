@@ -1,11 +1,12 @@
 import { open } from 'node:fs/promises';
-import { setTimeout as sleepFor } from 'node:timers/promises';
 import { z } from 'zod';
 
 import { IntegrationError } from '../../application/integration-error.js';
 import type { GoogleTokenProvider } from '../../application/ports.js';
 import type { Digests } from '../../shared/digests.js';
 import { Digester } from '../../shared/digests.js';
+import type { Sleep } from '../../shared/sleep.js';
+import { pause, systemSleep } from '../../shared/sleep.js';
 import type { GoogleApiError } from '../google/google-api-client.js';
 import {
   backoffMs,
@@ -252,7 +253,7 @@ export interface ResumableUploaderOptions {
   maxAttempts?: number;
   /** Upload sessions per upload: the first, plus restarts after Drive expires one. */
   maxSessions?: number;
-  sleep?: (ms: number) => Promise<void>;
+  sleep?: Sleep;
   /** Per request; one chunk must fit. */
   timeoutMs?: number;
   tokenProvider: GoogleTokenProvider;
@@ -298,7 +299,7 @@ export class ResumableUploader {
   private readonly fetch: typeof fetch;
   private readonly maxAttempts: number;
   private readonly maxSessions: number;
-  private readonly sleep: (ms: number) => Promise<void>;
+  private readonly sleep: Sleep;
   private readonly timeoutMs: number;
   private readonly tokenProvider: GoogleTokenProvider;
 
@@ -307,7 +308,7 @@ export class ResumableUploader {
     fetch = globalThis.fetch,
     maxAttempts = 5,
     maxSessions = 3,
-    sleep = (ms) => sleepFor(ms),
+    sleep = systemSleep,
     timeoutMs = 120_000,
     tokenProvider,
   }: ResumableUploaderOptions) {
@@ -352,7 +353,10 @@ export class ResumableUploader {
     );
   }
 
-  /** Waits before the next attempt, or throws `error` when no attempt is left. */
+  /**
+   * Waits before the next attempt, or throws `error` when no attempt is left. An abort ends the
+   * wait at once.
+   */
   private async backOff(
     error: IntegrationError,
     failures: number,
@@ -364,8 +368,7 @@ export class ResumableUploader {
       throw error;
     }
 
-    await this.sleep(delaySec * 1000);
-    signal?.throwIfAborted();
+    await pause(this.sleep, delaySec * 1000, signal);
   }
 
   /** One request with the bearer token. A network failure or timeout is returned as an error. */

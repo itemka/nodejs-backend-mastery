@@ -168,6 +168,11 @@ export interface BackupUpload {
 export type SidecarOutcome = 'disabled' | 'exists' | 'failed' | 'written';
 
 export interface UploadedBackup extends StoredBackup {
+  /**
+   * Set when a streamed upload duplicated this stored backup and Drive refused to delete the
+   * duplicate. It carries no SHA-256 mark, so it is never adopted; delete it in Drive.
+   */
+  readonly leftoverFileId?: string;
   readonly sidecar: SidecarOutcome;
   /** False when Drive already held a verified copy with the same SHA-256. */
   readonly uploaded: boolean;
