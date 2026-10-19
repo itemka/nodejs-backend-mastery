@@ -110,7 +110,7 @@ export async function openFileSource(path: string): Promise<FileUploadSource> {
 }
 
 /**
- * A stream of unknown length, hashed as it is read (`TRANSFER_MODE=stream`). It buffers only
+ * A stream of unknown length, hashed as it is read (`stream` content). It buffers only
  * the bytes Drive has not confirmed yet, plus one read ahead to see where the stream ends.
  * Every byte is pulled and hashed exactly once, so it cannot restart.
  */

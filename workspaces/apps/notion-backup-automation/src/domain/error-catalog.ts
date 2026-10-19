@@ -152,13 +152,14 @@ export const errorCatalog = {
   },
   TMP_SPACE_INSUFFICIENT: {
     description: 'Not enough /tmp space for the ZIP.',
-    howToFix: 'Set TRANSFER_MODE=stream, redeploy, then run backup_retry.',
+    howToFix:
+      'Check the ZIP size and the free /tmp space in the logs, then run backup_retry; a ZIP over about 250 MB does not fit in /tmp.',
     retry: 'none',
     supervised: false,
   },
   TRANSFER_TIMEOUT: {
     description: 'The transfer did not finish within one invocation.',
-    howToFix: 'Set TRANSFER_MODE=stream or check the ZIP size, then run backup_retry.',
+    howToFix: 'Check the ZIP size and the transfer timings in the logs, then run backup_retry.',
     retry: 'none',
     supervised: true,
   },

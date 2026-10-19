@@ -122,6 +122,11 @@ describe('HttpDownloader.resolve', () => {
     ['another table', fileUrl(EXPIRES, { table: 'block' })],
     ['no expiry', fileUrl(EXPIRES).replace(/expirationTimestamp=\d+&?/, '')],
     ['an unreadable expiry', fileUrl(EXPIRES, { expirationTimestamp: 'soon' })],
+    // 16 digits, but past 8.64e15 ms, the latest time a Date can hold.
+    [
+      'an expiry past the Date range',
+      fileUrl(EXPIRES, { expirationTimestamp: '9999999999999999' }),
+    ],
   ])('treats a redirect to %s as EMAIL_UNRECOGNIZED', async (_case, location) => {
     const { downloader, hosts } = await setup();
 

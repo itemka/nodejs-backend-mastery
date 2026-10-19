@@ -427,7 +427,10 @@ function fileTargetOf(location: null | string, base: URL): DownloadTarget | unde
     return undefined;
   }
 
-  const expiry = url.searchParams.get(NOTION_FILE.expiryParam);
+  const expiry = url.searchParams.get(NOTION_FILE.expiryParam) ?? '';
+  // A 16-digit value can still exceed 8.64e15 ms, the latest time a Date holds: it would parse to
+  // an invalid Date, which every expiry comparison treats as "not expired".
+  const expiresAt = /^\d{1,16}$/.test(expiry) ? new Date(Number(expiry)) : undefined;
 
   if (
     url.protocol !== 'https:' ||
@@ -437,13 +440,13 @@ function fileTargetOf(location: null | string, base: URL): DownloadTarget | unde
     url.password !== '' ||
     !url.pathname.startsWith(NOTION_FILE.pathPrefix) ||
     url.searchParams.get('table') !== NOTION_FILE.table ||
-    expiry === null ||
-    !/^\d{1,16}$/.test(expiry)
+    expiresAt === undefined ||
+    Number.isNaN(expiresAt.getTime())
   ) {
     return undefined;
   }
 
-  return { expiresAt: new Date(Number(expiry)), url: new SecretValue(url) };
+  return { expiresAt, url: new SecretValue(url) };
 }
 
 /** The body's length when the server states it and sends the bytes unencoded. */

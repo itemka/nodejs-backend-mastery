@@ -144,7 +144,8 @@ export interface StoredBackup {
 /**
  * The ZIP to upload:
  * - `file`: a verified file, with the SHA-256 the verifier computed (`TRANSFER_MODE=tmp`);
- * - `stream`: bytes hashed while they are uploaded (`TRANSFER_MODE=stream`).
+ * - `stream`: bytes hashed while they are uploaded. No transfer uses it yet: S4 showed that
+ *   `/tmp` holds a 250 MiB ZIP, so only the tmp transfer is built.
  */
 export type BackupContent =
   | { readonly kind: 'file'; readonly path: string; readonly sha256: string }
