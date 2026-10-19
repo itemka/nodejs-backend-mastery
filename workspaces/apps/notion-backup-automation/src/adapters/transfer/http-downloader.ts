@@ -148,6 +148,10 @@ export class HttpDownloader {
     { cookieHeader, signal, target }: DownloadRequest,
     partPath: string,
   ): Promise<DownloadResult> {
+    // Every attempt starts at byte 0. A failed attempt's partial file still takes disk space,
+    // which the free-space check below would count against this attempt.
+    await rm(partPath, { force: true });
+
     const idle = new IdleTimer(this.idleTimeoutMs);
     const attemptSignal =
       signal === undefined ? idle.signal : AbortSignal.any([signal, idle.signal]);
@@ -281,46 +285,50 @@ export class HttpDownloader {
   private async withAttempts<T>(
     signal: AbortSignal | undefined,
     attempt: () => Promise<T>,
+    attemptNumber = 1,
   ): Promise<T> {
-    for (let attemptNumber = 1; ; attemptNumber += 1) {
-      signal?.throwIfAborted();
+    signal?.throwIfAborted();
 
-      try {
-        return await attempt();
-      } catch (error) {
-        if (
-          !(error instanceof IntegrationError) ||
-          error.code !== 'DOWNLOAD_FAILED' ||
-          attemptNumber >= this.maxAttempts ||
-          (error.retryAfterSec ?? 0) > MAX_IN_TICK_DELAY_SEC
-        ) {
-          throw error;
-        }
-
-        this.logger.warn('transfer.download.retry', {
-          attempt: attemptNumber,
-          reason: error.message,
-        });
-        await pause(
-          this.sleep,
-          (error.retryAfterSec ?? backoffMs(attemptNumber) / 1000) * 1000,
-          signal,
-        );
+    try {
+      return await attempt();
+    } catch (error) {
+      if (
+        !(error instanceof IntegrationError) ||
+        error.code !== 'DOWNLOAD_FAILED' ||
+        attemptNumber >= this.maxAttempts ||
+        (error.retryAfterSec ?? 0) > MAX_IN_TICK_DELAY_SEC
+      ) {
+        throw error;
       }
+
+      this.logger.warn('transfer.download.retry', {
+        attempt: attemptNumber,
+        reason: error.message,
+      });
+      await pause(
+        this.sleep,
+        (error.retryAfterSec ?? backoffMs(attemptNumber) / 1000) * 1000,
+        signal,
+      );
     }
+
+    // At most `maxAttempts` deep.
+    return this.withAttempts(signal, attempt, attemptNumber + 1);
   }
 }
 
-/** Aborts its signal when `touch` has not been called for `timeoutMs`. */
+/** Aborts its signal with `error` when `touch` has not been called for `timeoutMs`. */
 class IdleTimer {
+  readonly error: IntegrationError;
   readonly signal: AbortSignal;
   readonly #controller = new AbortController();
   readonly #timer: NodeJS.Timeout;
 
   constructor(timeoutMs: number) {
+    this.error = downloadFailed(`No data arrived for ${timeoutMs} ms`);
     this.signal = this.#controller.signal;
     this.#timer = setTimeout(() => {
-      this.#controller.abort(downloadFailed(`No data arrived for ${timeoutMs} ms`));
+      this.#controller.abort(this.error);
     }, timeoutMs);
   }
 
@@ -375,7 +383,8 @@ async function writeBody(
       }
 
       digester.update(chunk);
-      await writeAll(handle, chunk);
+      // On an open handle, `writeFile` writes every byte at the current position.
+      await handle.writeFile(chunk);
     }
   } catch (error) {
     signal?.throwIfAborted();
@@ -385,7 +394,7 @@ async function writeBody(
     }
 
     if (idle.expired) {
-      throw idle.signal.reason as IntegrationError;
+      throw idle.error;
     }
 
     if ((error as NodeJS.ErrnoException).code === 'ENOSPC') {
@@ -402,14 +411,6 @@ async function writeBody(
   }
 
   return digester.digest();
-}
-
-async function writeAll(handle: FileHandle, bytes: Uint8Array): Promise<void> {
-  for (let offset = 0; offset < bytes.length; ) {
-    const { bytesWritten } = await handle.write(bytes, offset);
-
-    offset += bytesWritten;
-  }
 }
 
 /** Notion's signed file URL from a redirect, or undefined when it is anything else. */

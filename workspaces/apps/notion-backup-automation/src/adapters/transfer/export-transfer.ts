@@ -13,6 +13,7 @@ import type {
   TransferResult,
 } from '../../application/ports.js';
 import { jobIdSchema } from '../../domain/naming.js';
+import type { TransferMarker } from '../../domain/statuses.js';
 import { abortable } from '../../shared/abortable.js';
 import type { Clock } from '../../shared/clock.js';
 import { systemClock } from '../../shared/clock.js';
@@ -99,7 +100,7 @@ export class TmpExportTransfer implements ExportTransfer {
 
       const cookieHeader = await this.cookieHeader(target.url.reveal(), signal);
 
-      await onStep?.('DOWNLOADING');
+      await step(onStep, 'DOWNLOADING', signal);
       await this.resetDirectory();
 
       const zipPath = path.join(this.directory, `${jobId}.zip`);
@@ -118,7 +119,7 @@ export class TmpExportTransfer implements ExportTransfer {
       const { sha256, sizeBytes } = downloaded.digests;
 
       this.logger.info('transfer.download.done', { durationMs: this.since(started), sizeBytes });
-      await onStep?.('VERIFYING');
+      await step(onStep, 'VERIFYING', signal);
       started = this.clock.now().getTime();
 
       const { entryCount, uncompressedBytes } = await verifyZipArchive(zipPath, signal);
@@ -128,7 +129,7 @@ export class TmpExportTransfer implements ExportTransfer {
         entryCount,
         uncompressedBytes,
       });
-      await onStep?.('UPLOADING');
+      await step(onStep, 'UPLOADING', signal);
       started = this.clock.now().getTime();
 
       const backup = await this.storage.upload({
@@ -216,5 +217,19 @@ export class TmpExportTransfer implements ExportTransfer {
 
   private since(startedMs: number): number {
     return this.clock.now().getTime() - startedMs;
+  }
+}
+
+/**
+ * Lets the job save a progress marker. A save that stalls must not hold the run past its budget,
+ * so the abort ends the wait at once, and the `finally` cleanup runs.
+ */
+async function step(
+  onStep: TransferRequest['onStep'],
+  marker: TransferMarker,
+  signal: AbortSignal | undefined,
+): Promise<void> {
+  if (onStep !== undefined) {
+    await abortable(onStep(marker), signal);
   }
 }

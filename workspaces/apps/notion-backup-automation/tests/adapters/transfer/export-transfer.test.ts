@@ -352,6 +352,35 @@ describe('TmpExportTransfer', () => {
     expect(await exists(directory)).toBe(false);
   });
 
+  it('stops with the budget even while a progress callback stalls', async () => {
+    const zip = await readFile(zipFixture('notion-export.zip'));
+    const { directory, drive, hosts, run } = await setup();
+    const controller = new AbortController();
+    const reason = new Error('transfer budget');
+
+    hosts.on(FILE_HOST, serveBytes(zip));
+
+    const stopped = run({
+      // A Redis write that never answers: only the budget can end the run.
+      onStep: (marker) => {
+        if (marker !== 'VERIFYING') {
+          return Promise.resolve();
+        }
+
+        controller.abort(reason);
+
+        return new Promise<void>(() => {
+          // Never settles.
+        });
+      },
+      signal: controller.signal,
+    });
+
+    await expect(stopped).rejects.toBe(reason);
+    expect(drive.named(NAME)).toEqual([]);
+    expect(await exists(directory)).toBe(false);
+  });
+
   it('stops when the job cannot save a progress marker', async () => {
     const zip = await readFile(zipFixture('notion-export.zip'));
     const { directory, drive, hosts, run } = await setup();

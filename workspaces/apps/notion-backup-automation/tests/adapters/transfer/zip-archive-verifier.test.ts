@@ -36,6 +36,8 @@ describe('verifyZipArchive', () => {
 
   it.each([
     ['crc-mismatch.zip', 'an entry failed its CRC-32 check'],
+    // Directories are left out of the count, not out of the checks.
+    ['directory-crc-mismatch.zip', 'an entry failed its CRC-32 check'],
     ['truncated.zip', 'it has no readable central directory'],
     ['empty.zip', 'it holds no files'],
     ['path-traversal.zip', 'an entry could not be read'],

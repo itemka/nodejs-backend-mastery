@@ -4,16 +4,17 @@ Archives for the ZIP verifier and transfer tests. They are shaped like the Phase
 top folder `Export-<uuid>/`, pages named `<title> <32 hex>.md`, deflate, no directory entries,
 the UTF-8 flag on non-ASCII names), but hold only made-up text. No real export data is in them.
 
-| File                   | Made with                                                                       | Expected verdict                                  |
-| ---------------------- | ------------------------------------------------------------------------------- | ------------------------------------------------- |
-| `notion-export.zip`    | Python `zipfile`, script below                                                  | Valid, 4 files                                    |
-| `with-directories.zip` | Info-ZIP `zip -X -r` over the same tree (directory entries, no UTF-8 flag)      | Valid, 4 files; directory entries are not counted |
-| `data-descriptors.zip` | Info-ZIP `zip -X -D -fd -r`: every entry has flag bit 3, like Notion's real ZIP | Valid, 4 files                                    |
-| `crc-mismatch.zip`     | The script's stored (uncompressed) variant, then one data byte changed (`perl`) | Invalid: an entry fails its CRC-32 check          |
-| `truncated.zip`        | `head -c 1024 notion-export.zip`                                                | Invalid: no end-of-central-directory record       |
-| `empty.zip`            | The script: an archive with no entries (22 bytes)                               | Invalid: no files                                 |
-| `path-traversal.zip`   | The script: a second entry named `../outside.md`                                | Invalid: yauzl rejects the entry name             |
-| `encrypted.zip`        | Info-ZIP `zip -X -D -P fixture-only` (ZipCrypto)                                | Invalid: encrypted entry                          |
+| File                         | Made with                                                                                         | Expected verdict                                    |
+| ---------------------------- | ------------------------------------------------------------------------------------------------- | --------------------------------------------------- |
+| `notion-export.zip`          | Python `zipfile`, script below                                                                    | Valid, 4 files                                      |
+| `with-directories.zip`       | Info-ZIP `zip -X -r` over the same tree (directory entries, no UTF-8 flag)                        | Valid, 4 files; directory entries are not counted   |
+| `data-descriptors.zip`       | Info-ZIP `zip -X -D -fd -r`: every entry has flag bit 3, like Notion's real ZIP                   | Valid, 4 files                                      |
+| `crc-mismatch.zip`           | The script's stored (uncompressed) variant, then one data byte changed (`perl`)                   | Invalid: an entry fails its CRC-32 check            |
+| `directory-crc-mismatch.zip` | The script: a file plus a directory entry that carries data, then one byte of it changed (`perl`) | Invalid: the directory entry fails its CRC-32 check |
+| `truncated.zip`              | `head -c 1024 notion-export.zip`                                                                  | Invalid: no end-of-central-directory record         |
+| `empty.zip`                  | The script: an archive with no entries (22 bytes)                                                 | Invalid: no files                                   |
+| `path-traversal.zip`         | The script: a second entry named `../outside.md`                                                  | Invalid: yauzl rejects the entry name               |
+| `encrypted.zip`              | Info-ZIP `zip -X -D -P fixture-only` (ZipCrypto)                                                  | Invalid: encrypted entry                            |
 
 The password `fixture-only` protects nothing; it exists only to set the encryption flag.
 
@@ -49,11 +50,13 @@ write('notion-export.zip', FILES, zipfile.ZIP_DEFLATED)
 write('crc-mismatch.zip', FILES[:3], zipfile.ZIP_STORED)
 write('empty.zip', [], zipfile.ZIP_STORED)
 write('path-traversal.zip', [FILES[0], ('../outside.md', 'Outside the export folder.\n')], zipfile.ZIP_DEFLATED)
+write('directory-crc-mismatch.zip', [FILES[0], (f'{PAGE}/', 'A directory entry that carries data.\n')], zipfile.ZIP_STORED)
 ```
 
 ```sh
 python3 -I make.py
 perl -0777 -pi -e 's/Fixture page/Fixtur3 page/' crc-mismatch.zip
+perl -0777 -pi -e 's/carries data/carries dat4/' directory-crc-mismatch.zip
 head -c 1024 notion-export.zip > truncated.zip
 
 # The same four files as a directory tree, for Info-ZIP.
@@ -72,5 +75,6 @@ zip -q -X -D -fd -r data-descriptors.zip "$root"
 zip -q -X -D -P fixture-only encrypted.zip "$page.md"
 ```
 
-`unzip -t` confirms the valid two and reports the CRC error in `crc-mismatch.zip`; it accepts
-`path-traversal.zip`, whose name only an extracting reader would refuse.
+`unzip -t` confirms the three valid archives and reports the CRC errors in `crc-mismatch.zip` and
+`directory-crc-mismatch.zip`; it accepts `path-traversal.zip`, whose name only an extracting
+reader would refuse.

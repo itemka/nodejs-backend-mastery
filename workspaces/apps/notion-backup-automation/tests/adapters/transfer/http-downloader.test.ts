@@ -279,6 +279,37 @@ describe('HttpDownloader.download', () => {
     expect(logs.join('\n')).not.toMatch(/file_token|signature/);
   });
 
+  it("does not count a failed attempt's partial file against the retry's free space", async () => {
+    const reserve = 16 * MIB;
+    const capacity = reserve + ZIP.length + 50_000;
+    let directory = '';
+
+    // Like `statfs`: whatever the partial file holds is not free.
+    const freeSpace = async () => {
+      const partial = await stat(path.join(directory, '2026-10.zip.part')).then(
+        ({ size }) => size,
+        () => 0,
+      );
+
+      return capacity - partial;
+    };
+
+    const setupResult = await setup({ freeSpace });
+    let calls = 0;
+
+    directory = setupResult.directory;
+    setupResult.hosts.on(FILE_HOST, (request_, response) => {
+      calls += 1;
+      (calls === 1 ? dropAfter(ZIP, 300_000) : serveBytes(ZIP))(request_, response);
+    });
+
+    await expect(setupResult.downloader.download(request(directory))).resolves.toEqual({
+      digests: digestsOf(ZIP),
+      outcome: 'downloaded',
+    });
+    expect(calls).toBe(2);
+  });
+
   it('reports DOWNLOAD_FAILED after 3 server errors, waiting out a short Retry-After', async () => {
     const { directory, downloader, hosts, sleeps } = await setup();
 

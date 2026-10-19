@@ -6,7 +6,7 @@ import { openPromise } from 'yauzl';
 import { IntegrationError } from '../../application/integration-error.js';
 
 export interface ZipSummary {
-  /** Files in the archive; directory entries are not counted (Notion's export has none). */
+  /** Files in the archive; directory entries are checked but not counted (Notion's has none). */
   readonly entryCount: number;
   readonly uncompressedBytes: number;
 }
@@ -39,14 +39,13 @@ export async function verifyZipArchive(path: string, signal?: AbortSignal): Prom
   try {
     for await (const entry of zipfile.eachEntry()) {
       signal?.throwIfAborted();
-
-      if (entry.fileName.endsWith('/')) {
-        continue;
-      }
-
+      // Every entry is checked: a directory entry may carry data too.
       await checkEntry(zipfile, entry, signal);
-      entryCount += 1;
-      uncompressedBytes += entry.uncompressedSize;
+
+      if (!entry.fileName.endsWith('/')) {
+        entryCount += 1;
+        uncompressedBytes += entry.uncompressedSize;
+      }
     }
   } catch (error) {
     signal?.throwIfAborted();
