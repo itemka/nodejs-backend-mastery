@@ -7,6 +7,7 @@
     "api/**/*.ts",
     "src/**/*.ts",
     "tests/**/*.ts",
+    "vitest.browser.config.ts",
     "vitest.config.ts",
     "vitest.live.config.ts"
   ]

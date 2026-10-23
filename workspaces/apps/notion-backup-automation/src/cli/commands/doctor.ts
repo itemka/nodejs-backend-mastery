@@ -258,11 +258,16 @@ async function checkRedis(context: CliContext): Promise<CheckResult[]> {
     const ageDays = Math.floor(
       (context.clock.now().getTime() - new Date(secret.createdAt).getTime()) / DAY_MS,
     );
+    // auth:notion records the earliest sign-in cookie expiry in the envelope's meta.
+    const expiry =
+      typeof secret.meta.authCookieExpiresAt === 'string'
+        ? `; sign-in until ${secret.meta.authCookieExpiresAt}`
+        : '';
 
     return [
       redisResult,
       {
-        detail: `stored ${secret.createdAt} (${ageDays} days ago), opens with APP_ENCRYPTION_KEY`,
+        detail: `stored ${secret.createdAt} (${ageDays} days ago), opens with APP_ENCRYPTION_KEY${expiry}`,
         name: 'notion session',
         status: 'ok',
       },

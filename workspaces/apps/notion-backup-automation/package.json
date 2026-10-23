@@ -11,13 +11,16 @@
     "test": "vitest run",
     "test:live": "vitest run --config vitest.live.config.ts",
     "test:live:drive": "NBA_LIVE_DRIVE=1 vitest run --config vitest.live.config.ts tests/live/drive-access.live.ts",
+    "test:browser": "vitest run --config vitest.browser.config.ts",
     "cli": "tsx src/cli/main.ts",
     "auth:google": "tsx src/cli/main.ts auth:google",
+    "auth:notion": "tsx src/cli/main.ts auth:notion",
     "drive:check": "tsx src/cli/main.ts drive:check"
   },
   "dependencies": {
     "@upstash/redis": "^1.39.0",
     "google-auth-library": "^11.3.1",
+    "playwright-core": "1.63.0",
     "yauzl": "^3.4.0",
     "zod": "^4.1.12"
   },
