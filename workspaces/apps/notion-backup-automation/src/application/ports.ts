@@ -210,6 +210,50 @@ export interface BackupStorage {
   upload(request: BackupUpload): Promise<UploadedBackup>;
 }
 
+/**
+ * The saved Notion session passed the session gate: the workspace page rendered signed in and
+ * its switcher shows `NOTION_WORKSPACE_NAME`. `authCookieExpiresAt` is the earliest expiry of
+ * its sign-in cookies, when they have one.
+ */
+export interface SessionProbe {
+  readonly authCookieExpiresAt?: string;
+  readonly state: 'valid';
+}
+
+/**
+ * - `confirmed`: Notion showed its "Exporting" message after the final click;
+ * - `already_in_progress`: Notion showed an export already running, so nothing was clicked;
+ * - `in_doubt`: the final click was sent, but no confirmation was seen. The job waits for the
+ *   email as for `confirmed`, and never clicks again in this attempt.
+ */
+export type ExportTriggerOutcome = 'already_in_progress' | 'confirmed' | 'in_doubt';
+
+export interface ExportRequest {
+  /**
+   * Called once, immediately before the final Export click, so the job saves `exportClickAt`
+   * first. A rejection stops the run before the click. Not called for `already_in_progress`.
+   */
+  readonly onBeforeFinalClick: () => Promise<void>;
+  /**
+   * Stops the run. Before the final click, including while `onBeforeFinalClick` runs, the call
+   * rejects with the signal's reason and sends no click; after it, the signal only ends the wait
+   * for the confirmation.
+   */
+  readonly signal?: AbortSignal;
+}
+
+/**
+ * Requests the official workspace export in Notion's Settings, with the saved session. Failures
+ * before the final click throw `IntegrationError`: `NOTION_SESSION_EXPIRED`,
+ * `NOTION_INTERACTIVE_CHALLENGE`, `NOTION_WRONG_WORKSPACE`, `NOTION_UI_CHANGED`,
+ * `NOTION_UNAVAILABLE` or `BROWSER_LAUNCH_FAILED`. Nothing throws after the final click.
+ */
+export interface NotionExportTrigger {
+  /** Runs the session gate only; nothing in Settings is opened or clicked. */
+  probeSession(signal?: AbortSignal): Promise<SessionProbe>;
+  requestExport(request: ExportRequest): Promise<{ readonly outcome: ExportTriggerOutcome }>;
+}
+
 export interface TransferRequest {
   /** The export email the job claimed. */
   readonly emailMessageId: string;

@@ -1,0 +1,278 @@
+<!doctype html>
+<!--
+  A stand-in for Notion's app with the parts the trigger uses, shaped after the Phase 0 (Step 1)
+  screenshots and the S2 probe: the sidebar's workspace switcher (plus a hidden copy of its name),
+  the Settings menu item and shortcut, Settings → General → Export with the "Workspace content"
+  and "Members" rows, the export dialog with its four values, and the "Exporting..."
+  confirmation. The final Export posts the dialog values to /export instead of exporting.
+  tests/support/notion-ui.ts serves it and replaces the CONFIG comment with the test's options.
+-->
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Dashboard | Notion</title>
+    <style>
+      body {
+        font-family: sans-serif;
+      }
+      [role='button'],
+      [role='menuitem'] {
+        cursor: pointer;
+        padding: 4px;
+      }
+      /* In the accessibility tree, so getByRole finds it, but with no box: not visible (S2). */
+      .collapsed[role='button'] {
+        height: 0;
+        overflow: hidden;
+        padding: 0;
+        width: 0;
+      }
+      [role='switch'] {
+        background: #ccc;
+        display: inline-block;
+        height: 18px;
+        width: 30px;
+      }
+      [role='switch'][aria-checked='true'] {
+        background: #2383e2;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="app"></div>
+    <script>
+      /*CONFIG*/
+    </script>
+    <script>
+      (() => {
+        const config = window.NBA_FIXTURE;
+        const values = {
+          content: config.content,
+          folders: config.folders,
+          format: config.format,
+          views: config.views,
+        };
+
+        function el(tag, attributes = {}, ...children) {
+          const node = document.createElement(tag);
+
+          for (const [name, value] of Object.entries(attributes)) {
+            if (name === 'onclick') {
+              node.addEventListener('click', value);
+            } else {
+              node.setAttribute(name, value);
+            }
+          }
+
+          node.append(...children);
+
+          return node;
+        }
+
+        const button = (text, onclick, attributes = {}) =>
+          el('div', { onclick, role: 'button', tabindex: '0', ...attributes }, text);
+
+        function closeTopmost() {
+          const top =
+            document.querySelector('#menu') ??
+            document.querySelector('#overlay') ??
+            document.querySelector('#settings');
+
+          top?.remove();
+        }
+
+        function openMenu() {
+          document.querySelector('#menu')?.remove();
+
+          const items = [el('div', { role: 'menuitem', tabindex: '0' }, 'Add an account')];
+
+          if (!config.broken.includes('settings-menu')) {
+            items.push(
+              el('div', { onclick: openSettings, role: 'menuitem', tabindex: '0' }, 'Settings'),
+            );
+          }
+
+          document.body.append(el('div', { id: 'menu', role: 'menu' }, ...items));
+        }
+
+        function openSettings() {
+          document.querySelector('#menu')?.remove();
+
+          if (document.querySelector('#settings')) {
+            return;
+          }
+
+          const content = el('div', { class: 'settings-content' }, el('div', {}, 'My account'));
+          const tabs = [el('div', {}, 'Preferences')];
+
+          if (!config.broken.includes('general')) {
+            tabs.push(el('div', { onclick: () => showGeneral(content) }, 'General'));
+          }
+
+          tabs.push(el('div', {}, 'People'));
+          document.body.append(
+            el(
+              'div',
+              { id: 'settings' },
+              el('div', { class: 'settings-nav' }, el('div', {}, 'Account'), ...tabs),
+              content,
+            ),
+          );
+        }
+
+        function showGeneral(content) {
+          content.replaceChildren(
+            el('div', {}, 'Workspace settings'),
+            el(
+              'div',
+              { class: 'section' },
+              el('div', {}, 'Export'),
+              el(
+                'div',
+                { class: 'row' },
+                el(
+                  'div',
+                  {},
+                  el('div', {}, 'Workspace content'),
+                  el(
+                    'div',
+                    {},
+                    `Export all pages in ${config.name}. This can take longer depending on the size of the workspace.`,
+                  ),
+                ),
+                button('Export', openExportDialog),
+              ),
+              el(
+                'div',
+                { class: 'row' },
+                el(
+                  'div',
+                  {},
+                  el('div', {}, 'Members'),
+                  el('div', {}, 'Upgrade to get a list of members and guests in your workspace'),
+                ),
+                button('Export', () => {}, { 'aria-disabled': 'true' }),
+              ),
+            ),
+          );
+        }
+
+        function selectRow(label, key, options) {
+          const value = button(values[key], () => {
+            document.querySelector('#menu')?.remove();
+
+            const menu = el(
+              'div',
+              { id: 'menu', role: 'menu' },
+              ...options.map((option) =>
+                el(
+                  'div',
+                  {
+                    onclick: () => {
+                      values[key] = option;
+                      value.textContent = option;
+                      menu.remove();
+                    },
+                    role: 'menuitem',
+                    tabindex: '0',
+                  },
+                  option,
+                ),
+              ),
+            );
+
+            document.body.append(menu);
+          });
+
+          return el('div', { class: 'dialog-row' }, el('div', {}, label), value);
+        }
+
+        function toggleRow(label, key) {
+          const toggle = el('div', {
+            'aria-checked': String(values[key]),
+            role: 'switch',
+            tabindex: '0',
+          });
+
+          toggle.addEventListener('click', () => {
+            values[key] = !values[key];
+            toggle.setAttribute('aria-checked', String(values[key]));
+          });
+
+          return el('div', { class: 'dialog-row' }, el('div', {}, label), toggle);
+        }
+
+        function progressView() {
+          return [
+            el('div', {}, 'Exporting...'),
+            el('div', {}, "We'll also send you an email with the download link."),
+            button('Close', closeTopmost),
+          ];
+        }
+
+        async function finalExport() {
+          await fetch('/export', { body: JSON.stringify(values), method: 'POST' });
+
+          if (config.confirm !== 'none') {
+            document.querySelector('#export-dialog').replaceChildren(...progressView());
+          }
+        }
+
+        function openExportDialog() {
+          if (config.state === 'exporting') {
+            document.body.append(
+              el('div', { id: 'overlay' }, el('div', { id: 'export-dialog' }, ...progressView())),
+            );
+
+            return;
+          }
+
+          const formats = config.broken.includes('format')
+            ? ['PDF', 'HTML']
+            : ['PDF', 'HTML', 'Markdown & CSV'];
+
+          document.body.append(
+            el(
+              'div',
+              { id: 'overlay' },
+              el(
+                'div',
+                { id: 'export-dialog' },
+                selectRow('Export format', 'format', formats),
+                selectRow('Database views', 'views', ['Current view', 'Default view']),
+                selectRow('Page content', 'content', ['Everything', 'No files or images']),
+                toggleRow('Create folders for subpages', 'folders'),
+                el(
+                  'div',
+                  { class: 'footer' },
+                  button('Cancel', closeTopmost),
+                  button('Export', finalExport),
+                ),
+              ),
+            ),
+          );
+        }
+
+        document.addEventListener('keydown', (event) => {
+          if (event.key === 'Escape') {
+            closeTopmost();
+          } else if (event.key === ',' && (event.metaKey || event.ctrlKey)) {
+            openSettings();
+          }
+        });
+
+        document
+          .querySelector('#app')
+          .append(
+            el(
+              'div',
+              { class: 'notion-sidebar' },
+              el('div', { class: 'collapsed', role: 'button' }, config.name),
+              button(config.name, openMenu),
+            ),
+            el('div', { class: 'notion-frame' }, el('div', {}, 'Dashboard')),
+          );
+      })();
+    </script>
+  </body>
+</html>

@@ -21,6 +21,17 @@ describe('parseCommand', () => {
     [['doctor'], { command: 'doctor', emailSince: undefined }],
     [['doctor', '--email-since', '2026-10-01'], { command: 'doctor', emailSince: '2026-10-01' }],
     [['dev:upload', 'backup.zip'], { command: 'dev:upload', path: 'backup.zip' }],
+    [['auth:notion'], { command: 'auth:notion' }],
+    [['dev:trigger'], { command: 'dev:trigger', dryRun: false, headed: false }],
+    [
+      ['dev:trigger', '--dry-run', '--headed'],
+      { command: 'dev:trigger', dryRun: true, headed: true },
+    ],
+    [['dev:download'], { command: 'dev:download', emailSince: undefined }],
+    [
+      ['dev:download', '--email-since', '2026-10-18'],
+      { command: 'dev:download', emailSince: '2026-10-18' },
+    ],
   ])('%j', (argv, expected) => {
     expect(parseCommand(argv)).toEqual(expected);
   });
@@ -37,6 +48,12 @@ describe('parseCommand', () => {
     [['dev:upload']],
     [['dev:upload', 'a.zip', 'b.zip']],
     [['dev:upload', '--force', 'a.zip']],
+    [['auth:notion', '--print']],
+    [['auth:notion', 'extra']],
+    [['dev:trigger', '--force']],
+    [['dev:trigger', 'now']],
+    [['dev:download', '--email-since', '2026-13-01']],
+    [['dev:download', 'latest']],
   ])('rejects %j', (argv) => {
     expect(() => parseCommand(argv)).toThrow(UsageError);
   });

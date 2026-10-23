@@ -4,6 +4,7 @@ import { describe, expect, it } from 'vitest';
 import { keyPrefixFor } from '../../src/adapters/persistence/keys.js';
 import { RedisSecretStore } from '../../src/adapters/persistence/redis-secret-store.js';
 import { main } from '../../src/cli/main.js';
+import type { EnvelopeMeta } from '../../src/shared/envelope-crypto.js';
 import { createEnvelopeKey } from '../../src/shared/envelope-crypto.js';
 import { testCli } from '../support/cli-context.js';
 import {
@@ -53,7 +54,7 @@ async function setup(google = healthyGoogle(), env: Record<string, string> = ful
   return testCli({ clock: new ManualClock('2026-10-18T10:00:00.000Z'), env, fetch: google.fetch });
 }
 
-async function storeSession(cli: Awaited<ReturnType<typeof setup>>) {
+async function storeSession(cli: Awaited<ReturnType<typeof setup>>, meta: EnvelopeMeta = {}) {
   const store = new RedisSecretStore({
     appEnv: 'dev',
     clock: new ManualClock('2026-10-08T10:00:00.000Z'),
@@ -62,7 +63,11 @@ async function storeSession(cli: Awaited<ReturnType<typeof setup>>) {
     redis: cli.redis,
   });
 
-  await store.put('notion-storage-state', '{"cookies":[{"name":"token_v2","value":"secret"}]}');
+  await store.put(
+    'notion-storage-state',
+    '{"cookies":[{"name":"token_v2","value":"secret"}]}',
+    meta,
+  );
 }
 
 describe('doctor', () => {
@@ -81,6 +86,17 @@ describe('doctor', () => {
       '✓ redis           reachable, APP_ENV dev',
       '✓ notion session  stored 2026-10-08T10:00:00.000Z (10 days ago), opens with APP_ENCRYPTION_KEY',
     ]);
+  });
+
+  it('shows the sign-in cookie expiry that auth:notion recorded', async () => {
+    const cli = await setup();
+
+    await storeSession(cli, { authCookieExpiresAt: '2027-10-08T10:00:00.000Z' });
+
+    await expect(main(['doctor'], cli.context)).resolves.toBe(0);
+    expect(cli.output.at(-1)).toBe(
+      '✓ notion session  stored 2026-10-08T10:00:00.000Z (10 days ago), opens with APP_ENCRYPTION_KEY; sign-in until 2027-10-08T10:00:00.000Z',
+    );
   });
 
   it('searches from the start of --email-since in the backup time zone', async () => {

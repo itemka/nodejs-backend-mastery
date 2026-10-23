@@ -2,8 +2,11 @@ import { parseArgs } from 'node:util';
 
 export type ParsedCommand =
   | { readonly command: 'auth:google'; readonly pickFolders: boolean; readonly print: boolean }
+  | { readonly command: 'auth:notion' }
   /** `emailSince` is a local date, `YYYY-MM-DD`, in the backup time zone. */
   | { readonly command: 'doctor'; readonly emailSince: string | undefined }
+  | { readonly command: 'dev:download'; readonly emailSince: string | undefined }
+  | { readonly command: 'dev:trigger'; readonly dryRun: boolean; readonly headed: boolean }
   | { readonly command: 'dev:upload'; readonly path: string }
   | { readonly command: 'drive:check'; readonly year: string | undefined }
   | { readonly command: 'drive:init' }
@@ -24,6 +27,9 @@ Commands:
       Google consent in the browser. Saves GOOGLE_REFRESH_TOKEN to .env.local and prints it
       masked; --print also prints the token itself, for 1Password. --pick-folders instead runs
       the Drive Picker grant (S6 fallback 1) and saves nothing.
+  auth:notion
+      Opens Chrome on the Notion login page; you sign in yourself, including MFA. Saves the
+      session, encrypted, to Redis for APP_ENV, then checks it again in a headless browser.
   drive:check [--year YYYY]
       S6 checks C1–C4 against GOOGLE_DRIVE_BACKUP_ROOT_FOLDER_ID (default year: the current one).
   drive:init
@@ -34,6 +40,12 @@ Commands:
   dev:upload <file.zip>
       With APP_ENV=dev only: uploads the file as today's backup into _dev/<YYYY>/ in the Drive
       root, with its .sha256 sidecar. A file already there with the same SHA-256 is not sent again.
+  dev:trigger [--dry-run] [--headed]
+      With APP_ENV=dev only: requests a real workspace export in Notion's Settings with the
+      saved session. --dry-run stops at the export dialog and cancels it; --headed shows the window.
+  dev:download [--email-since YYYY-MM-DD]
+      With APP_ENV=dev only: downloads the newest export since --email-since (default: 7 days
+      ago) with the saved session's cookies, checks the ZIP, and deletes it. Nothing is uploaded.
 
 The commands read .env.local in the app directory.`;
 
@@ -66,13 +78,31 @@ export function parseCommand(argv: readonly string[]): ParsedCommand {
       };
     }
 
-    case 'doctor': {
-      const since = parse(rest, { 'email-since': { type: 'string' } }).values['email-since'];
+    case 'auth:notion': {
+      parse(rest, {});
+
+      return { command: 'auth:notion' };
+    }
+
+    case 'dev:download': {
+      return { command: 'dev:download', emailSince: emailSinceOption(rest) };
+    }
+
+    case 'dev:trigger': {
+      const { values } = parse(rest, {
+        'dry-run': { type: 'boolean' },
+        headed: { type: 'boolean' },
+      });
 
       return {
-        command: 'doctor',
-        emailSince: since === undefined ? undefined : toLocalDate(since),
+        command: 'dev:trigger',
+        dryRun: values['dry-run'] === true,
+        headed: values.headed === true,
       };
+    }
+
+    case 'doctor': {
+      return { command: 'doctor', emailSince: emailSinceOption(rest) };
     }
 
     case 'dev:upload': {
@@ -105,6 +135,13 @@ export function parseCommand(argv: readonly string[]): ParsedCommand {
       throw new UsageError(`Unknown command: ${name}`);
     }
   }
+}
+
+/** `--email-since YYYY-MM-DD`, the only option of `doctor` and `dev:download`. */
+function emailSinceOption(args: readonly string[]): string | undefined {
+  const since = parse(args, { 'email-since': { type: 'string' } }).values['email-since'];
+
+  return since === undefined ? undefined : toLocalDate(since);
 }
 
 type OptionConfig = Record<string, { type: 'boolean' | 'string' }>;
