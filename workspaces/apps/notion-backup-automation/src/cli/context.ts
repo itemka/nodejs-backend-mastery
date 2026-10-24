@@ -4,16 +4,25 @@ import { OAuthTokenProvider } from '../adapters/google/token-provider.js';
 import type { BrowserLauncher } from '../adapters/notion/browser-launcher.js';
 import { NotionSessionStore } from '../adapters/notion/notion-session.js';
 import { keyPrefixFor } from '../adapters/persistence/keys.js';
-import type { StringCommands } from '../adapters/persistence/redis-secret-store.js';
+import type { HashCommands } from '../adapters/persistence/redis-health-store.js';
 import { RedisSecretStore } from '../adapters/persistence/redis-secret-store.js';
+import type { JobRepository } from '../application/ports.js';
 import type { AppEnv } from '../config/env.js';
 import type { Clock } from '../shared/clock.js';
 import { createEnvelopeKey } from '../shared/envelope-crypto.js';
 import type { Logger } from '../shared/logger.js';
 
 /** The Redis commands the CLI uses; `@upstash/redis` and test fakes both provide them. */
-export interface CliRedis extends StringCommands {
+export interface CliRedis extends HashCommands {
+  get(key: string): Promise<null | string>;
   ping(): Promise<unknown>;
+  /** With `nx`, `OK` when the key was set and null when it existed. */
+  set(key: string, value: string, options?: { ex: number; nx: true }): Promise<unknown>;
+}
+
+export interface RedisConnection {
+  token: string;
+  url: string;
 }
 
 /** Everything a command touches outside its own code, so tests can replace it. */
@@ -21,12 +30,14 @@ export interface CliContext {
   /** Starts the browser for `auth:notion` and `dev:trigger`. */
   browserLauncher: BrowserLauncher;
   clock: Clock;
-  createRedis: (connection: { token: string; url: string }) => CliRedis;
+  /** The job repository of `dev:tick`: Redis, with its Lua scripts; in memory in tests. */
+  createJobRepository: (connection: RedisConnection, keyPrefix: string) => JobRepository;
+  createRedis: (connection: RedisConnection) => CliRedis;
   /** The variables the commands read: `process.env` after `.env.local` was loaded. */
   env: NodeJS.ProcessEnv;
   /** `.env.local` in the app directory; `auth:google` writes the refresh token here. */
   envFilePath: string;
-  /** Replaces `fetch` for every Google call (tests). */
+  /** Replaces `fetch` for every Google and Telegram call (tests). */
   fetch?: typeof fetch;
   /** Logs go to stderr as JSON lines, separate from the human-facing output. */
   logger: Logger;

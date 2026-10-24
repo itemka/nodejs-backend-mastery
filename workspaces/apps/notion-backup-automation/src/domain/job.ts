@@ -1,6 +1,7 @@
 import { z } from 'zod';
 
 import { errorCodeSchema } from './error-catalog.js';
+import { exportShrinkSchema } from './export-size.js';
 import type { JobKind } from './naming.js';
 import { jobIdFor, jobIdSchema, jobKindSchema } from './naming.js';
 import type { Period } from './period.js';
@@ -66,6 +67,8 @@ export const backupResultSchema = z.object({
   entryCount: z.number().int().min(0).optional(),
   fileName: z.string().max(200),
   sha256: z.string().regex(/^[0-9a-f]{64}$/),
+  /** Set when the backup is much smaller than the last completed one; it still completed. */
+  shrink: exportShrinkSchema.optional(),
   sizeBytes: z.number().int().min(0),
   yearFolderId: z.string().regex(/^[\w-]+$/),
 });

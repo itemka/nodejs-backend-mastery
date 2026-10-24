@@ -22,6 +22,8 @@ export function persistenceKeys(prefix: string) {
     job: (jobId: string) => `${prefix}job:${jobId}`,
     jobs: `${prefix}jobs`,
     lease: (jobId: string) => `${prefix}lease:${jobId}`,
+    /** A sent notification that must not repeat for a while: `attention:<jobId>:<code>`, `lost:<service>`. */
+    notify: (key: string) => `${prefix}notify:${key}`,
     secret: (name: SecretName) => `${prefix}secret:${name}`,
   };
 }

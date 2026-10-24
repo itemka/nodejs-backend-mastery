@@ -8,6 +8,7 @@ import {
   cancelJob,
   completeTransfer,
   failLifetimeExceeded,
+  handOverToUser,
   isLifetimeExceeded,
   markExportClick,
   markTransferProgress,
@@ -218,7 +219,7 @@ describe('the edges drawn in the plan’s state diagram, plus the undrawn ones',
     [
       'backup_retry or supervisor retry_stage',
       () => attentionJob(),
-      (job) => retryJob(job, at),
+      (job) => retryJob(job, at, policy),
       'NEEDS_ATTENTION',
       'TRIGGERING_EXPORT',
     ],
@@ -537,7 +538,7 @@ describe('recordFailure', () => {
         decisions: [{ action: 'retry_stage', at: minutesAfter(4).toISOString() }],
       },
     };
-    const retried = retryJob(withDecision, minutesAfter(5));
+    const retried = retryJob(withDecision, minutesAfter(5), policy);
     // backup_retry closes the incident; a supervisor retry_stage keeps it (simulated here).
     const supervisorRetry = { ...retried, incident: withDecision.incident };
     const again = recordFailure(supervisorRetry, minutesAfter(6), 'NOTION_UI_CHANGED', policy);
@@ -562,7 +563,7 @@ describe('recordFailure', () => {
 
 describe('backup_retry', () => {
   it('returns to the failed stage, resets its retries and closes the incident', () => {
-    const job = valid(retryJob(attentionJob('NOTION_UI_CHANGED'), minutesAfter(10)));
+    const job = valid(retryJob(attentionJob('NOTION_UI_CHANGED'), minutesAfter(10), policy));
 
     expect(job.status).toBe('TRIGGERING_EXPORT');
     expect(job.incident).toBeUndefined();
@@ -577,24 +578,76 @@ describe('backup_retry', () => {
       policy,
     );
 
-    expect(retryJob(failed, minutesAfter(10), 'EMAIL_WAIT').status).toBe('WAITING_FOR_EMAIL');
-    expect(retryJob(failed, minutesAfter(10)).status).toBe('EMAIL_FOUND');
+    expect(retryJob(failed, minutesAfter(10), policy, 'EMAIL_WAIT').status).toBe(
+      'WAITING_FOR_EMAIL',
+    );
+    expect(retryJob(failed, minutesAfter(10), policy).status).toBe('EMAIL_FOUND');
   });
 
   it('refuses a stage the job never reached', () => {
-    expect(invalidState(() => retryJob(attentionJob(), minutesAfter(10), 'TRANSFER'))).toBe(
+    expect(invalidState(() => retryJob(attentionJob(), minutesAfter(10), policy, 'TRANSFER'))).toBe(
       'STAGE_NOT_REACHED',
     );
-    expect(invalidState(() => retryJob(attentionJob(), minutesAfter(10), 'EMAIL_WAIT'))).toBe(
-      'STAGE_NOT_REACHED',
+    expect(
+      invalidState(() => retryJob(attentionJob(), minutesAfter(10), policy, 'EMAIL_WAIT')),
+    ).toBe('STAGE_NOT_REACHED');
+  });
+
+  it('starts a new export attempt when NOTION_TRIGGER is retried after this attempt clicked', () => {
+    const timedOut = recordFailure(waitingJob(), minutesAfter(30), 'EMAIL_TIMEOUT', policy);
+    const fromScratch = valid(retryJob(timedOut, minutesAfter(31), policy, 'NOTION_TRIGGER'));
+
+    expect(fromScratch).toMatchObject({ exportAttempt: 2, status: 'TRIGGERING_EXPORT' });
+    expect(fromScratch.exportClickAt).toBeUndefined();
+    expect(fromScratch.requestedAt).toBeUndefined();
+    expect(fromScratch.incident).toBeUndefined();
+    expect(
+      invalidState(() =>
+        retryJob(
+          { ...timedOut, exportAttempt: policy.maxExportAttempts },
+          minutesAfter(31),
+          policy,
+          'NOTION_TRIGGER',
+        ),
+      ),
+    ).toBe('EXPORT_ATTEMPTS_EXHAUSTED');
+  });
+
+  it('keeps the attempt when NOTION_TRIGGER is retried before any click', () => {
+    const retried = retryJob(
+      attentionJob('NOTION_UI_CHANGED'),
+      minutesAfter(10),
+      policy,
+      'NOTION_TRIGGER',
     );
+
+    expect(retried).toMatchObject({ exportAttempt: 1, status: 'TRIGGERING_EXPORT' });
   });
 
   it('works only from NEEDS_ATTENTION or RETRYABLE_FAILURE', () => {
-    expect(retryJob(retryableJob(), minutesAfter(4)).stageRetries).toEqual({});
-    expect(invalidState(() => retryJob(waitingJob(), minutesAfter(10)))).toBe('UNEXPECTED_STATUS');
-    expect(invalidState(() => retryJob(jobInStatus('COMPLETE'), minutesAfter(10)))).toBe(
+    expect(retryJob(retryableJob(), minutesAfter(4), policy).stageRetries).toEqual({});
+    expect(invalidState(() => retryJob(waitingJob(), minutesAfter(10), policy))).toBe(
+      'UNEXPECTED_STATUS',
+    );
+    expect(invalidState(() => retryJob(jobInStatus('COMPLETE'), minutesAfter(10), policy))).toBe(
       'JOB_TERMINAL',
+    );
+  });
+});
+
+describe('handOverToUser', () => {
+  it('moves a supervised incident to the user, keeping the job and its history', () => {
+    const supervised = attentionJob('NOTION_UI_CHANGED');
+    const handedOver = valid(handOverToUser(supervised, minutesAfter(4)));
+
+    expect(supervised.incident?.state).toBe('awaiting_supervisor');
+    expect(handedOver.status).toBe('NEEDS_ATTENTION');
+    expect(handedOver.incident).toEqual({ ...supervised.incident, state: 'awaiting_user' });
+  });
+
+  it('works only on a job that needs attention', () => {
+    expect(invalidState(() => handOverToUser(waitingJob(), minutesAfter(4)))).toBe(
+      'UNEXPECTED_STATUS',
     );
   });
 });

@@ -1,8 +1,10 @@
+import type { ErrorCode } from '../domain/error-catalog.js';
+import type { ExportShrink } from '../domain/export-size.js';
 import type { JobEvent } from '../domain/job-event.js';
 import type { FoundEmail } from '../domain/job-lifecycle.js';
 import type { BackupJob } from '../domain/job.js';
 import type { Period } from '../domain/period.js';
-import type { TransferMarker } from '../domain/statuses.js';
+import type { Stage, TransferMarker } from '../domain/statuses.js';
 import type { EnvelopeMeta } from '../shared/envelope-crypto.js';
 import type { SecretValue } from '../shared/secret-value.js';
 import type { HealthField, HealthSnapshot } from './health-snapshot.js';
@@ -289,4 +291,109 @@ export type TransferResult =
  */
 export interface ExportTransfer {
   run(request: TransferRequest): Promise<TransferResult>;
+}
+
+/** Why a wakeup was published; QStash shows it per message. */
+export type WakeupReason = 'manual' | 'retry' | 'schedule' | 'start' | 'supervisor' | 'watchdog';
+
+export interface Wakeup {
+  /** 0 for an immediate wakeup. */
+  readonly delaySec: number;
+  readonly jobId: string;
+  readonly reason: WakeupReason;
+  /** The job's schedule token; a delivery whose token is no longer the job's is stale. */
+  readonly token: string;
+}
+
+/**
+ * Publishes delayed, signed wakeups of the worker. A publish with the same job and token is
+ * delivered once (`<jobId>.<token>` deduplication), so retrying a publish is safe.
+ */
+export interface Scheduler {
+  /** Best effort: a superseded message that still arrives is stale and does nothing. */
+  cancel(messageId: string): Promise<void>;
+  /** Throws when the wakeup may not have been published; the caller keeps the old token. */
+  schedule(wakeup: Wakeup): Promise<{ readonly messageId?: string }>;
+}
+
+/** One line of a job's sanitized event history, as notifications show it. */
+export interface NotificationEventLine {
+  readonly at: string;
+  readonly text: string;
+}
+
+export interface SuccessNotification {
+  readonly driveFileId: string;
+  /** From the job's creation to its completion. */
+  readonly durationMs: number;
+  readonly entryCount?: number;
+  readonly fileName: string;
+  /** The folder under the Drive root: `2026`, or `_dev/2026` for `APP_ENV=dev`. */
+  readonly folder: string;
+  readonly jobId: string;
+  readonly period: Period;
+  /** Set when the backup is much smaller than the last completed one. */
+  readonly shrink?: ExportShrink;
+  readonly sizeBytes: number;
+}
+
+/** The job ended as FAILED: its lifetime ran out. */
+export interface FailureNotification {
+  readonly code: ErrorCode;
+  readonly jobId: string;
+  readonly period: Period;
+  /** The catalog description of `code`. */
+  readonly reason: string;
+  readonly stage: Stage;
+}
+
+/** The job waits for a person. Every text field is static catalog text or sanitized events. */
+export interface AttentionNotification {
+  readonly code: ErrorCode;
+  readonly howToFix: string;
+  readonly jobId: string;
+  readonly period: Period;
+  readonly reason: string;
+  /** The newest sanitized events, oldest first; at most 10. */
+  readonly recentEvents: readonly NotificationEventLine[];
+  /** Whether a new export attempt is still allowed (`exportAttempt < MAX_EXPORT_ATTEMPTS`). */
+  readonly retryFromScratch: boolean;
+  readonly stage: Stage;
+  readonly supervisorSummary?: string;
+}
+
+export type LoginService = 'google' | 'notion';
+
+/**
+ * - `expiring`: the recorded Notion sign-in expires within the warning days;
+ * - `lost`: a probe found the access gone;
+ * - `renewed`: the access was renewed without the Mac (Phases 13 and 14).
+ */
+export interface LoginWarningNotification {
+  readonly daysLeft?: number;
+  /** Notion only: Google refresh tokens have no expiry date. */
+  readonly expiresAt?: string;
+  readonly howToFix: string;
+  readonly kind: 'expiring' | 'lost' | 'renewed';
+  readonly service: LoginService;
+}
+
+/**
+ * Delivers notifications to one channel (console, Telegram). A delivery may throw;
+ * `CompositeNotifier` logs the failure, so no notification ever fails a tick or the cron.
+ */
+export interface Notifier {
+  attention(notification: AttentionNotification): Promise<void>;
+  failure(notification: FailureNotification): Promise<void>;
+  loginWarning(notification: LoginWarningNotification): Promise<void>;
+  success(notification: SuccessNotification): Promise<void>;
+}
+
+/**
+ * Marks a notification as sent for `ttlSec`, so a repeat within that time is skipped: an
+ * `attention` once per job and code per 24 h, a `lost` login warning once per service per 24 h.
+ */
+export interface NotificationGate {
+  /** True for the first claim of `key` within `ttlSec`, false while an earlier claim lives. */
+  claim(key: string, ttlSec: number): Promise<boolean>;
 }

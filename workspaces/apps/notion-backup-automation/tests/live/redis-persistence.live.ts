@@ -9,6 +9,7 @@ import { keyPrefixFor } from '../../src/adapters/persistence/keys.js';
 import { createRedisClient } from '../../src/adapters/persistence/redis-client.js';
 import { RedisHealthStore } from '../../src/adapters/persistence/redis-health-store.js';
 import { RedisJobRepository } from '../../src/adapters/persistence/redis-job-repository.js';
+import { RedisNotificationGate } from '../../src/adapters/persistence/redis-notification-gate.js';
 import { RedisSecretStore } from '../../src/adapters/persistence/redis-secret-store.js';
 import { createEnvelopeKey } from '../../src/shared/envelope-crypto.js';
 import { describeJobRepositoryContract } from '../contract/job-repository.contract.js';
@@ -121,5 +122,20 @@ describe.runIf(enabled)('live Redis', () => {
     await store.write('qstashPing', qstashPing);
 
     expect(await store.read()).toEqual({ qstashPing });
+  });
+
+  it('claims a notification once with SET NX EX, with the TTL asked for', async () => {
+    const client = requireRedis();
+    const prefix = nextPrefix();
+    const gate = new RedisNotificationGate(client, prefix);
+
+    await expect(gate.claim('lost:notion', 60)).resolves.toBe(true);
+    await expect(gate.claim('lost:notion', 60)).resolves.toBe(false);
+    await expect(gate.claim('lost:google', 60)).resolves.toBe(true);
+
+    const ttl = await client.ttl(`${prefix}notify:lost:notion`);
+
+    expect(ttl).toBeGreaterThan(0);
+    expect(ttl).toBeLessThanOrEqual(60);
   });
 });

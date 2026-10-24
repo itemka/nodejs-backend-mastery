@@ -14,6 +14,7 @@ import {
   GMAIL_SCOPE,
   googleError,
 } from '../support/fake-google.js';
+import { FAKE_CHAT_ID, fakeBotToken, telegramError, telegramOk } from '../support/fake-telegram.js';
 import { loadEmailFixture, toGmailMessage, withHeader } from '../support/gmail-fixtures.js';
 import { ManualClock } from '../support/manual-clock.js';
 
@@ -28,9 +29,13 @@ const fullEnv = {
   GOOGLE_CLIENT_SECRET: fakeCredentials.clientSecret,
   GOOGLE_DRIVE_BACKUP_ROOT_FOLDER_ID: 'root-folder-id',
   GOOGLE_REFRESH_TOKEN: fakeCredentials.refreshToken,
+  TELEGRAM_BOT_TOKEN: fakeBotToken,
+  TELEGRAM_CHAT_ID: FAKE_CHAT_ID,
   UPSTASH_REDIS_REST_TOKEN: 'fake-redis-token',
   UPSTASH_REDIS_REST_URL: 'https://fake-redis.example',
 };
+
+const GET_ME = 'api.telegram.org/*/getMe';
 
 function healthyGoogle() {
   return new FakeGoogle()
@@ -47,7 +52,8 @@ function healthyGoogle() {
         mimeType: 'application/vnd.google-apps.folder',
         name: 'Full Workspace',
       }),
-    );
+    )
+    .on('POST', GET_ME, () => telegramOk({ id: 8_123_456_789, username: 'test_backup_bot' }));
 }
 
 async function setup(google = healthyGoogle(), env: Record<string, string> = fullEnv) {
@@ -85,6 +91,7 @@ describe('doctor', () => {
       '✓ drive root      root visible: "Full Workspace", canAddChildren no',
       '✓ redis           reachable, APP_ENV dev',
       '✓ notion session  stored 2026-10-08T10:00:00.000Z (10 days ago), opens with APP_ENCRYPTION_KEY',
+      '✓ telegram        bot @test_backup_bot, TELEGRAM_CHAT_ID set',
     ]);
   });
 
@@ -94,9 +101,56 @@ describe('doctor', () => {
     await storeSession(cli, { authCookieExpiresAt: '2027-10-08T10:00:00.000Z' });
 
     await expect(main(['doctor'], cli.context)).resolves.toBe(0);
-    expect(cli.output.at(-1)).toBe(
+    expect(cli.output).toContain(
       '✓ notion session  stored 2026-10-08T10:00:00.000Z (10 days ago), opens with APP_ENCRYPTION_KEY; sign-in until 2027-10-08T10:00:00.000Z',
     );
+  });
+
+  it('treats Telegram as optional: unset, the notifications go to the console only', async () => {
+    const { TELEGRAM_BOT_TOKEN: _token, TELEGRAM_CHAT_ID: _chat, ...withoutTelegram } = fullEnv;
+    const cli = await setup(healthyGoogle(), withoutTelegram);
+
+    await storeSession(cli);
+
+    await expect(main(['doctor'], cli.context)).resolves.toBe(0);
+    expect(cli.output.at(-1)).toBe(
+      '- telegram        not configured; notifications go to the console only',
+    );
+  });
+
+  it('names the telegram:setup step when only the chat ID is missing', async () => {
+    const { TELEGRAM_CHAT_ID: _chat, ...withoutChat } = fullEnv;
+    const cli = await setup(healthyGoogle(), withoutChat);
+
+    await storeSession(cli);
+
+    await expect(main(['doctor'], cli.context)).resolves.toBe(0);
+    expect(cli.output.at(-1)).toBe(
+      '! telegram        bot @test_backup_bot; TELEGRAM_CHAT_ID missing: run telegram:setup --find-chat',
+    );
+  });
+
+  it('fails the Telegram check when the bot token is rejected, without printing it', async () => {
+    const google = healthyGoogle().on('POST', GET_ME, () => telegramError(401, 'Unauthorized'));
+    const cli = await setup(google);
+
+    await storeSession(cli);
+
+    await expect(main(['doctor'], cli.context)).resolves.toBe(1);
+    expect(cli.output.at(-1)).toBe(
+      '✗ telegram        telegram_401: Telegram getMe failed: 401 Unauthorized',
+    );
+    expect(cli.text()).not.toContain(fakeBotToken);
+  });
+
+  it('names a malformed bot token without printing it', async () => {
+    const cli = await setup(healthyGoogle(), { ...fullEnv, TELEGRAM_BOT_TOKEN: 'not-a-bot-token' });
+
+    await expect(main(['doctor'], cli.context)).resolves.toBe(1);
+    expect(cli.output.at(-1)).toBe(
+      '✗ telegram        Configuration incomplete: invalid TELEGRAM_BOT_TOKEN in .env.local',
+    );
+    expect(cli.text()).not.toContain('not-a-bot-token');
   });
 
   it('searches from the start of --email-since in the backup time zone', async () => {

@@ -211,6 +211,37 @@ describe('loadEnv', () => {
     ).toEqual(['APP_BASE_URL']);
   });
 
+  it('keeps Telegram optional, and checks the bot token and chat ID formats', () => {
+    const botToken = ['8123456789', `AAH${'q'.repeat(32)}`].join(':');
+    const env = loadEnv(workerEnvSchema, {
+      ...workerVars,
+      NOTIFIERS: 'console, telegram',
+      TELEGRAM_BOT_TOKEN: botToken,
+      TELEGRAM_CHAT_ID: '424242',
+    });
+
+    expect(env.NOTIFIERS).toEqual(['console', 'telegram']);
+    expect(loadEnv(workerEnvSchema, workerVars).TELEGRAM_BOT_TOKEN).toBeUndefined();
+    expect(
+      configError(() =>
+        loadEnv(workerEnvSchema, {
+          ...workerVars,
+          NOTIFIERS: 'console,email',
+          TELEGRAM_BOT_TOKEN: 'leaked-not-a-token',
+          TELEGRAM_CHAT_ID: '@me',
+        }),
+      ).invalid,
+    ).toEqual(['NOTIFIERS', 'TELEGRAM_BOT_TOKEN', 'TELEGRAM_CHAT_ID']);
+  });
+
+  it.each(['0', '1', '1.5', 'half'])('rejects EXPORT_SHRINK_RATIO=%s', (value) => {
+    expect(loadEnv(workerEnvSchema, workerVars).EXPORT_SHRINK_RATIO).toBe(0.5);
+    expect(
+      configError(() => loadEnv(workerEnvSchema, { ...workerVars, EXPORT_SHRINK_RATIO: value }))
+        .invalid,
+    ).toEqual(['EXPORT_SHRINK_RATIO']);
+  });
+
   it('rejects TRANSFER_MODE=stream: only the tmp transfer exists', () => {
     expect(
       configError(() => loadEnv(workerEnvSchema, { ...workerVars, TRANSFER_MODE: 'stream' }))

@@ -21,6 +21,14 @@ export const healthSnapshotSchema = z.object({
       tokenOk: z.boolean(),
     })
     .optional(),
+  /** The last login warning sent; these belong to no job, so they are recorded here. */
+  loginWarning: z
+    .object({
+      kind: z.enum(['expiring', 'lost', 'renewed']),
+      sentAt: timestamp,
+      service: z.enum(['google', 'notion']),
+    })
+    .optional(),
   notionSession: z
     .object({
       authCookieExpiresAt: timestamp.optional(),
