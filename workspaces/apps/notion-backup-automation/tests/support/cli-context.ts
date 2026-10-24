@@ -4,6 +4,7 @@ import path from 'node:path';
 import { stripVTControlCharacters } from 'node:util';
 import { onTestFinished } from 'vitest';
 
+import { IntegrationError } from '../../src/application/integration-error.js';
 import type { CliContext, CliRedis } from '../../src/cli/context.js';
 import { createLogger } from '../../src/shared/logger.js';
 import { FakeRedis } from './fake-redis.js';
@@ -11,6 +12,8 @@ import { ManualClock } from './manual-clock.js';
 
 export interface TestCli {
   context: CliContext;
+  /** This test's own temp directory: `.env.local`, and `dev:download`'s temporary copy. */
+  directory: string;
   /** JSON log lines. */
   logs: string[];
   /** Printed lines without colors. */
@@ -20,7 +23,10 @@ export interface TestCli {
   text: () => string;
 }
 
-/** A CLI context with no network, browser or real files, writing `.env.local` to a temp dir. */
+/**
+ * A CLI context with no network, browser or real files, writing `.env.local` to a temp dir. The
+ * browser launcher fails like a machine without Chrome.
+ */
 export async function testCli(
   overrides: Partial<Omit<CliContext, 'env'>> & { env?: Record<string, string> } = {},
 ): Promise<TestCli> {
@@ -32,6 +38,10 @@ export async function testCli(
   const logs: string[] = [];
   const redis = new FakeRedis();
   const context: CliContext = {
+    browserLauncher: {
+      launch: () =>
+        Promise.reject(new IntegrationError('BROWSER_LAUNCH_FAILED', 'No browser in tests')),
+    },
     clock: new ManualClock('2026-10-18T10:00:00.000Z'),
     createRedis: (): CliRedis => redis,
     envFilePath: path.join(directory, '.env.local'),
@@ -45,9 +55,10 @@ export async function testCli(
     print: (text) => {
       output.push(stripVTControlCharacters(text));
     },
+    tempDirectory: directory,
     ...overrides,
     env: overrides.env ?? {},
   };
 
-  return { context, logs, output, redis, text: () => output.join('\n') };
+  return { context, directory, logs, output, redis, text: () => output.join('\n') };
 }

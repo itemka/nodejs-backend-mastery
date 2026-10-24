@@ -6,6 +6,7 @@ import { fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
 
 import { ConsentError } from '../adapters/google/loopback-consent.js';
+import { LocalBrowserLauncher } from '../adapters/notion/browser-launcher.js';
 import { createRedisClient } from '../adapters/persistence/redis-client.js';
 import { IntegrationError } from '../application/integration-error.js';
 import { ConfigError } from '../config/env.js';
@@ -15,6 +16,9 @@ import { createLogger, logLevels } from '../shared/logger.js';
 import { redactString } from '../shared/redact.js';
 import { parseCommand, USAGE, UsageError } from './args.js';
 import { runAuthGoogle } from './commands/auth-google.js';
+import { runAuthNotion } from './commands/auth-notion.js';
+import { runDevDownload } from './commands/dev-download.js';
+import { runDevTrigger } from './commands/dev-trigger.js';
 import { runDevUpload } from './commands/dev-upload.js';
 import { runDoctor } from './commands/doctor.js';
 import { runDriveCheck } from './commands/drive-check.js';
@@ -42,6 +46,18 @@ export async function main(argv: readonly string[], context: CliContext): Promis
     switch (parsed.command) {
       case 'auth:google': {
         return await runAuthGoogle(parsed, context);
+      }
+
+      case 'auth:notion': {
+        return await runAuthNotion(context);
+      }
+
+      case 'dev:download': {
+        return await runDevDownload(parsed, context);
+      }
+
+      case 'dev:trigger': {
+        return await runDevTrigger(parsed, context);
       }
 
       case 'dev:upload': {
@@ -99,6 +115,7 @@ function createDefaultContext(envFilePath: string): CliContext {
   const level = logLevels.find((name) => name === process.env.LOG_LEVEL) ?? 'warn';
 
   return {
+    browserLauncher: new LocalBrowserLauncher(),
     clock: systemClock,
     createRedis: createRedisClient,
     env: process.env,

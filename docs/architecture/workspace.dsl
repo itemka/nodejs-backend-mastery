@@ -37,16 +37,17 @@ workspace "nodejs-backend-mastery" "C4 model of the runnable apps in this monore
             claudeCapabilitiesCli = container "Scenario CLI" "Argument-driven scenario runner on top of @workspaces/llm-client and the Anthropic SDK; validates sample file types and sizes before sending." "Node.js CLI"
         }
 
-        notionBackup = softwareSystem "notion-backup-automation" "Notion backup agent with local Google OAuth setup, Gmail export-email discovery, Drive access diagnostics, checksum-verified Drive backup storage, and a deployed health check." {
+        notionBackup = softwareSystem "notion-backup-automation" "Notion backup agent with local Google OAuth setup and Notion sign-in, a Playwright export trigger in Notion's Settings, Gmail export-email discovery, Drive access diagnostics, checksum-verified Drive backup storage, and a deployed health check." {
             notionBackupHealth = container "Health function" "Public GET /api/health returning ok and the short commit SHA, with no caching and no other data." "Vercel Function (Node.js)"
-            notionBackupCli = container "Local CLI" "auth:google, drive:check, drive:init, doctor, and dev:upload: Google consent, trusted export-email discovery, Drive probes, Redis/session diagnostics, and checksum-verified test uploads into the _dev folder." "Node.js + TypeScript CLI"
+            notionBackupCli = container "Local CLI" "auth:google, auth:notion, drive:check, drive:init, doctor, dev:upload, dev:trigger, and dev:download: Google consent, a Notion sign-in you complete in a Chrome window, trusted export-email discovery, Drive probes, Redis/session diagnostics, checksum-verified test uploads into the _dev folder, and dev-session export requests and download checks." "Node.js + TypeScript CLI + Playwright"
             notionBackupConfig = container "Local configuration" "Google OAuth credentials and refresh token, plus connection and encryption settings; auth:google saves the token with mode 0600." ".env.local file"
         }
 
         googleOAuth = softwareSystem "Google OAuth" "Consent, authorization-code exchange with PKCE, and access-token refresh for gmail.readonly and drive.file." "External"
         gmail = softwareSystem "Gmail API" "Read-only mailbox access and Notion export-email discovery; email content and download links stay out of logs." "External"
         googleDrive = softwareSystem "Google Drive API" "Folder visibility checks, year-folder and app-owned root creation, temporary access probes, and resumable backup uploads checked against Drive's checksums, through drive.file." "External"
-        upstashRedis = softwareSystem "Upstash Redis" "Managed backup state and encrypted Notion session storage; doctor checks connectivity and decrypts the stored session locally." "External"
+        upstashRedis = softwareSystem "Upstash Redis" "Managed backup state and encrypted Notion session storage; auth:notion stores the session, and doctor checks connectivity and decrypts it locally." "External"
+        notion = softwareSystem "Notion" "The web app on app.notion.com (sign-in and the Settings export dialog), the export email's Mailgun link, and the export file host file.notion.com; no Notion API is used." "External"
 
         developer -> playgroundUi "Chats and compares models in the browser"
         playgroundUi -> playgroundApi "Calls REST + SSE endpoints" "JSON/SSE over HTTP"
@@ -74,11 +75,13 @@ workspace "nodejs-backend-mastery" "C4 model of the runnable apps in this monore
         developer -> notionBackupHealth "Checks that a deployment is live" "HTTPS"
         developer -> notionBackupCli "Runs Google setup and backup dependency diagnostics" "Terminal"
         developer -> googleOAuth "Grants Gmail and Drive access, optionally choosing folders" "HTTPS in browser"
+        developer -> notion "Signs in, including MFA, in the window auth:notion opens" "HTTPS in browser"
         notionBackupCli -> notionBackupConfig "Reads settings and credentials; writes the Google refresh token" "Local file I/O"
         notionBackupCli -> googleOAuth "Exchanges authorization codes and refreshes access tokens" "OAuth 2.0 over HTTPS"
         notionBackupCli -> gmail "Reads the mailbox profile and finds and validates export emails" "REST over HTTPS (gmail.readonly)"
         notionBackupCli -> googleDrive "Checks folders, manages access probes, finds or creates the app-owned root, and uploads test backups to _dev" "REST over HTTPS (drive.file)"
-        notionBackupCli -> upstashRedis "Pings Redis and reads the encrypted Notion session for local validation" "Redis REST over HTTPS"
+        notionBackupCli -> upstashRedis "Pings Redis, and stores and reads the encrypted Notion session" "Redis REST over HTTPS"
+        notionBackupCli -> notion "Checks the saved session, requests workspace exports in Settings, and downloads an export with the session's cookies" "Playwright + Chrome; HTTPS"
     }
 
     views {
@@ -102,7 +105,7 @@ workspace "nodejs-backend-mastery" "C4 model of the runnable apps in this monore
             autoLayout lr
         }
 
-        container notionBackup "NotionBackupContainers" "Notion backup CLI, local configuration, deployed health function, and current Google and Redis dependencies." {
+        container notionBackup "NotionBackupContainers" "Notion backup CLI, local configuration, deployed health function, and current Notion, Google and Redis dependencies." {
             include *
             autoLayout lr
         }

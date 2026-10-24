@@ -4,8 +4,9 @@ A backup agent that will request the official Notion workspace export every mont
 the ZIP in Google Drive. It runs as Vercel Functions.
 
 **Status:** Google OAuth, the Drive access check and the Gmail export-email finder (Phase 2),
-the Drive backup storage with its resumable uploader (Phase 3), and the ZIP transfer from the
-export link to Drive (Phase 4), with a local CLI. The only function is still `GET /api/health`.
+the Drive backup storage with its resumable uploader (Phase 3), the ZIP transfer from the
+export link to Drive (Phase 4), and the Notion session bootstrap and export trigger with
+Playwright (Phase 5), with a local CLI. The only function is still `GET /api/health`.
 
 ## Layout
 
@@ -20,9 +21,10 @@ export link to Drive (Phase 4), with a local CLI. The only function is still `GE
 | `src/adapters/gmail/`       | The export-email finder and its parser: the trust checks and the download-link extraction.                                        |
 | `src/adapters/drive/`       | The backup storage (year folders, verified uploads, the sidecar), the resumable uploader, and the S6 access check (C1–C4).        |
 | `src/adapters/transfer/`    | The export transfer: the link hop, the cookie download to `/tmp/nba`, the ZIP verifier, and the upload through the storage.       |
-| `src/cli/`                  | The local CLI: `auth:google`, `drive:check`, `drive:init`, `doctor`, `dev:upload`.                                                |
+| `src/adapters/notion/`      | Playwright: the browser launcher, the saved session, the session gate, the Settings page object, and the export trigger.          |
+| `src/cli/`                  | The local CLI: `auth:google`, `auth:notion`, `drive:check`, `drive:init`, `doctor`, `dev:upload`, `dev:trigger`, `dev:download`.  |
 | `src/shared/`               | The redacting JSON-line logger, envelope crypto (AES-256-GCM), the `.env.local` writer, masking, `SecretValue`, clock, IDs.       |
-| `tests/`                    | Vitest. `tests/contract/` holds the repository contract; `tests/live/` the opt-in live suites; `tests/fixtures/` recorded shapes. |
+| `tests/`                    | Vitest. `tests/contract/` holds the repository contract; `tests/live/` and `tests/browser/` the opt-in suites; `tests/fixtures/`. |
 | `vercel.json`               | Region and per-function limits.                                                                                                   |
 | `.env.example`              | Template for the untracked `.env.local`.                                                                                          |
 
@@ -34,6 +36,7 @@ pnpm --filter notion-backup-automation test
 pnpm --filter notion-backup-automation lint
 NBA_LIVE_REDIS=1 pnpm --filter notion-backup-automation test:live
 pnpm --filter notion-backup-automation test:live:drive
+pnpm --filter notion-backup-automation test:browser
 ```
 
 `test` never touches the network, a browser or real credentials. `test:live` runs the repository
@@ -47,6 +50,13 @@ It also runs against a local Redis behind
 `test:live:drive` runs the S6 Drive checks against the real backup root (see below). It creates
 two empty probe files and deletes them again.
 
+`test:browser` runs the Notion trigger with your installed Chrome, headless, against a local
+stand-in for Notion's app (`tests/fixtures/notion/workspace.html`, served on `127.0.0.1`). The
+stand-in follows the Settings path, labels and dialog recorded in Phase 0 and S2; its final
+Export posts the dialog values to the local server. It never opens Notion. The suite checks the
+session gate's verdicts, the values the dialog is set to, the reload retry, and that nothing
+throws after the final click.
+
 Local configuration lives in `.env.local`: copy `.env.example`, run `chmod 600 .env.local` and
 fill in the values. Git ignores `.env.local` and every other `.env.*` file except the example.
 
@@ -58,10 +68,13 @@ JSON logs go to stderr at `LOG_LEVEL` (default `warn`).
 
 ```sh
 pnpm --filter notion-backup-automation auth:google [--print] [--pick-folders]
+APP_ENV=dev pnpm --filter notion-backup-automation auth:notion
 pnpm --filter notion-backup-automation drive:check [--year YYYY]
 pnpm --filter notion-backup-automation cli drive:init
 pnpm --filter notion-backup-automation cli doctor [--email-since YYYY-MM-DD]
 APP_ENV=dev pnpm --filter notion-backup-automation cli dev:upload <file.zip>
+APP_ENV=dev pnpm --filter notion-backup-automation cli dev:trigger [--dry-run] [--headed]
+APP_ENV=dev pnpm --filter notion-backup-automation cli dev:download [--email-since YYYY-MM-DD]
 ```
 
 | Command                      | What it does                                                                                                                                                                                                                                                                                                                                                  |
@@ -72,6 +85,9 @@ APP_ENV=dev pnpm --filter notion-backup-automation cli dev:upload <file.zip>
 | `drive:init`                 | S6 fallback 2: creates the app-owned `Full Workspace` folder at the top of My Drive (once), and prints its ID and the manual steps.                                                                                                                                                                                                                           |
 | `doctor`                     | Refreshes the Google token and lists its scopes, reads the masked mailbox, finds the newest trusted export email since `--email-since` (a day in `BACKUP_TIME_ZONE`; default: the last 30 days), checks the Drive root (C1), pings Redis, and opens the Notion session secret of `APP_ENV`. Exits 1 if a check fails; an expired Testing token names the fix. |
 | `dev:upload`                 | Only with `APP_ENV=dev`. Uploads a local file as today's backup into `_dev/<YYYY>/` in the Drive root, through the same storage code the worker uses, and prints the Drive file ID, size, SHA-256 and the sidecar outcome. A second run with the same file uploads nothing. Exits 1 if the sidecar failed.                                                    |
+| `auth:notion`                | Opens Chrome on Notion's login page; you sign in yourself, MFA included. Saves the session, encrypted, to Redis for `APP_ENV` and checks it again in a headless browser (see [Notion Session And Export](#notion-session-and-export)). Exits 1 if no cookie matches `file.notion.com`, since the export download needs one.                                   |
+| `dev:trigger`                | Only with `APP_ENV=dev`. Requests one real workspace export in Notion's Settings with the saved session, so Notion sends its export email. `--dry-run` goes up to the dialog's Export button, sets the dialog values, and cancels. `--headed` shows the window. Exits 1 when the click was sent but no confirmation appeared.                                 |
+| `dev:download`               | Only with `APP_ENV=dev`. Finds the newest trusted export email since `--email-since` (default: the last 7 days), downloads its ZIP with the saved session's cookies into a temporary directory, checks the signature and the archive, prints the size, SHA-256 and file count, and deletes the copy. Nothing is uploaded.                                     |
 
 While the Google OAuth app is in **Testing**, refresh tokens expire after 7 days. When `doctor`
 reports `GOOGLE_AUTH_REQUIRED`, run `auth:google` again.
@@ -187,6 +203,59 @@ fails or is aborted. Only `tmp` mode exists: measured on Vercel (S4), a 250 MiB 
 about 1 s and uploads in about 10 s, so `stream` mode is not needed. `TRANSFER_MODE` accepts
 only `tmp`; any other value fails the config check (`CONFIG_INCOMPLETE`). The ZIP fixtures and
 how each was made are in `tests/fixtures/zips/`.
+
+## Notion Session And Export
+
+No Notion API, integration or password is used: the export is requested in Notion's Settings
+with a saved browser session.
+
+**`auth:notion`** launches a headed Chrome (`channel: 'chrome'`) with a fresh, temporary
+profile, never your own. If Chrome is missing, it falls back to Playwright's Chromium after
+`pnpm --filter notion-backup-automation exec playwright-core install chromium`. You sign in on
+`https://app.notion.com/login` yourself; nothing is typed for you. If Google sign-in refuses the
+window, use "Continue with email". Then:
+
+1. The session gate opens `NOTION_WORKSPACE_URL` and requires the app shell and a visible
+   workspace switcher named exactly `NOTION_WORKSPACE_NAME`, optionally after the workspace
+   icon: the name's own initial or an emoji (`'` and `’` count as equal). A workspace whose
+   name only contains it, such as "… Archive" or "A …", fails.
+2. Of the browser's `storageState()`, only Notion's cookies (`notion.com`, and any left on
+   `notion.so`) and the localStorage of Notion's HTTPS origins are kept. An unexpired `token_v2`
+   is required, and an unexpired `file_token` for `file.notion.com`, which the export download
+   needs: without it, nothing is saved, the session saved before stays, and the command exits 1.
+3. The state is saved as `secret:notion-storage-state`: Playwright's `storageState()` JSON as the
+   AES-256-GCM-encrypted value, which the transfer reads its cookies from. The envelope's `meta`
+   holds the replayed identity (user agent, locale, time zone, viewport), the earliest sign-in
+   cookie expiry, and whether `file_token` matches `file.notion.com`. No plaintext file is
+   written.
+4. A new headless context decrypts it and runs the gate again. The output prints
+   `authenticated`, the expiry and the file-host match, never a cookie value.
+
+**The session gate** judges the rendered page, since Notion answers `200` without a session:
+its login page is `NOTION_SESSION_EXPIRED`; a CAPTCHA or verification page (Cloudflare,
+hCaptcha, reCAPTCHA) is `NOTION_INTERACTIVE_CHALLENGE`; another workspace is
+`NOTION_WRONG_WORKSPACE`; a failed load, a 5xx or an app that never renders is
+`NOTION_UNAVAILABLE`. Each needs `auth:notion` and then `backup_retry`, except the last, which
+is retried.
+
+**The export trigger** (`NotionExportTrigger`) replays the session in a new context with
+downloads refused, so the browser never writes the ZIP. It walks Workspace switcher → Settings
+(the menu, or else the shortcut) → General → the "Workspace content" row's Export, found by
+role and text, never by position. The dialog's values are set where they differ: Export format
+**Markdown & CSV**, Database views **Current view**, Page content **Everything**, Create
+folders for subpages **on**. A value that cannot be set, or any missing element, is
+`NOTION_UI_CHANGED` after one reload. Then `onBeforeFinalClick` runs, so the job can save
+`exportClickAt` first, and the dialog's own Export is clicked once:
+
+- `confirmed`: Notion showed "Exporting";
+- `already_in_progress`: Notion showed an export already running, so nothing was clicked;
+- `in_doubt`: the click was sent but no confirmation appeared. Nothing throws after the click.
+
+Each step waits up to 30 s (S2). An abort closes the browser at once. The serverless launcher
+(`@sparticuz/chromium`) and writing back cookies Notion renews follow with the worker.
+
+Flow diagrams of the gate, the trigger and `auth:notion`:
+[docs/notion-export-flow.md](docs/notion-export-flow.md).
 
 ## State In Redis
 

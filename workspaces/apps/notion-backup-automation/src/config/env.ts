@@ -115,8 +115,13 @@ const driveShape = {
 
 const googleShape = { ...googleApiShape, ...driveShape };
 
+/** `markdown` is Notion's "Markdown & CSV", the format of the manual backups (Phase 0). */
+export const notionExportFormats = ['markdown'] as const;
+
+export type NotionExportFormat = (typeof notionExportFormats)[number];
+
 const notionShape = {
-  NOTION_EXPORT_FORMAT: z.enum(['markdown']).default('markdown'),
+  NOTION_EXPORT_FORMAT: z.enum(notionExportFormats).default('markdown'),
   NOTION_WORKSPACE_NAME: z.string(),
   NOTION_WORKSPACE_URL: httpsUrl,
 };
@@ -155,8 +160,28 @@ const requireGeminiKey = (
 /** Redis access only: `test:live` and local CLI commands. */
 export const persistenceEnvSchema = z.object({ ...coreShape, ...redisShape });
 
-/** The encrypted secrets in Redis: `doctor`, and `auth:notion` later. */
+/** The encrypted secrets in Redis: `doctor`. */
 export const secretStoreEnvSchema = z.object({ ...coreShape, ...redisShape, ...encryptionShape });
+
+/** `auth:notion` and `dev:trigger`: the Notion session in Redis and the workspace it signs in to. */
+export const notionBrowserEnvSchema = z.object({
+  ...coreShape,
+  ...redisShape,
+  ...encryptionShape,
+  ...notionShape,
+});
+
+/**
+ * `dev:download`: the newest export email's ZIP, fetched with the Notion session's cookies. The
+ * time zone dates the email search.
+ */
+export const devDownloadEnvSchema = z.object({
+  ...coreShape,
+  ...redisShape,
+  ...encryptionShape,
+  ...googleApiShape,
+  BACKUP_TIME_ZONE: policyShape.BACKUP_TIME_ZONE,
+});
 
 /**
  * `auth:google`: the OAuth client, since it produces the refresh token. The time zone dates the
