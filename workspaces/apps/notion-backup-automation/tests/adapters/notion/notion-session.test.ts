@@ -137,6 +137,20 @@ describe('captureSession', () => {
   });
 
   it.each([
+    ['another cookie for the whole domain', [cookie('notion_user_id', '.notion.com')]],
+    ['an expired file_token', [cookie('file_token', '.notion.com', { expires: 1 })]],
+    ['a file_token of another host', [cookie('file_token', 'www.notion.so')]],
+  ])('reports no file host cookie for %s', (_case, cookies) => {
+    const captured = captureSession(
+      { cookies: [cookie('token_v2', '.app.notion.com'), ...cookies], origins: [] },
+      FINGERPRINT,
+      NOW,
+    );
+
+    expect(captured.fileHostCookie).toBe(false);
+  });
+
+  it.each([
     ['no token_v2', [cookie('file_token', '.notion.com')]],
     [
       'an expired token_v2',

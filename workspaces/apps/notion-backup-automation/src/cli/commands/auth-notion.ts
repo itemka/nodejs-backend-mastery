@@ -3,7 +3,7 @@ import * as ui from '@workspaces/cli-output';
 import { closeBrowser, SIGN_IN_VIEWPORT } from '../../adapters/notion/browser-launcher.js';
 import { PlaywrightNotionExportTrigger } from '../../adapters/notion/notion-export-trigger.js';
 import type { CapturedSession } from '../../adapters/notion/notion-session.js';
-import { captureSession } from '../../adapters/notion/notion-session.js';
+import { captureSession, FILE_HOST_COOKIE } from '../../adapters/notion/notion-session.js';
 import {
   NOTION_LOGIN_URL,
   passSessionGate,
@@ -28,7 +28,8 @@ const readFingerprint = `({
  * `auth:notion`: you sign in to Notion in a visible Chrome window with a fresh, temporary
  * profile; nothing is typed for you. The session (Notion's cookies and localStorage only) is
  * encrypted into Redis for `APP_ENV`, never written to disk, then checked again in a new
- * headless browser by the worker's session gate. Output names cookies' facts, never values.
+ * headless browser by the worker's session gate. A session without the file host's cookie is
+ * not saved, so the one saved before stays. Output names cookies' facts, never values.
  */
 export async function runAuthNotion(context: CliContext): Promise<number> {
   const env = loadEnv(notionBrowserEnvSchema, context.env);
@@ -39,20 +40,30 @@ export async function runAuthNotion(context: CliContext): Promise<number> {
 
   const captured = await signInAndCapture(context, workspace);
 
+  context.print(
+    `  captured       ${captured.storageState.cookies.length} Notion cookies, localStorage of ${captured.storageState.origins.length} origins`,
+  );
+  context.print(
+    `  sign-in until  ${captured.authCookieExpiresAt ?? 'the end of a browser session'}`,
+  );
+
+  // Checked before the save, so a sign-in the download cannot use keeps the session saved before.
+  if (!captured.fileHostCookie) {
+    context.print(
+      ui.fail(
+        `No ${FILE_HOST_COOKIE} cookie matches file.notion.com, so the export download would fail with NOTION_SESSION_EXPIRED. Nothing was saved.`,
+      ),
+    );
+
+    return 1;
+  }
+
+  context.print(`  file host      ${FILE_HOST_COOKIE} matches file.notion.com`);
   await sessions.save(captured);
   context.print(
     ui.ok(
       `Saved the encrypted session to Redis as {nba:${env.APP_ENV}}:secret:notion-storage-state`,
     ),
-  );
-  context.print(
-    `  stored         ${captured.storageState.cookies.length} Notion cookies, localStorage of ${captured.storageState.origins.length} origins`,
-  );
-  context.print(
-    `  sign-in until  ${captured.authCookieExpiresAt ?? 'the end of a browser session'}`,
-  );
-  context.print(
-    `  file host      ${captured.fileHostCookie ? 'a cookie matches file.notion.com' : 'no cookie matches file.notion.com'}`,
   );
 
   context.print(ui.muted('Checking the saved session in a new headless browser…'));
@@ -67,16 +78,6 @@ export async function runAuthNotion(context: CliContext): Promise<number> {
   const probe = await trigger.probeSession();
 
   context.print(ui.ok(`authenticated, sign-in until ${probe.authCookieExpiresAt ?? 'unknown'}`));
-
-  if (!captured.fileHostCookie) {
-    context.print(
-      ui.warn(
-        'The export download needs a cookie for file.notion.com; without one it fails with NOTION_SESSION_EXPIRED.',
-      ),
-    );
-
-    return 1;
-  }
 
   return 0;
 }

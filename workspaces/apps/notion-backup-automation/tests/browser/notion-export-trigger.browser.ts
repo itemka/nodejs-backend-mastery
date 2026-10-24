@@ -83,7 +83,7 @@ describe('probeSession', () => {
     await expect(trigger.probeSession()).rejects.toMatchObject({ code });
   });
 
-  it.each(['Someone Else’s Notion', 'Test User’s Notion Archive'])(
+  it.each(['Someone Else’s Notion', 'Test User’s Notion Archive', 'A Test User’s Notion'])(
     'reports %s as NOTION_WRONG_WORKSPACE',
     async (name) => {
       const { trigger } = await setup({ name }, 1500);

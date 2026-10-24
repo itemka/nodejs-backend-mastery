@@ -10,8 +10,11 @@ import { NOTION_FILE } from '../transfer/http-downloader.js';
 /** The app session (S2): `token_v2` on `.app.notion.com`. Without it, nobody is signed in. */
 export const SESSION_COOKIE = 'token_v2';
 
-/** The sign-in cookies: the app session, and `file_token`, which the export file host needs (S2). */
-const AUTH_COOKIES = new Set([SESSION_COOKIE, 'file_token']);
+/** The export file host's credential (S2): the download fails without it. */
+export const FILE_HOST_COOKIE = 'file_token';
+
+/** The sign-in cookies: the app session, and the file host's. */
+const AUTH_COOKIES = new Set([SESSION_COOKIE, FILE_HOST_COOKIE]);
 
 /** The app (`app.notion.com`), the file host (`file.notion.com`) and anything left on `notion.so`. */
 const notionHostPattern = /(?:^|\.)notion\.(?:com|so)$/;
@@ -85,7 +88,7 @@ const sessionMetaSchema = z.object({
 export interface CapturedSession {
   /** The earliest expiry of the sign-in cookies; undefined when all are session cookies. */
   readonly authCookieExpiresAt: string | undefined;
-  /** Whether a cookie would be sent to `file.notion.com`, as the export download needs. */
+  /** Whether an unexpired `file_token` reaches `file.notion.com`, as the export download needs. */
   readonly fileHostCookie: boolean;
   readonly fingerprint: BrowserFingerprint;
   readonly storageState: NotionStorageState;
@@ -126,7 +129,13 @@ export function captureSession(
   return {
     authCookieExpiresAt:
       expiries.length === 0 ? undefined : new Date(Math.min(...expiries) * 1000).toISOString(),
-    fileHostCookie: cookieHeaderFor(cookies, FILE_HOST_URL, now) !== undefined,
+    // Another cookie for the whole domain matches the file host too, but does not let it serve.
+    fileHostCookie:
+      cookieHeaderFor(
+        cookies.filter((cookie) => cookie.name === FILE_HOST_COOKIE),
+        FILE_HOST_URL,
+        now,
+      ) !== undefined,
     fingerprint: browserFingerprintSchema.parse(fingerprint),
     storageState: { cookies, origins },
   };

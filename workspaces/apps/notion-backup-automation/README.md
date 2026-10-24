@@ -217,15 +217,17 @@ window, use "Continue with email". Then:
 
 1. The session gate opens `NOTION_WORKSPACE_URL` and requires the app shell and a visible
    workspace switcher named exactly `NOTION_WORKSPACE_NAME`, optionally after the workspace
-   icon's initial or emoji (`'` and `’` count as equal). A workspace whose name only contains
-   it, such as "… Archive", fails.
+   icon: the name's own initial or an emoji (`'` and `’` count as equal). A workspace whose
+   name only contains it, such as "… Archive" or "A …", fails.
 2. Of the browser's `storageState()`, only Notion's cookies (`notion.com`, and any left on
    `notion.so`) and the localStorage of Notion's HTTPS origins are kept. An unexpired `token_v2`
-   is required.
+   is required, and an unexpired `file_token` for `file.notion.com`, which the export download
+   needs: without it, nothing is saved, the session saved before stays, and the command exits 1.
 3. The state is saved as `secret:notion-storage-state`: Playwright's `storageState()` JSON as the
    AES-256-GCM-encrypted value, which the transfer reads its cookies from. The envelope's `meta`
    holds the replayed identity (user agent, locale, time zone, viewport), the earliest sign-in
-   cookie expiry, and whether a cookie matches `file.notion.com`. No plaintext file is written.
+   cookie expiry, and whether `file_token` matches `file.notion.com`. No plaintext file is
+   written.
 4. A new headless context decrypts it and runs the gate again. The output prints
    `authenticated`, the expiry and the file-host match, never a cookie value.
 
@@ -251,6 +253,9 @@ folders for subpages **on**. A value that cannot be set, or any missing element,
 
 Each step waits up to 30 s (S2). An abort closes the browser at once. The serverless launcher
 (`@sparticuz/chromium`) and writing back cookies Notion renews follow with the worker.
+
+Flow diagrams of the gate, the trigger and `auth:notion`:
+[docs/notion-export-flow.md](docs/notion-export-flow.md).
 
 ## State In Redis
 

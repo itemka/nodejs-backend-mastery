@@ -32,7 +32,7 @@ export const exportFormatLabels = {
 } as const satisfies Record<NotionExportFormat, string>;
 
 /** "Exporting...", and "We'll also send you an email with the download link." (Phase 0). */
-const exportProgress = /^Exporting|send you an email with the download link/;
+const exportProgress = /(?:^Exporting)|(?:send you an email with the download link)/;
 
 const CONTROL = 'button, [role="button"]';
 const TOGGLE = '[role="switch"], [role="checkbox"], input[type="checkbox"]';

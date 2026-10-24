@@ -115,10 +115,12 @@ export async function runDevDownload(
     const signature = await readStart(file, ZIP_SIGNATURE.length);
     const { entryCount, uncompressedBytes } = await verifyZipArchive(file);
 
+    const startsWith = signature.equals(ZIP_SIGNATURE)
+      ? String.raw`PK\x03\x04`
+      : 'another signature';
+
     context.print(ui.ok('Downloaded with the dev session, and the ZIP passed its checks.'));
-    context.print(
-      `  starts with    ${signature.equals(ZIP_SIGNATURE) ? String.raw`PK\x03\x04` : 'another signature'}`,
-    );
+    context.print(`  starts with    ${startsWith}`);
     context.print(`  size           ${result.digests.sizeBytes} bytes`);
     context.print(`  SHA-256        ${result.digests.sha256}`);
     context.print(`  files          ${entryCount}, ${uncompressedBytes} bytes uncompressed`);

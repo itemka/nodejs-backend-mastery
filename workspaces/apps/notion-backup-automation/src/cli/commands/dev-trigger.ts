@@ -57,11 +57,12 @@ export async function runDevTrigger(
       return 0;
     }
 
+    const dialogValues =
+      rehearsal.changed.length === 0 ? 'all as expected' : `set: ${rehearsal.changed.join(', ')}`;
+
     context.print(ui.ok('Reached the export dialog and cancelled it; nothing was exported.'));
     context.print(`  Settings opened by  ${rehearsal.settingsOpenedBy}`);
-    context.print(
-      `  dialog values       ${rehearsal.changed.length === 0 ? 'all as expected' : `set: ${rehearsal.changed.join(', ')}`}`,
-    );
+    context.print(`  dialog values       ${dialogValues}`);
     context.print('  Export button       found, not clicked');
 
     return 0;

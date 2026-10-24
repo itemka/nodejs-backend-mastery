@@ -47,7 +47,7 @@ export class LocalBrowserLauncher implements BrowserLauncher {
  * A context with the saved session and the identity it was captured with. Downloads are
  * refused, so the browser never writes an export ZIP to disk.
  */
-export async function newSessionContext(
+export function newSessionContext(
   browser: Browser,
   session: Pick<NotionSession, 'fingerprint' | 'storageState'>,
 ): Promise<BrowserContext> {

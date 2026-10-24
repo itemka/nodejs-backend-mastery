@@ -37,21 +37,31 @@ describe('workspaceNamePattern', () => {
     expect(workspaceNamePattern('Test User’s Notion').test("Test User's Notion")).toBe(true);
   });
 
-  it.each(["T Test User's Notion", "📘 Test User's Notion", "👍🏽 Test User's Notion"])(
-    'accepts one avatar character before the name: %s',
-    (accessibleName) => {
-      expect(workspaceNamePattern("Test User's Notion").test(accessibleName)).toBe(true);
-    },
-  );
+  it.each([
+    "T Test User's Notion",
+    "t Test User's Notion",
+    "📘 Test User's Notion",
+    "👍🏽 Test User's Notion",
+  ])('accepts the initial or an emoji icon before the name: %s', (accessibleName) => {
+    expect(workspaceNamePattern("Test User's Notion").test(accessibleName)).toBe(true);
+  });
 
   it.each([
     "Test User's Notion Archive",
     "Test User's Notions",
     "Old Test User's Notion",
+    "A Test User's Notion",
     "TT Test User's Notion",
     "Someone Else's Notion",
   ])('rejects another workspace: %s', (accessibleName) => {
     expect(workspaceNamePattern("Test User's Notion").test(accessibleName)).toBe(false);
+  });
+
+  it('takes a punctuation initial literally', () => {
+    const pattern = workspaceNamePattern('.team');
+
+    expect(pattern.test('. .team')).toBe(true);
+    expect(pattern.test('x .team')).toBe(false);
   });
 
   it('treats a run of spaces as one', () => {

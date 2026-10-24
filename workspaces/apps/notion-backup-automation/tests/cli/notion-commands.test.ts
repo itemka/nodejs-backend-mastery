@@ -10,6 +10,7 @@ import { createEnvelopeKey } from '../../src/shared/envelope-crypto.js';
 import type { TestCli } from '../support/cli-context.js';
 import { testCli } from '../support/cli-context.js';
 import { fakeCredentials, FakeGoogle } from '../support/fake-google.js';
+import { FAKE_FINGERPRINT, fakeNotionBrowser } from '../support/fake-notion-browser.js';
 import { loadEmailFixture, toGmailMessage, withHeader } from '../support/gmail-fixtures.js';
 import { ManualClock } from '../support/manual-clock.js';
 import {
@@ -64,19 +65,16 @@ function cookie(name: string, domain: string, value: string) {
   };
 }
 
+const SIGNED_IN = cookie('token_v2', '.app.notion.com', 'v'.repeat(40));
+
 /** Saves a dev session as `auth:notion` would, into the CLI's fake Redis. */
 async function saveSession(
   cli: TestCli,
   cookies = [cookie('file_token', '.notion.com', 'f'.repeat(40))],
 ) {
   const captured = captureSession(
-    { cookies: [cookie('token_v2', '.app.notion.com', 'v'.repeat(40)), ...cookies], origins: [] },
-    {
-      locale: 'en-US',
-      timezoneId: 'Europe/Warsaw',
-      userAgent: 'Mozilla/5.0 Chrome/141.0.0.0',
-      viewport: { height: 900, width: 1440 },
-    },
+    { cookies: [SIGNED_IN, ...cookies], origins: [] },
+    FAKE_FINGERPRINT,
     NOW,
   );
   const secrets = new RedisSecretStore({
@@ -142,6 +140,53 @@ describe('auth:notion', () => {
     await expect(main(['auth:notion'], cli.context)).resolves.toBe(1);
     expect(cli.text()).toContain('BROWSER_LAUNCH_FAILED: No browser in tests');
     expect(cli.redis.strings.size).toBe(0);
+  });
+
+  it('saves the session, then checks it in a new headless browser', async () => {
+    const browser = fakeNotionBrowser({
+      storageState: {
+        cookies: [SIGNED_IN, cookie('file_token', '.notion.com', 'f'.repeat(40))],
+        origins: [],
+      },
+      switcherName: 'T Test User’s Notion',
+    });
+    const cli = await testCli({
+      browserLauncher: browser,
+      clock: new ManualClock(NOW),
+      env: notionEnv,
+    });
+
+    await expect(main(['auth:notion'], cli.context)).resolves.toBe(0);
+    expect(browser.launches).toEqual([{ headless: false }, { headless: true }]);
+    expect(cli.redis.strings.size).toBe(1);
+    expect(cli.text()).toContain('file_token matches file.notion.com');
+    expect(cli.text()).toContain('authenticated');
+    expect(cli.text()).not.toContain('f'.repeat(40));
+  });
+
+  it('keeps the saved session when the new sign-in has no file_token', async () => {
+    const browser = fakeNotionBrowser({
+      storageState: {
+        cookies: [SIGNED_IN, cookie('notion_user_id', '.notion.com', 'u')],
+        origins: [],
+      },
+      switcherName: 'Test User’s Notion',
+    });
+    const cli = await testCli({
+      browserLauncher: browser,
+      clock: new ManualClock(NOW),
+      env: notionEnv,
+    });
+
+    await saveSession(cli);
+
+    const saved = new Map(cli.redis.strings);
+
+    await expect(main(['auth:notion'], cli.context)).resolves.toBe(1);
+    expect(cli.text()).toContain('No file_token cookie matches file.notion.com');
+    expect(cli.text()).toContain('Nothing was saved.');
+    expect(cli.redis.strings).toEqual(saved);
+    expect(browser.launches).toEqual([{ headless: false }]);
   });
 });
 

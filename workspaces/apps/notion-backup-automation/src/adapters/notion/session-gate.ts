@@ -54,12 +54,16 @@ export function classifyPage({ appShell, challenge, path, title }: PageObservati
   return appShell ? 'authenticated' : 'loading';
 }
 
-/** The workspace icon before the name: its initial, or an emoji. */
-const AVATAR = String.raw`(?:[\p{L}\p{N}]|\p{Extended_Pictographic}[\p{Emoji_Modifier}\u{FE0F}\u{200D}\p{Extended_Pictographic}]*)`;
+/** A custom workspace icon before the name: one emoji, with its modifiers and joined parts. */
+const EMOJI_AVATAR = String.raw`\p{Extended_Pictographic}[\p{Emoji_Modifier}\u{FE0F}\u{200D}\p{Extended_Pictographic}]*`;
+
+const SPACES = String.raw`\s+`;
 
 /**
- * The switcher's whole accessible name: optionally one avatar character and a space, then exactly
- * the workspace name. `'` and `’` count as equal (Phase 0), a run of spaces as one, and every other
+ * The switcher's whole accessible name: optionally the workspace icon and a space, then exactly
+ * the workspace name. A letter icon is the name's own initial, in either case, so another
+ * workspace whose name is one character longer ("A Team" for "Team") never passes as an icon
+ * plus this name. `'` and `’` count as equal (Phase 0), a run of spaces as one, and every other
  * character is literal, so a workspace whose name only contains this one never matches.
  */
 export function workspaceNamePattern(name: string): RegExp {
@@ -67,8 +71,11 @@ export function workspaceNamePattern(name: string): RegExp {
     .trim()
     .split(/\s+/)
     .map((word) => [...word].map((character) => literalCharacter(character)).join(''));
+  const initial = [...name.trim()][0] ?? '';
+  const initials = new Set([initial.toUpperCase(), initial.toLowerCase()]);
+  const avatar = [...initials].map((character) => literalCharacter(character)).join('|');
 
-  return new RegExp(String.raw`^(?:${AVATAR}\s+)?${words.join(String.raw`\s+`)}$`, 'u');
+  return new RegExp(`^(?:(?:${avatar}|${EMOJI_AVATAR})${SPACES})?${words.join(SPACES)}$`, 'u');
 }
 
 /**
