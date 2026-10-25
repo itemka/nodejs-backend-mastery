@@ -1,16 +1,28 @@
 import { parseArgs } from 'node:util';
 
+import { jobIdSchema } from '../domain/naming.js';
+
+/**
+ * `dev:tick --start [--force]` creates the dev job; `dev:tick <jobId>` runs one tick of it, or,
+ * with `--retry` or `--cancel`, retries or cancels it.
+ */
+export type DevTickRequest =
+  | { readonly force: boolean; readonly mode: 'start' }
+  | { readonly jobId: string; readonly mode: 'cancel' | 'retry' | 'tick' };
+
 export type ParsedCommand =
   | { readonly command: 'auth:google'; readonly pickFolders: boolean; readonly print: boolean }
   | { readonly command: 'auth:notion' }
   /** `emailSince` is a local date, `YYYY-MM-DD`, in the backup time zone. */
   | { readonly command: 'doctor'; readonly emailSince: string | undefined }
   | { readonly command: 'dev:download'; readonly emailSince: string | undefined }
+  | { readonly command: 'dev:tick'; readonly request: DevTickRequest }
   | { readonly command: 'dev:trigger'; readonly dryRun: boolean; readonly headed: boolean }
   | { readonly command: 'dev:upload'; readonly path: string }
   | { readonly command: 'drive:check'; readonly year: string | undefined }
   | { readonly command: 'drive:init' }
-  | { readonly command: 'help' };
+  | { readonly command: 'help' }
+  | { readonly command: 'telegram:setup'; readonly mode: 'find-chat' | 'info' | 'test' };
 
 /** A wrong command line. The message is shown with the usage text. */
 export class UsageError extends Error {
@@ -46,6 +58,16 @@ Commands:
   dev:download [--email-since YYYY-MM-DD]
       With APP_ENV=dev only: downloads the newest export since --email-since (default: 7 days
       ago) with the saved session's cookies, checks the ZIP, and deletes it. Nothing is uploaded.
+  dev:tick --start [--force] | dev:tick <jobId> [--retry | --cancel]
+      With APP_ENV=dev only: the whole backup, one tick at a time, against the dev Redis prefix,
+      the dev Notion session and _dev/<YYYY>/ in Drive. --start creates this month's job (--force:
+      a new one, <period>-r<N>); <jobId> runs its next step and prints when the next one is due;
+      --retry resumes a job that needs attention; --cancel ends it. Nothing is published to
+      QStash: run dev:tick again for each step.
+  telegram:setup --find-chat | --test | --info
+      --find-chat: after you send /start to the bot, saves your private chat's ID as
+      TELEGRAM_CHAT_ID in .env.local. --test sends a test message to TELEGRAM_CHAT_ID. --info shows
+      whether a webhook receives the bot's updates; it changes nothing.
 
 The commands read .env.local in the app directory.`;
 
@@ -86,6 +108,10 @@ export function parseCommand(argv: readonly string[]): ParsedCommand {
 
     case 'dev:download': {
       return { command: 'dev:download', emailSince: emailSinceOption(rest) };
+    }
+
+    case 'dev:tick': {
+      return { command: 'dev:tick', request: devTickRequest(rest) };
     }
 
     case 'dev:trigger': {
@@ -131,10 +157,70 @@ export function parseCommand(argv: readonly string[]): ParsedCommand {
       return { command: 'drive:init' };
     }
 
+    case 'telegram:setup': {
+      const { values } = parse(rest, {
+        'find-chat': { type: 'boolean' },
+        info: { type: 'boolean' },
+        test: { type: 'boolean' },
+      });
+      const modes = (['find-chat', 'info', 'test'] as const).filter(
+        (mode) => values[mode] === true,
+      );
+
+      if (modes.length !== 1 || modes[0] === undefined) {
+        throw new UsageError(
+          'telegram:setup takes one of --find-chat, --test or --info; setting the webhook is not available yet',
+        );
+      }
+
+      return { command: 'telegram:setup', mode: modes[0] };
+    }
+
     default: {
       throw new UsageError(`Unknown command: ${name}`);
     }
   }
+}
+
+function devTickRequest(args: readonly string[]): DevTickRequest {
+  const { positionals, values } = parse(
+    args,
+    {
+      cancel: { type: 'boolean' },
+      force: { type: 'boolean' },
+      retry: { type: 'boolean' },
+      start: { type: 'boolean' },
+    },
+    true,
+  );
+
+  if (values.start === true) {
+    if (positionals.length > 0 || values.retry === true || values.cancel === true) {
+      throw new UsageError('dev:tick --start takes only --force');
+    }
+
+    return { force: values.force === true, mode: 'start' };
+  }
+
+  const [jobId] = positionals;
+
+  if (
+    values.force === true ||
+    (values.retry === true && values.cancel === true) ||
+    positionals.length !== 1 ||
+    jobId === undefined ||
+    !jobIdSchema.safeParse(jobId).success
+  ) {
+    throw new UsageError(
+      'dev:tick takes --start [--force], or one job ID such as 2026-10 with --retry or --cancel',
+    );
+  }
+
+  if (values.retry === true) {
+    return { jobId, mode: 'retry' };
+  }
+
+  return { jobId, mode: values.cancel === true ? 'cancel' : 'tick' };
 }
 
 /** `--email-since YYYY-MM-DD`, the only option of `doctor` and `dev:download`. */

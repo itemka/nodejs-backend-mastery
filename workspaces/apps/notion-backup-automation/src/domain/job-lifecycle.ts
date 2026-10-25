@@ -344,9 +344,15 @@ export function resumeAfterBackoff(job: BackupJob, now: Date): BackupJob {
 /**
  * `backup_retry`: from NEEDS_ATTENTION or RETRYABLE_FAILURE back to the entry status of
  * `fromStage` (default: the failed stage). The stage's retries reset and the incident closes.
- * A stage the job never reached cannot be retried.
+ * A stage the job never reached cannot be retried. Retrying NOTION_TRIGGER after this attempt
+ * clicked Export ("Retry from scratch") starts a new export attempt: no attempt clicks twice.
  */
-export function retryJob(job: BackupJob, now: Date, fromStage?: Stage): BackupJob {
+export function retryJob(
+  job: BackupJob,
+  now: Date,
+  policy: BackupPolicy,
+  fromStage?: Stage,
+): BackupJob {
   requireStatus(job, 'NEEDS_ATTENTION', 'RETRYABLE_FAILURE');
 
   const stage = fromStage ?? stageOf(job);
@@ -363,12 +369,30 @@ export function retryJob(job: BackupJob, now: Date, fromStage?: Stage): BackupJo
     throw new InvalidJobStateError('STAGE_NOT_REACHED', job.status);
   }
 
-  return transition(
+  const retried = transition(
     job,
     stageEntryStatus[stage],
     { incident: undefined, stageRetries: withoutStageRetries(job, stage) },
     now,
   );
+
+  return stage === 'NOTION_TRIGGER' && job.exportClickAt !== undefined
+    ? startNewExportAttempt(retried, now, policy)
+    : retried;
+}
+
+/**
+ * Supervision ends without a fix (the supervisor's `notify_user`, or no supervisor at all): the
+ * job stays NEEDS_ATTENTION, and its incident now waits for a person, with no wakeup.
+ */
+export function handOverToUser(job: BackupJob, now: Date): BackupJob {
+  requireStatus(job, 'NEEDS_ATTENTION');
+
+  if (job.incident === undefined) {
+    throw new InvalidJobStateError('UNEXPECTED_STATUS', job.status);
+  }
+
+  return update(job, { incident: { ...job.incident, state: 'awaiting_user' } }, now);
 }
 
 /**

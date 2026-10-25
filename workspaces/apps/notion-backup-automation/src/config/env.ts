@@ -1,5 +1,6 @@
 import { z } from 'zod';
 
+import { DEFAULT_EXPORT_SHRINK_RATIO } from '../domain/export-size.js';
 import { isEncryptionKey } from '../shared/envelope-crypto.js';
 import { logLevels } from '../shared/logger.js';
 
@@ -142,10 +143,26 @@ const agentShape = {
 };
 
 const transferShape = {
-  NOTIFIERS: commaList(z.enum(['console']), ['console']),
+  /** A backup below this share of the last one's file count or size is reported as shrunk. */
+  EXPORT_SHRINK_RATIO: z.coerce.number().gt(0).lt(1).default(DEFAULT_EXPORT_SHRINK_RATIO),
   // Only the tmp transfer exists (S4: a 250 MiB ZIP fits), so `stream` fails the config check.
   TRANSFER_MODE: z.enum(['tmp']).default('tmp'),
   WRITE_SHA256_SIDECAR: flag(true),
+};
+
+/** `<bot id>:<secret>`, as @BotFather issues it. */
+const telegramBotToken = secret.regex(/^\d{5,20}:[\w-]{30,64}$/);
+/** A private chat's ID is your Telegram user ID. */
+const telegramChatId = z.string().regex(/^-?\d{1,20}$/);
+
+/**
+ * Telegram is optional at runtime: without its two variables, notifications go to the console
+ * only, and `doctor` names what is missing.
+ */
+const notifyShape = {
+  NOTIFIERS: commaList(z.enum(['console', 'telegram']), ['console']),
+  TELEGRAM_BOT_TOKEN: telegramBotToken.optional(),
+  TELEGRAM_CHAT_ID: telegramChatId.optional(),
 };
 
 const requireGeminiKey = (
@@ -220,6 +237,31 @@ export const devUploadEnvSchema = z.object({
   WRITE_SHA256_SIDECAR: transferShape.WRITE_SHA256_SIDECAR,
 });
 
+/**
+ * The backup itself, without scheduling or the agent: what `createBackupServices` wires, and
+ * all `dev:tick` needs. The worker and cron schemas include it.
+ */
+export const backupEnvSchema = z.object({
+  ...coreShape,
+  ...redisShape,
+  ...policyShape,
+  ...googleShape,
+  ...notionShape,
+  ...encryptionShape,
+  ...transferShape,
+  ...notifyShape,
+});
+
+/** `telegram:setup --find-chat` and `--info`: the bot only. */
+export const telegramBotEnvSchema = z.object({ TELEGRAM_BOT_TOKEN: telegramBotToken });
+
+/** `telegram:setup --test`: the bot and your chat. The environment is named in the message. */
+export const telegramChatEnvSchema = z.object({
+  APP_ENV: coreShape.APP_ENV,
+  TELEGRAM_BOT_TOKEN: telegramBotToken,
+  TELEGRAM_CHAT_ID: telegramChatId,
+});
+
 /** `/mcp`: starts and inspects jobs. It never needs Gemini, the QStash signing keys or Google. */
 export const mcpEnvSchema = z.object({
   ...coreShape,
@@ -243,6 +285,7 @@ const workerShape = {
   ...encryptionShape,
   ...agentShape,
   ...transferShape,
+  ...notifyShape,
 };
 
 /** `/api/jobs/process/[jobId]`: one tick of one job. */
@@ -258,6 +301,7 @@ export const cronEnvSchema = z
   })
   .superRefine(requireGeminiKey);
 
+export type BackupEnv = z.output<typeof backupEnvSchema>;
 export type PersistenceEnv = z.output<typeof persistenceEnvSchema>;
 export type McpEnv = z.output<typeof mcpEnvSchema>;
 export type WorkerEnv = z.output<typeof workerEnvSchema>;

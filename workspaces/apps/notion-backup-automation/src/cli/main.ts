@@ -8,6 +8,9 @@ import { promisify } from 'node:util';
 import { ConsentError } from '../adapters/google/loopback-consent.js';
 import { LocalBrowserLauncher } from '../adapters/notion/browser-launcher.js';
 import { createRedisClient } from '../adapters/persistence/redis-client.js';
+import { RedisJobRepository } from '../adapters/persistence/redis-job-repository.js';
+import { TelegramApiError } from '../adapters/telegram/telegram-client.js';
+import { ApplicationError } from '../application/application-error.js';
 import { IntegrationError } from '../application/integration-error.js';
 import { ConfigError } from '../config/env.js';
 import { describeError } from '../domain/error-catalog.js';
@@ -18,11 +21,13 @@ import { parseCommand, USAGE, UsageError } from './args.js';
 import { runAuthGoogle } from './commands/auth-google.js';
 import { runAuthNotion } from './commands/auth-notion.js';
 import { runDevDownload } from './commands/dev-download.js';
+import { runDevTick } from './commands/dev-tick.js';
 import { runDevTrigger } from './commands/dev-trigger.js';
 import { runDevUpload } from './commands/dev-upload.js';
 import { runDoctor } from './commands/doctor.js';
 import { runDriveCheck } from './commands/drive-check.js';
 import { runDriveInit } from './commands/drive-init.js';
+import { runTelegramSetup } from './commands/telegram-setup.js';
 import type { CliContext } from './context.js';
 
 /** Runs one command and returns the exit code: 0 success, 1 failure, 2 usage error. */
@@ -56,6 +61,10 @@ export async function main(argv: readonly string[], context: CliContext): Promis
         return await runDevDownload(parsed, context);
       }
 
+      case 'dev:tick': {
+        return await runDevTick(parsed.request, context);
+      }
+
       case 'dev:trigger': {
         return await runDevTrigger(parsed, context);
       }
@@ -81,6 +90,10 @@ export async function main(argv: readonly string[], context: CliContext): Promis
 
         return 0;
       }
+
+      case 'telegram:setup': {
+        return await runTelegramSetup(parsed, context);
+      }
     }
   } catch (error) {
     reportError(error, context);
@@ -96,6 +109,8 @@ function reportError(error: unknown, context: CliContext): void {
   } else if (error instanceof IntegrationError) {
     context.print(ui.fail(`${error.code}: ${error.message}`));
     context.print(ui.muted(`Fix: ${describeError(error.code).howToFix}`));
+  } else if (error instanceof ApplicationError || error instanceof TelegramApiError) {
+    context.print(ui.fail(`${error.code}: ${error.message}`));
   } else if (error instanceof ConsentError) {
     context.print(ui.fail(`${error.reason}: ${error.message}`));
   } else {
@@ -117,6 +132,8 @@ function createDefaultContext(envFilePath: string): CliContext {
   return {
     browserLauncher: new LocalBrowserLauncher(),
     clock: systemClock,
+    createJobRepository: (connection, keyPrefix) =>
+      new RedisJobRepository(createRedisClient(connection), keyPrefix),
     createRedis: createRedisClient,
     env: process.env,
     envFilePath,

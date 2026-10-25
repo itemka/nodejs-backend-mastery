@@ -6,6 +6,7 @@ import { REDACTED, redact, redactString } from '../../src/shared/redact.js';
 const jwt = ['eyJhbGciOiJIUzI1NiJ9', 'eyJzdWIiOiJzZWNyZXQifQ', 'c2lnbmF0dXJlLXZhbHVl'].join('.');
 const googleAccessToken = ['ya29', 'a0AbCdEfGhIjKlMnOpQrStUv'].join('.');
 const googleRefreshToken = `1//${'0gAbCdEfGhIjKlMnOpQrStUvWxYz'}`;
+const telegramBotToken = ['8123456789', `AAH${'x'.repeat(32)}`].join(':');
 
 /** The Step 28 log check: no URL with a query may remain. */
 const urlWithQuery = /https?:\/\/[^" ]*\?/;
@@ -27,6 +28,12 @@ describe('redactString', () => {
     ).toBe(`https://file.notion.com/${REDACTED}`);
   });
 
+  it('hides the whole path of Telegram Bot API calls, which start with the token', () => {
+    expect(redactString(`POST https://api.telegram.org/bot${telegramBotToken}/sendMessage`)).toBe(
+      `POST https://api.telegram.org/${REDACTED}`,
+    );
+  });
+
   it('hides URL credentials', () => {
     expect(redactString('redis https://default:pa55word@eu1.example.io/x')).toBe(
       `redis https://${REDACTED}@eu1.example.io/x`,
@@ -46,6 +53,7 @@ describe('redactString', () => {
     ['a JWT', `jwt ${jwt} end`, `jwt ${REDACTED} end`],
     ['a Google access token', `token ${googleAccessToken}`, `token ${REDACTED}`],
     ['a Google refresh token', `got ${googleRefreshToken}`, `got ${REDACTED}`],
+    ['a Telegram bot token', `bot ${telegramBotToken} end`, `bot ${REDACTED} end`],
     [
       'Notion cookies',
       'cookie: token_v2=v02%3Auser; file_token=abc123; other=1',

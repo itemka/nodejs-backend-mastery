@@ -37,16 +37,17 @@ workspace "nodejs-backend-mastery" "C4 model of the runnable apps in this monore
             claudeCapabilitiesCli = container "Scenario CLI" "Argument-driven scenario runner on top of @workspaces/llm-client and the Anthropic SDK; validates sample file types and sizes before sending." "Node.js CLI"
         }
 
-        notionBackup = softwareSystem "notion-backup-automation" "Notion backup agent with local Google OAuth setup and Notion sign-in, a Playwright export trigger in Notion's Settings, Gmail export-email discovery, Drive access diagnostics, checksum-verified Drive backup storage, and a deployed health check." {
+        notionBackup = softwareSystem "notion-backup-automation" "Notion backup agent with local Google OAuth setup and Notion sign-in, a Playwright export trigger in Notion's Settings, Gmail export-email discovery, Drive access diagnostics, checksum-verified Drive backup storage, a resumable backup job run one idempotent tick at a time, console and Telegram notifications, and a deployed health check." {
             notionBackupHealth = container "Health function" "Public GET /api/health returning ok and the short commit SHA, with no caching and no other data." "Vercel Function (Node.js)"
-            notionBackupCli = container "Local CLI" "auth:google, auth:notion, drive:check, drive:init, doctor, dev:upload, dev:trigger, and dev:download: Google consent, a Notion sign-in you complete in a Chrome window, trusted export-email discovery, Drive probes, Redis/session diagnostics, checksum-verified test uploads into the _dev folder, and dev-session export requests and download checks." "Node.js + TypeScript CLI + Playwright"
-            notionBackupConfig = container "Local configuration" "Google OAuth credentials and refresh token, plus connection and encryption settings; auth:google saves the token with mode 0600." ".env.local file"
+            notionBackupCli = container "Local CLI" "auth:google, auth:notion, drive:check, drive:init, doctor, dev:upload, dev:trigger, dev:download, dev:tick, and telegram:setup: Google consent, a Notion sign-in you complete in a Chrome window, trusted export-email discovery, Drive probes, Redis/session diagnostics, checksum-verified test uploads into the _dev folder, dev-session export requests and download checks, the whole dev backup job one tick per call, and the Telegram chat setup and test message." "Node.js + TypeScript CLI + Playwright"
+            notionBackupConfig = container "Local configuration" "Google OAuth credentials and refresh token, the Telegram bot token and chat ID, plus connection and encryption settings; auth:google and telegram:setup --find-chat write them with mode 0600." ".env.local file"
         }
 
         googleOAuth = softwareSystem "Google OAuth" "Consent, authorization-code exchange with PKCE, and access-token refresh for gmail.readonly and drive.file." "External"
         gmail = softwareSystem "Gmail API" "Read-only mailbox access and Notion export-email discovery; email content and download links stay out of logs." "External"
         googleDrive = softwareSystem "Google Drive API" "Folder visibility checks, year-folder and app-owned root creation, temporary access probes, and resumable backup uploads checked against Drive's checksums, through drive.file." "External"
-        upstashRedis = softwareSystem "Upstash Redis" "Managed backup state and encrypted Notion session storage; auth:notion stores the session, and doctor checks connectivity and decrypts it locally." "External"
+        upstashRedis = softwareSystem "Upstash Redis" "Managed backup state: jobs with compare-and-set versions, leases, events, consumed export emails and notification marks, plus the encrypted Notion session; auth:notion stores the session, and doctor checks connectivity and decrypts it locally." "External"
+        telegram = softwareSystem "Telegram Bot API" "The app's private chat with your bot: backup reports, attention alerts with buttons, and login warnings; no message carries a URL but the Drive file link, a token or email content." "External"
         notion = softwareSystem "Notion" "The web app on app.notion.com (sign-in and the Settings export dialog), the export email's Mailgun link, and the export file host file.notion.com; no Notion API is used." "External"
 
         developer -> playgroundUi "Chats and compares models in the browser"
@@ -80,7 +81,9 @@ workspace "nodejs-backend-mastery" "C4 model of the runnable apps in this monore
         notionBackupCli -> googleOAuth "Exchanges authorization codes and refreshes access tokens" "OAuth 2.0 over HTTPS"
         notionBackupCli -> gmail "Reads the mailbox profile and finds and validates export emails" "REST over HTTPS (gmail.readonly)"
         notionBackupCli -> googleDrive "Checks folders, manages access probes, finds or creates the app-owned root, and uploads test backups to _dev" "REST over HTTPS (drive.file)"
-        notionBackupCli -> upstashRedis "Pings Redis, and stores and reads the encrypted Notion session" "Redis REST over HTTPS"
+        notionBackupCli -> upstashRedis "Pings Redis, stores and reads the encrypted Notion session, and keeps the dev job's state, leases and events" "Redis REST over HTTPS"
+        notionBackupCli -> telegram "Finds your chat, sends the test message and job notifications, and reads who holds the webhook" "Bot API over HTTPS"
+        developer -> telegram "Sends /start to the bot and reads backup reports" "Telegram app"
         notionBackupCli -> notion "Checks the saved session, requests workspace exports in Settings, and downloads an export with the session's cookies" "Playwright + Chrome; HTTPS"
     }
 
@@ -105,7 +108,7 @@ workspace "nodejs-backend-mastery" "C4 model of the runnable apps in this monore
             autoLayout lr
         }
 
-        container notionBackup "NotionBackupContainers" "Notion backup CLI, local configuration, deployed health function, and current Notion, Google and Redis dependencies." {
+        container notionBackup "NotionBackupContainers" "Notion backup CLI, local configuration, deployed health function, and current Notion, Google, Redis and Telegram dependencies." {
             include *
             autoLayout lr
         }

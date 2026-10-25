@@ -5,28 +5,33 @@ the ZIP in Google Drive. It runs as Vercel Functions.
 
 **Status:** Google OAuth, the Drive access check and the Gmail export-email finder (Phase 2),
 the Drive backup storage with its resumable uploader (Phase 3), the ZIP transfer from the
-export link to Drive (Phase 4), and the Notion session bootstrap and export trigger with
-Playwright (Phase 5), with a local CLI. The only function is still `GET /api/health`.
+export link to Drive (Phase 4), the Notion session bootstrap and export trigger with
+Playwright (Phase 5), and the backup job itself, run one idempotent tick at a time, with
+console and Telegram notifications (Phase 6), with a local CLI. The only function is still
+`GET /api/health`; the QStash worker and the daily cron come next.
 
 ## Layout
 
-| Path                        | Purpose                                                                                                                           |
-| --------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
-| `api/`                      | Vercel function entry points (Web `Request` → `Response`). No business logic.                                                     |
-| `src/config/env.ts`         | Zod env schemas, one subset per function. Errors name the variables, never their values.                                          |
-| `src/domain/`               | The job schema, statuses, transitions and lifecycle rules, schedule and retry policies, periods, naming, the error catalog. Pure. |
-| `src/application/`          | The ports the adapters implement (`ports.ts`), and `IntegrationError`, which carries a cataloged error code.                      |
-| `src/adapters/persistence/` | Upstash Redis adapters with Lua scripts (`lua/*.lua`), and the in-memory job repository.                                          |
-| `src/adapters/google/`      | OAuth: loopback consent with PKCE, the Picker grant, the token provider, and the REST client shared by Gmail and Drive.           |
-| `src/adapters/gmail/`       | The export-email finder and its parser: the trust checks and the download-link extraction.                                        |
-| `src/adapters/drive/`       | The backup storage (year folders, verified uploads, the sidecar), the resumable uploader, and the S6 access check (C1–C4).        |
-| `src/adapters/transfer/`    | The export transfer: the link hop, the cookie download to `/tmp/nba`, the ZIP verifier, and the upload through the storage.       |
-| `src/adapters/notion/`      | Playwright: the browser launcher, the saved session, the session gate, the Settings page object, and the export trigger.          |
-| `src/cli/`                  | The local CLI: `auth:google`, `auth:notion`, `drive:check`, `drive:init`, `doctor`, `dev:upload`, `dev:trigger`, `dev:download`.  |
-| `src/shared/`               | The redacting JSON-line logger, envelope crypto (AES-256-GCM), the `.env.local` writer, masking, `SecretValue`, clock, IDs.       |
-| `tests/`                    | Vitest. `tests/contract/` holds the repository contract; `tests/live/` and `tests/browser/` the opt-in suites; `tests/fixtures/`. |
-| `vercel.json`               | Region and per-function limits.                                                                                                   |
-| `.env.example`              | Template for the untracked `.env.local`.                                                                                          |
+| Path                          | Purpose                                                                                                                           |
+| ----------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| `api/`                        | Vercel function entry points (Web `Request` → `Response`). No business logic.                                                     |
+| `src/config/env.ts`           | Zod env schemas, one subset per function. Errors name the variables, never their values.                                          |
+| `src/domain/`                 | The job schema, statuses, transitions and lifecycle rules, schedule and retry policies, periods, naming, the error catalog. Pure. |
+| `src/application/`            | The ports (`ports.ts`), the tick (`process-job.ts`), the application methods (`backup-service.ts`), and the job notifications.    |
+| `src/adapters/persistence/`   | Upstash Redis adapters with Lua scripts (`lua/*.lua`), and the in-memory job repository.                                          |
+| `src/adapters/google/`        | OAuth: loopback consent with PKCE, the Picker grant, the token provider, and the REST client shared by Gmail and Drive.           |
+| `src/adapters/gmail/`         | The export-email finder and its parser: the trust checks and the download-link extraction.                                        |
+| `src/adapters/drive/`         | The backup storage (year folders, verified uploads, the sidecar), the resumable uploader, and the S6 access check (C1–C4).        |
+| `src/adapters/transfer/`      | The export transfer: the link hop, the cookie download to `/tmp/nba`, the ZIP verifier, and the upload through the storage.       |
+| `src/adapters/notion/`        | Playwright: the browser launcher, the saved session, the session gate, the Settings page object, and the export trigger.          |
+| `src/adapters/notifications/` | The console and Telegram notifiers, and `CompositeNotifier`, which fans out and never throws.                                     |
+| `src/adapters/telegram/`      | The Bot API client over `fetch`, and the message formats (HTML-escaped, allowlisted fields, inline buttons).                      |
+| `src/config/containers.ts`    | The composition root: the notifiers `NOTIFIERS` lists, and the backup services for one `APP_ENV`.                                 |
+| `src/cli/`                    | The local CLI: `auth:*`, `drive:*`, `doctor`, `telegram:setup`, and the `dev:*` helpers, `dev:tick` among them.                   |
+| `src/shared/`                 | The redacting JSON-line logger, envelope crypto (AES-256-GCM), the `.env.local` writer, masking, `SecretValue`, clock, IDs.       |
+| `tests/`                      | Vitest. `tests/contract/` holds the repository contract; `tests/live/` and `tests/browser/` the opt-in suites; `tests/fixtures/`. |
+| `vercel.json`                 | Region and per-function limits.                                                                                                   |
+| `.env.example`                | Template for the untracked `.env.local`.                                                                                          |
 
 ## Commands
 
@@ -75,19 +80,24 @@ pnpm --filter notion-backup-automation cli doctor [--email-since YYYY-MM-DD]
 APP_ENV=dev pnpm --filter notion-backup-automation cli dev:upload <file.zip>
 APP_ENV=dev pnpm --filter notion-backup-automation cli dev:trigger [--dry-run] [--headed]
 APP_ENV=dev pnpm --filter notion-backup-automation cli dev:download [--email-since YYYY-MM-DD]
+APP_ENV=dev pnpm --filter notion-backup-automation cli dev:tick --start [--force]
+APP_ENV=dev pnpm --filter notion-backup-automation cli dev:tick <jobId> [--retry | --cancel]
+pnpm --filter notion-backup-automation cli telegram:setup --find-chat | --test | --info
 ```
 
-| Command                      | What it does                                                                                                                                                                                                                                                                                                                                                  |
-| ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `auth:google`                | Opens Google consent for `gmail.readonly` and `drive.file` (Desktop client, loopback redirect on `127.0.0.1`, PKCE, `state`). Writes `GOOGLE_REFRESH_TOKEN` into `.env.local` (0600) and prints it masked. `--print` also prints the token itself, to paste into 1Password.                                                                                   |
-| `auth:google --pick-folders` | S6 fallback 1: a separate `drive.file`-only consent with the Google Picker. Pick `Full Workspace` and the year folder; the grant belongs to the app, and this consent's token is discarded.                                                                                                                                                                   |
-| `drive:check`                | S6: C1 the root is visible, C2 exactly one year folder is visible in it, C3 a file can be created and deleted in the root, C4 the same in the year folder. Exits 0 when C1 and C3 pass.                                                                                                                                                                       |
-| `drive:init`                 | S6 fallback 2: creates the app-owned `Full Workspace` folder at the top of My Drive (once), and prints its ID and the manual steps.                                                                                                                                                                                                                           |
-| `doctor`                     | Refreshes the Google token and lists its scopes, reads the masked mailbox, finds the newest trusted export email since `--email-since` (a day in `BACKUP_TIME_ZONE`; default: the last 30 days), checks the Drive root (C1), pings Redis, and opens the Notion session secret of `APP_ENV`. Exits 1 if a check fails; an expired Testing token names the fix. |
-| `dev:upload`                 | Only with `APP_ENV=dev`. Uploads a local file as today's backup into `_dev/<YYYY>/` in the Drive root, through the same storage code the worker uses, and prints the Drive file ID, size, SHA-256 and the sidecar outcome. A second run with the same file uploads nothing. Exits 1 if the sidecar failed.                                                    |
-| `auth:notion`                | Opens Chrome on Notion's login page; you sign in yourself, MFA included. Saves the session, encrypted, to Redis for `APP_ENV` and checks it again in a headless browser (see [Notion Session And Export](#notion-session-and-export)). Exits 1 if no cookie matches `file.notion.com`, since the export download needs one.                                   |
-| `dev:trigger`                | Only with `APP_ENV=dev`. Requests one real workspace export in Notion's Settings with the saved session, so Notion sends its export email. `--dry-run` goes up to the dialog's Export button, sets the dialog values, and cancels. `--headed` shows the window. Exits 1 when the click was sent but no confirmation appeared.                                 |
-| `dev:download`               | Only with `APP_ENV=dev`. Finds the newest trusted export email since `--email-since` (default: the last 7 days), downloads its ZIP with the saved session's cookies into a temporary directory, checks the signature and the archive, prints the size, SHA-256 and file count, and deletes the copy. Nothing is uploaded.                                     |
+| Command                      | What it does                                                                                                                                                                                                                                                                                                                                                                      |
+| ---------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `auth:google`                | Opens Google consent for `gmail.readonly` and `drive.file` (Desktop client, loopback redirect on `127.0.0.1`, PKCE, `state`). Writes `GOOGLE_REFRESH_TOKEN` into `.env.local` (0600) and prints it masked. `--print` also prints the token itself, to paste into 1Password.                                                                                                       |
+| `auth:google --pick-folders` | S6 fallback 1: a separate `drive.file`-only consent with the Google Picker. Pick `Full Workspace` and the year folder; the grant belongs to the app, and this consent's token is discarded.                                                                                                                                                                                       |
+| `drive:check`                | S6: C1 the root is visible, C2 exactly one year folder is visible in it, C3 a file can be created and deleted in the root, C4 the same in the year folder. Exits 0 when C1 and C3 pass.                                                                                                                                                                                           |
+| `drive:init`                 | S6 fallback 2: creates the app-owned `Full Workspace` folder at the top of My Drive (once), and prints its ID and the manual steps.                                                                                                                                                                                                                                               |
+| `doctor`                     | Refreshes the Google token and lists its scopes, reads the masked mailbox, finds the newest trusted export email since `--email-since` (a day in `BACKUP_TIME_ZONE`; default: the last 30 days), checks the Drive root (C1), pings Redis, and opens the Notion session secret of `APP_ENV`. Exits 1 if a check fails; an expired Testing token names the fix.                     |
+| `dev:upload`                 | Only with `APP_ENV=dev`. Uploads a local file as today's backup into `_dev/<YYYY>/` in the Drive root, through the same storage code the worker uses, and prints the Drive file ID, size, SHA-256 and the sidecar outcome. A second run with the same file uploads nothing. Exits 1 if the sidecar failed.                                                                        |
+| `auth:notion`                | Opens Chrome on Notion's login page; you sign in yourself, MFA included. Saves the session, encrypted, to Redis for `APP_ENV` and checks it again in a headless browser (see [Notion Session And Export](#notion-session-and-export)). Exits 1 if no cookie matches `file.notion.com`, since the export download needs one.                                                       |
+| `dev:trigger`                | Only with `APP_ENV=dev`. Requests one real workspace export in Notion's Settings with the saved session, so Notion sends its export email. `--dry-run` goes up to the dialog's Export button, sets the dialog values, and cancels. `--headed` shows the window. Exits 1 when the click was sent but no confirmation appeared.                                                     |
+| `dev:download`               | Only with `APP_ENV=dev`. Finds the newest trusted export email since `--email-since` (default: the last 7 days), downloads its ZIP with the saved session's cookies into a temporary directory, checks the signature and the archive, prints the size, SHA-256 and file count, and deletes the copy. Nothing is uploaded.                                                         |
+| `dev:tick`                   | Only with `APP_ENV=dev`. The whole backup, one tick per call, with the worker's code (see [Backup Jobs](#backup-jobs)). `--start` creates this month's job (`--force`: `<period>-r<N>`); `<jobId>` runs its next step and prints the job and when the next step is due; `--retry` and `--cancel` stand in for `backup_retry` and `backup_cancel`. Exits 1 when the job needs you. |
+| `telegram:setup`             | `--find-chat`: after you send `/start` to the bot, reads its pending messages (without confirming them) and saves the one private chat as `TELEGRAM_CHAT_ID`. `--test`: sends a test message with a Status button. `--info`: shows who receives the bot's updates (the webhook's host and path, never a query); read-only. Setting the webhook comes later.                       |
 
 While the Google OAuth app is in **Testing**, refresh tokens expire after 7 days. When `doctor`
 reports `GOOGLE_AUTH_REQUIRED`, run `auth:google` again.
@@ -257,6 +267,106 @@ Each step waits up to 30 s (S2). An abort closes the browser at once. The server
 Flow diagrams of the gate, the trigger and `auth:notion`:
 [docs/notion-export-flow.md](docs/notion-export-flow.md).
 
+## Backup Jobs
+
+A backup is a job (`job:<period>`, or `<period>-r<N>` when forced) that moves through the state
+machine in `src/domain/` one **tick** at a time. Each tick is one QStash delivery (later) or one
+`dev:tick` (now), and runs exactly one step:
+
+1. Load the job; an unknown job is `not_found`, an ended one `terminal`.
+2. A job that waits for you needs no lease. Otherwise take the job's lease: 60 s for a light
+   step, 330 s for a heavy one (the trigger, the transfer). A held lease answers `lease_held`
+   with the time left.
+3. Reload, and check the delivery's **schedule token** against the job's: a superseded wakeup
+   is `stale` and does nothing.
+4. `nextStep` picks the step: cancel first, then the 168 h lifetime, then rolling back a
+   transfer marker a dead worker left, then the status's own step.
+5. Run it. Every write is compare-and-set; on a conflict the job is reloaded and the rule
+   applied again (3 times at most), or the step stops and the stored state stands. A heavy step
+   starts no new work after 270 s, a light one after 45 s.
+6. Notify (below), then publish the next wakeup with a **new** token and save that token. A
+   failed publish throws before the save, so the delivery's token stays valid for its retry.
+   With nothing to wake for (done, or waiting for you), the token is cleared.
+
+The guards, in the order the steps meet them:
+
+- **Drive first.** The trigger and the transfer adopt a verified backup of the period already
+  in Drive (the Redis-loss guard) instead of exporting or downloading. A forced job adopts only
+  its own backup.
+- **Write-ahead click.** `exportClickAt` is saved just before the final Export click. A worker
+  that dies after it never clicks again in that attempt: the job waits for the email "in
+  doubt", and starts a new attempt after 48 h without one.
+- **One email per job.** A found email is claimed (`email:<messageId>`); one another job owns
+  is skipped.
+- **Transfer markers** are saved before each step; a dead run's marker rolls back to
+  `EMAIL_FOUND` once, an invalid ZIP is downloaded once more and then a new attempt starts.
+- **Cancel** is honoured at the next boundary: before the click, at a transfer marker, or at
+  the next tick.
+- **Supervised incidents** (`NOTION_UI_CHANGED`, `UNKNOWN_ERROR` and the like) wake once after
+  1 minute; with no supervisor yet, they then go to you like any other incident.
+
+**Export size check.** At the transition to `COMPLETE`, the backup is compared with the newest
+earlier `COMPLETE` job. Below `EXPORT_SHRINK_RATIO` (default `0.5`) of its file count or size
+(exactly half is fine; without a file count, only the size), `result.shrink` is saved, an
+`export.shrunk` event is written, and the success message turns into a ⚠️. The job completes
+either way. Without an earlier backup, an `export.size` event says there was nothing to compare.
+
+**`BackupApplicationService`** holds what the MCP tools, the Telegram buttons and the cron will
+call: `start` (the period from now in `BACKUP_TIME_ZONE`; an existing job is returned, and one
+still `CREATED` gets its first wakeup published again, with the same token, in case the first
+publish failed; `force` needs no active job), `process`, `retry` (from `NOTION_TRIGGER` after a click, a new export
+attempt: "Retry from scratch"), `cancel`, `status` and `list`. `process`, `retry` and `cancel`
+take the job's lease for 15 s while they write, so no tick interleaves, and a wakeup delivered
+before its token is saved waits (503) instead of being dropped as stale.
+
+**`dev:tick`** runs all of this locally, with `APP_ENV=dev`: the dev Redis prefix, the dev
+Notion session and `_dev/<YYYY>/` in Drive. It publishes nothing, so run it again for each step;
+it prints when the next one is due (5, 15, then every 30 minutes while it waits for the email).
+A verified ZIP of this month already in `_dev/<YYYY>/` (from `dev:upload`) is adopted at once;
+delete it in Drive first, or use `--start --force`, to see a real export.
+
+Flow diagrams of the tick, the schedule token and the notifications:
+[docs/backup-lifecycle.md](docs/backup-lifecycle.md).
+
+## Notifications And Telegram
+
+`NOTIFIERS` (default `console`) lists the channels, behind a `CompositeNotifier` that sends to
+all at once and logs a failing one as `notify.failed` with its name and error code only:
+
+- **`console`**: one log line each, `notify.success`, `notify.failure`, `notify.attention` or
+  `notify.login`, with a one-line `text`.
+- **`telegram`**: your private chat with the bot, in HTML. It needs `TELEGRAM_BOT_TOKEN` and
+  `TELEGRAM_CHAT_ID`; without them it is left out with a `notify.telegram.unconfigured`
+  warning, and `doctor` names what is missing.
+
+| Event                     | Message                                                         | Buttons                                                                                 |
+| ------------------------- | --------------------------------------------------------------- | --------------------------------------------------------------------------------------- |
+| Backup stored             | ✅ size, file count, file name, folder, duration                | Open in Drive                                                                           |
+| Backup stored, but shrunk | ⚠️ both file counts and sizes; "Check what the export covers"   | Open in Drive · Status                                                                  |
+| Needs attention           | ⚠️ stage, code, reason, fix, supervisor summary, last 10 events | Status · Retry · Retry from scratch (while allowed) · Cancel; Fix login for login codes |
+| Failed (lifetime)         | ❌ stage, code, reason                                          | Status                                                                                  |
+| Login expiring / lost     | 🔑 the date or "access is gone", and the fix                    | Fix login                                                                               |
+
+- **Safe content:** messages are built from the notifications' allowlisted fields. Every value
+  is redacted and HTML-escaped, and free text loses every URL; the Drive link is a button, the
+  only URL a message carries. No token, cookie, email content or mailbox address.
+- **No repeats:** an attention is sent once per job and code per 24 h, a "lost" login warning
+  once per service per 24 h (`notify:<key>` with `SET NX EX`).
+- **Recorded:** every notification sent is also a `notification` event in `events:<jobId>`,
+  since Hobby keeps logs for an hour; a login warning, which belongs to no job, is recorded in
+  `health`. Nothing here ever fails the tick.
+- **Sent once, even after a crash:** a job's success or failure is sent only while no
+  `notification` event of that status exists. A delivery that finds the job ended, or waiting
+  for you with its token still current, sends what a worker that died before notifying left
+  unsent.
+- **Other environments** are marked: a dev message starts with "🧪 dev".
+- The buttons answer once the webhook exists; until then, tapping one does nothing.
+
+**Setup, once:** create the bot with @BotFather and put `TELEGRAM_BOT_TOKEN` into `.env.local`
+(and 1Password). Send `/start` to the bot, run `telegram:setup --find-chat` (it saves
+`TELEGRAM_CHAT_ID`), then `telegram:setup --test`. `--find-chat` works only while no webhook
+receives the bot's updates; `--info` shows whether one does.
+
 ## State In Redis
 
 Every key starts with `{nba:<APP_ENV>}:`, so `prod`, `dev` and `test` share the
@@ -272,7 +382,8 @@ environment's keys in one slot for the Lua scripts.
 | `events:<jobId>`              | The newest 200 sanitized events                                       |
 | `email:<messageId>`           | The job that consumed this export email                               |
 | `secret:notion-storage-state` | The AES-256-GCM envelope of the Notion session                        |
-| `health`                      | The last result of each health probe                                  |
+| `health`                      | The last result of each health probe, and the last login warning      |
+| `notify:<key>`                | A notification that must not repeat yet (`SET NX EX`, 24 h)           |
 
 A normal job's ID is its period (`2026-10`), so `job:<period>` is also the
 one-normal-job-per-period guard. A forced job is `<period>-r<N>`.

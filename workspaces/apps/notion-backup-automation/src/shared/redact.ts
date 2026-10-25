@@ -12,8 +12,11 @@ const MAX_ARRAY_ITEMS = 50;
 const sensitiveKeyPattern =
   /token|secret|password|passwd|cookie|authorization|signature|signingkey|apikey|encryptionkey|privatekey|storagestate|credential|subject|body|html|snippet|entryname/;
 
-/** Hosts whose URL paths carry a secret: Mailgun tracking tokens and Notion's signed export files. */
-const secretPathHosts = new Set(['file.notion.com', 'mg.mail.notion.com']);
+/**
+ * Hosts whose URL paths carry a secret: Mailgun tracking tokens, Notion's signed export files,
+ * and the Telegram Bot API, whose paths start with the bot token.
+ */
+const secretPathHosts = new Set(['api.telegram.org', 'file.notion.com', 'mg.mail.notion.com']);
 
 const urlPattern = /\bhttps?:\/\/[^\s"'<>`]+/gi;
 
@@ -22,6 +25,8 @@ const secretPatterns: readonly (readonly [RegExp, string])[] = [
   [/\beyJ[\w-]{5,}\.[\w-]{5,}\.[\w-]{5,}/g, REDACTED],
   [/\bya29\.[\w.-]+/g, REDACTED],
   [/\b1\/\/[\w-]{20,}/g, REDACTED],
+  // A Telegram bot token, `<bot id>:<secret>`.
+  [/\b\d{5,20}:[\w-]{30,}/g, REDACTED],
   [/\b(token_v2|file_token|notion_user_id|notion_browser_id)=[^;\s]+/g, `$1=${REDACTED}`],
   [/\b(\w*(?:token|secret|password|signature|key))=[^\s&;]+/gi, `$1=${REDACTED}`],
 ];

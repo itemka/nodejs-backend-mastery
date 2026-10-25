@@ -8,6 +8,7 @@ import { shortScope } from '../../adapters/google/oauth-client.js';
 import type { OAuthTokenProvider } from '../../adapters/google/token-provider.js';
 import { keyPrefixFor } from '../../adapters/persistence/keys.js';
 import { RedisSecretStore } from '../../adapters/persistence/redis-secret-store.js';
+import { TelegramApiError, TelegramClient } from '../../adapters/telegram/telegram-client.js';
 import { IntegrationError } from '../../application/integration-error.js';
 import {
   ConfigError,
@@ -16,12 +17,14 @@ import {
   loadEnv,
   persistenceEnvSchema,
   secretStoreEnvSchema,
+  telegramBotEnvSchema,
 } from '../../config/env.js';
 import { localDateFor, startOfLocalDay } from '../../domain/period.js';
 import { createEnvelopeKey, EnvelopeError } from '../../shared/envelope-crypto.js';
 import { maskEmail } from '../../shared/mask.js';
+import { SecretValue } from '../../shared/secret-value.js';
 import type { CliContext } from '../context.js';
-import { createGoogleApi, createTokenProvider } from '../context.js';
+import { createGoogleApi, createTokenProvider, fetchOption } from '../context.js';
 
 type Status = 'fail' | 'ok' | 'skip' | 'warn';
 
@@ -53,6 +56,7 @@ export async function runDoctor(
     ...(await checkGoogle(context, options.emailSince)),
     await checkDrive(context),
     ...(await checkRedis(context)),
+    await checkTelegram(context),
   ];
 
   context.print(ui.heading('Doctor'));
@@ -277,6 +281,49 @@ async function checkRedis(context: CliContext): Promise<CheckResult[]> {
   }
 }
 
+/**
+ * The bot, and whether your chat is set. Telegram is optional: without it, notifications go to
+ * the console only, so a missing configuration is a warning, not a failure.
+ */
+async function checkTelegram(context: CliContext): Promise<CheckResult> {
+  const hasToken = (context.env.TELEGRAM_BOT_TOKEN ?? '') !== '';
+  const hasChat = (context.env.TELEGRAM_CHAT_ID ?? '') !== '';
+
+  if (!hasToken) {
+    return {
+      detail: hasChat
+        ? 'TELEGRAM_BOT_TOKEN missing; notifications go to the console only'
+        : 'not configured; notifications go to the console only',
+      name: 'telegram',
+      status: hasChat ? 'warn' : 'skip',
+    };
+  }
+
+  const env = tryLoad(() => loadEnv(telegramBotEnvSchema, context.env));
+
+  if (!env.ok) {
+    return { detail: env.detail, name: 'telegram', status: 'fail' };
+  }
+
+  try {
+    const bot = await new TelegramClient({
+      token: new SecretValue(env.value.TELEGRAM_BOT_TOKEN),
+      ...fetchOption(context),
+    }).getMe();
+    const name = bot.username === undefined ? `bot ${bot.id}` : `bot @${bot.username}`;
+
+    return hasChat
+      ? { detail: `${name}, TELEGRAM_CHAT_ID set`, name: 'telegram', status: 'ok' }
+      : {
+          detail: `${name}; TELEGRAM_CHAT_ID missing: run telegram:setup --find-chat`,
+          name: 'telegram',
+          status: 'warn',
+        };
+  } catch (error) {
+    return { detail: describe(error), name: 'telegram', status: 'fail' };
+  }
+}
+
 type Loaded<T> = { detail: string; ok: false } | { ok: true; value: T };
 
 function tryLoad<T>(load: () => T): Loaded<T> {
@@ -297,7 +344,7 @@ function describe(error: unknown): string {
     return `${error.code}: ${error.message}`;
   }
 
-  if (error instanceof EnvelopeError) {
+  if (error instanceof EnvelopeError || error instanceof TelegramApiError) {
     return `${error.code}: ${error.message}`;
   }
 
