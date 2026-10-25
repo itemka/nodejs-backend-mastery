@@ -16,9 +16,10 @@ flowchart TD
   Wakeup([Wakeup: job ID + schedule token]) --> Load{Job stored?}
   Load -->|no| NotFound([not_found])
   Load -->|yes| Ended{Terminal?}
-  Ended -->|yes| Terminal([terminal])
+  Ended -->|yes| Recover[Send its success or failure<br/>if no notification event exists]
+  Recover --> Terminal([terminal])
   Ended -->|no| Idle{Waits for you,<br/>and the token matches?}
-  Idle -->|yes| Noop([done: no step, no lease])
+  Idle -->|yes| Noop([done: no step, no lease;<br/>an unsent attention is sent])
   Idle -->|no| Lease{Lease free?<br/>60 s light, 330 s heavy}
   Lease -->|no| Held([lease_held: Retry-After])
   Lease -->|yes| Reload[Reload under the lease]

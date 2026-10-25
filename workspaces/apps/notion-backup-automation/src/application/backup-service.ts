@@ -227,7 +227,22 @@ export class BackupApplicationService {
       }
 
       case 'exists': {
-        return { created: false, job: created.stored.job };
+        const existing = created.stored.job;
+
+        // Still CREATED: the first publish may have failed, so it is published again with the
+        // same token. QStash deduplicates `<jobId>.<token>`, and a repeat after the first tick
+        // ran is stale.
+        if (existing.status === 'CREATED' && existing.schedule !== undefined) {
+          await this.scheduler.schedule({
+            delaySec: 0,
+            jobId: existing.id,
+            reason: 'start',
+            token: existing.schedule.token,
+          });
+          this.logger.info('job.start.republished', { jobId: existing.id });
+        }
+
+        return { created: false, job: existing };
       }
 
       case 'created': {

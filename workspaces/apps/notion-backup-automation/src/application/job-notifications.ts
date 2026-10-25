@@ -23,6 +23,8 @@ import type {
 export const REPEAT_WINDOW_SEC = 24 * 60 * 60;
 
 const RECENT_EVENT_COUNT = 10;
+/** An ended job writes few events after its end, so its notification is among the newest. */
+const SENT_SCAN_COUNT = 20;
 const MAX_EVENT_TEXT = 400;
 
 export interface JobNotificationsOptions {
@@ -119,6 +121,10 @@ export class JobNotifications {
         throw new RangeError('Only a FAILED job has a failure to report');
       }
 
+      if (await this.alreadySent(job)) {
+        return;
+      }
+
       const notification: FailureNotification = {
         code: lastError.code,
         jobId: job.id,
@@ -161,6 +167,10 @@ export class JobNotifications {
         throw new RangeError('Only a COMPLETE job has a backup to report');
       }
 
+      if (await this.alreadySent(job)) {
+        return;
+      }
+
       const year = yearFolderName(job.period);
       const notification: SuccessNotification = {
         driveFileId: result.driveFileId,
@@ -177,6 +187,37 @@ export class JobNotifications {
       await this.notifier.success(notification);
       await this.record(job, successText(notification));
     });
+  }
+
+  /**
+   * A job's success or failure is sent once: its `notification` event marks it sent. A worker
+   * that died before sending left no event, so a later delivery sends it. Unreadable events let
+   * it through: a repeat beats a lost alert.
+   */
+  private async alreadySent(job: BackupJob): Promise<boolean> {
+    let events;
+
+    try {
+      events = await this.jobs.listEvents(job.id, { limit: SENT_SCAN_COUNT });
+    } catch (error) {
+      this.logger.warn('notify.events.failed', { error, jobId: job.id });
+
+      return false;
+    }
+
+    const sent = events.some(
+      ({ status, type }) => type === 'notification' && status === job.status,
+    );
+
+    if (sent) {
+      this.logger.info('notify.skipped', {
+        jobId: job.id,
+        kind: job.status,
+        reason: 'already_sent',
+      });
+    }
+
+    return sent;
   }
 
   /** A gate that cannot answer lets the notification through: a repeat beats a lost alert. */

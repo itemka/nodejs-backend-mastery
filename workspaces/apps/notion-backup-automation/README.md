@@ -312,8 +312,9 @@ earlier `COMPLETE` job. Below `EXPORT_SHRINK_RATIO` (default `0.5`) of its file 
 either way. Without an earlier backup, an `export.size` event says there was nothing to compare.
 
 **`BackupApplicationService`** holds what the MCP tools, the Telegram buttons and the cron will
-call: `start` (the period from now in `BACKUP_TIME_ZONE`; an existing job is returned; `force`
-needs no active job), `process`, `retry` (from `NOTION_TRIGGER` after a click, a new export
+call: `start` (the period from now in `BACKUP_TIME_ZONE`; an existing job is returned, and one
+still `CREATED` gets its first wakeup published again, with the same token, in case the first
+publish failed; `force` needs no active job), `process`, `retry` (from `NOTION_TRIGGER` after a click, a new export
 attempt: "Retry from scratch"), `cancel`, `status` and `list`. `process`, `retry` and `cancel`
 take the job's lease for 15 s while they write, so no tick interleaves, and a wakeup delivered
 before its token is saved waits (503) instead of being dropped as stale.
@@ -354,6 +355,10 @@ all at once and logs a failing one as `notify.failed` with its name and error co
 - **Recorded:** every notification sent is also a `notification` event in `events:<jobId>`,
   since Hobby keeps logs for an hour; a login warning, which belongs to no job, is recorded in
   `health`. Nothing here ever fails the tick.
+- **Sent once, even after a crash:** a job's success or failure is sent only while no
+  `notification` event of that status exists. A delivery that finds the job ended, or waiting
+  for you with its token still current, sends what a worker that died before notifying left
+  unsent.
 - **Other environments** are marked: a dev message starts with "🧪 dev".
 - The buttons answer once the webhook exists; until then, tapping one does nothing.
 

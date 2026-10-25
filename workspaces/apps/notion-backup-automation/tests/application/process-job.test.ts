@@ -171,8 +171,42 @@ describe('ProcessJobUseCase: crashes', () => {
       // The crash really happened: its delivery failed and was retried.
       expect(harness.qstash.deliveries.filter(({ result }) => result === 'failed')).toHaveLength(1);
       await expect(harness.memory.findActive()).resolves.toBeUndefined();
+      // Exactly one ✅, also when the worker died between saving COMPLETE and notifying (write 11).
+      expect(harness.sent.map(({ kind }) => kind)).toEqual(['success']);
     },
   );
+
+  it('sends the attention a worker died before sending, when the delivery comes again', async () => {
+    const harness = backupHarness();
+
+    // Write 3 saves NEEDS_ATTENTION; the worker dies before notifying and clearing the token.
+    harness.trigger.script = [new IntegrationError('NOTION_SESSION_EXPIRED')];
+    harness.jobs.crashAfterUpdate = 3;
+    await harness.service.start();
+    await harness.drain();
+
+    expect(await storedJob(harness, '2026-10')).toMatchObject({ status: 'NEEDS_ATTENTION' });
+    expect(harness.sent).toEqual([
+      {
+        kind: 'attention',
+        notification: expect.objectContaining({ code: 'NOTION_SESSION_EXPIRED' }) as unknown,
+      },
+    ]);
+  });
+
+  it('never sends a success twice: a late delivery for a completed job finds it sent', async () => {
+    const harness = backupHarness();
+
+    await harness.service.start();
+    await harness.drain();
+
+    const { token } = harness.qstash.published.at(-1)!;
+
+    await harness.processJob.execute({ jobId: '2026-10', reason: 'schedule', token });
+    await harness.processJob.execute({ jobId: '2026-10', reason: 'schedule', token });
+
+    expect(harness.sent.map(({ kind }) => kind)).toEqual(['success']);
+  });
 
   it('never clicks again after the write-ahead marker: a crash before the click waits, then starts a new attempt', async () => {
     const harness = backupHarness();

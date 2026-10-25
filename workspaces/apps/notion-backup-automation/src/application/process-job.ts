@@ -219,6 +219,9 @@ export class ProcessJobUseCase {
     }
 
     if (isTerminal(first.job.status)) {
+      // A worker that died between saving the end and notifying left it unsent; it is sent once.
+      await this.notify(first.job);
+
       return { outcome: 'terminal', status: first.job.status };
     }
 
@@ -229,6 +232,9 @@ export class ProcessJobUseCase {
     // wakeup whose save is still in flight under a lease, so it is checked under the lease.
     if (plannedLease === undefined && isCurrent(first.job, request.token)) {
       log.info('job.tick.noop', { reason: request.reason, status: first.job.status });
+      // The token is still current only if the worker died before notifying and clearing it;
+      // the attention gate keeps this to one message.
+      await this.notify(first.job);
 
       return { outcome: 'done', status: first.job.status, step: planned.kind };
     }

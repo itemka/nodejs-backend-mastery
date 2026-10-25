@@ -226,6 +226,34 @@ describe('JobNotifications', () => {
     ]);
   });
 
+  it('sends a job’s success and failure once: a recorded notification is not sent again', async () => {
+    const { deliveries, notifications } = setup();
+
+    await notifications.success(completeJob());
+    await notifications.success(completeJob());
+    await notifications.failure(jobInStatus('FAILED'));
+    await notifications.failure(jobInStatus('FAILED'));
+
+    expect(deliveries.map(({ kind }) => kind)).toEqual(['success', 'failure']);
+  });
+
+  it('sends it again when the earlier attempt recorded nothing, or the events cannot be read', async () => {
+    const jobs = new InMemoryJobRepository();
+    const { deliveries, notifications } = setup({ jobs });
+    const appendEvent = jobs.appendEvent.bind(jobs);
+
+    // The first attempt's event is lost, as when the worker dies right after sending.
+    jobs.appendEvent = () => Promise.reject(new Error('redis down'));
+    await notifications.success(completeJob());
+    jobs.appendEvent = appendEvent;
+    await notifications.success(completeJob());
+
+    jobs.listEvents = () => Promise.reject(new Error('redis down'));
+    await notifications.success(completeJob());
+
+    expect(deliveries.map(({ kind }) => kind)).toEqual(['success', 'success', 'success']);
+  });
+
   it('records a failure under its own code, not an incident left from before', async () => {
     const { jobs, notifications } = setup();
     const failed = valid(

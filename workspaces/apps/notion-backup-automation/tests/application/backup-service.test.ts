@@ -104,14 +104,55 @@ describe('BackupApplicationService.start', () => {
     expect(harness.qstash.published).toHaveLength(published);
   });
 
-  it('creates exactly one job for 20 concurrent starts, with one wakeup', async () => {
+  it('creates exactly one job for 20 concurrent starts, and one export', async () => {
     const harness = backupHarness();
     const results = await Promise.all(Array.from({ length: 20 }, () => harness.service.start()));
 
     expect(results.filter(({ created }) => created)).toHaveLength(1);
     expect(new Set(results.map(({ job }) => job.id))).toEqual(new Set(['2026-10']));
-    expect(harness.qstash.published).toHaveLength(1);
     await expect(harness.memory.list({ limit: 10 })).resolves.toHaveLength(1);
+    // A start that finds the job still CREATED publishes its first token again: one token, so
+    // QStash's deduplication delivers it once, and any later repeat is stale.
+    expect(new Set(harness.qstash.published.map(({ token }) => token)).size).toBe(1);
+
+    await harness.drain();
+
+    expect(harness.trigger.clicks).toHaveLength(1);
+    expect(await storedJob(harness, '2026-10')).toMatchObject({ status: 'COMPLETE' });
+  });
+
+  it('publishes the first wakeup again when a start is retried after its publish failed', async () => {
+    const harness = backupHarness();
+
+    harness.qstash.publishFailures = 1;
+    await expect(harness.service.start()).rejects.toThrow('QStash unavailable');
+    expect(harness.qstash.pendingCount()).toBe(0);
+
+    const { created, job } = await harness.service.start();
+
+    expect(created).toBe(false);
+    expect(harness.qstash.published).toEqual([
+      expect.objectContaining({ delaySec: 0, reason: 'start', token: job.schedule?.token }),
+    ]);
+
+    await harness.drain();
+
+    expect(await storedJob(harness, '2026-10')).toMatchObject({ status: 'COMPLETE' });
+  });
+
+  it('publishes nothing again for an existing job past CREATED', async () => {
+    const harness = backupHarness();
+
+    await harness.service.start();
+    await harness.qstash.deliverNext(harness.processJob);
+
+    const published = harness.qstash.published.length;
+
+    await expect(harness.service.start()).resolves.toMatchObject({
+      created: false,
+      job: { status: 'TRIGGERING_EXPORT' },
+    });
+    expect(harness.qstash.published).toHaveLength(published);
   });
 
   it('refuses a second period while a job is active, even when both start at once', async () => {
