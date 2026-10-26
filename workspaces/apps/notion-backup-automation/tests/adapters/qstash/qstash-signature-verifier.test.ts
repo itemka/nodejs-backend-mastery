@@ -1,10 +1,11 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { QStashSignatureVerifier } from '../../../src/adapters/qstash/qstash-signature-verifier.js';
+import { TEST_TOKEN } from '../../support/fixture-secrets.js';
 import { signLikeQStash, TEST_BASE_URL, TEST_SIGNING_KEYS } from '../../support/qstash.js';
 
 const url = `${TEST_BASE_URL}/api/jobs/process/2026-10`;
-const body = JSON.stringify({ jobId: '2026-10', reason: 'start', token: 'tok_0123456789abcdef' });
+const body = JSON.stringify({ jobId: '2026-10', reason: 'start', token: TEST_TOKEN });
 const verifier = new QStashSignatureVerifier(TEST_SIGNING_KEYS);
 
 describe('QStashSignatureVerifier', () => {

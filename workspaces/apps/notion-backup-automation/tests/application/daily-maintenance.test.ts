@@ -11,6 +11,7 @@ import { LoginWarnings } from '../../src/application/login-watch.js';
 import type { HealthProbes, Heartbeat } from '../../src/application/ports.js';
 import type { ErrorCode } from '../../src/domain/error-catalog.js';
 import { backupHarness, storedJob } from '../support/backup-harness.js';
+import { TEST_TOKEN } from '../support/fixture-secrets.js';
 import { attentionJob, hoursAfter, waitingJob } from '../support/jobs.js';
 
 const HOUR_MS = 60 * 60 * 1000;
@@ -154,6 +155,37 @@ describe('DailyMaintenance.run', () => {
       driveRoot: { checkedAt: WEDNESDAY, mode: 'existing', ok: true },
       google: { checkedAt: WEDNESDAY, scopes: ['gmail.readonly', 'drive.file'], tokenOk: true },
     });
+  });
+
+  it('runs the due probes at once, so the slowest budget bounds the run', async () => {
+    let started = 0;
+    const allStarted = Promise.withResolvers<void>();
+
+    // Each probe waits until both have started: one after the other, neither would finish.
+    const held = async <T>(result: T): Promise<T> => {
+      started += 1;
+
+      if (started === 2) {
+        allStarted.resolve();
+      }
+
+      await allStarted.promise;
+
+      return result;
+    };
+
+    const { maintenance } = setup({
+      probeOverrides: {
+        drive: () => held({ mode: 'existing' as const }),
+        google: () => held({ scopes: ['gmail.readonly', 'drive.file'] }),
+      },
+    });
+
+    await expect(maintenance.run()).resolves.toMatchObject({
+      failedSteps: [],
+      probes: { drive: 'ok', google: 'ok' },
+    });
+    expect(started).toBe(2);
   });
 
   it('never creates a job while AUTO_START_ENABLED is false, even when due', async () => {
@@ -492,16 +524,10 @@ describe('isStuck', () => {
     // An incident the supervisor still decides on gets wakeups, so a lost one is re-armed.
     expect(isStuck(attentionJob('NOTION_UI_CHANGED'), hoursAfter(100))).toBe(true);
     expect(
-      isStuck(
-        { ...waiting, schedule: { notBefore: now.toISOString(), token: 'tok_0123456789abcdef' } },
-        now,
-      ),
+      isStuck({ ...waiting, schedule: { notBefore: now.toISOString(), token: TEST_TOKEN } }, now),
     ).toBe(false);
     expect(
-      isStuck(
-        { ...waiting, schedule: { notBefore: waiting.updatedAt, token: 'tok_0123456789abcdef' } },
-        now,
-      ),
+      isStuck({ ...waiting, schedule: { notBefore: waiting.updatedAt, token: TEST_TOKEN } }, now),
     ).toBe(true);
     expect(isStuck(waiting, now)).toBe(true);
   });

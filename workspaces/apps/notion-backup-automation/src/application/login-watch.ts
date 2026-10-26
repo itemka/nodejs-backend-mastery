@@ -118,10 +118,14 @@ export class LoginWarnings {
    * threshold sent.
    */
   async notionExpiring(expiresAt?: string): Promise<number | undefined> {
-    const leftMs =
-      expiresAt === undefined ? Number.NaN : Date.parse(expiresAt) - this.clock.now().getTime();
+    if (expiresAt === undefined) {
+      return undefined;
+    }
 
-    if (expiresAt === undefined || !(leftMs > 0)) {
+    const leftMs = Date.parse(expiresAt) - this.clock.now().getTime();
+
+    // An unreadable expiry is NaN: neither past nor future, so no warning.
+    if (Number.isNaN(leftMs) || leftMs <= 0) {
       return undefined;
     }
 

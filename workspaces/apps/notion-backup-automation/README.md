@@ -376,7 +376,9 @@ deployed smoke test, `smoke:qstash`. It needs the signing keys, `APP_BASE_URL` a
 the backup configuration.
 
 **The daily cron**, `GET /api/cron/daily` at 04:00 UTC, needs `Authorization: Bearer
-$CRON_SECRET`, which Vercel Cron sends by itself; anything else gets 401. In order:
+$CRON_SECRET`, which Vercel Cron sends by itself; anything else gets 401. Vercel Cron runs on
+UTC, so that is 05:00 or 06:00 in Europe/Warsaw; the period, the auto-start day and the probe
+days all use the local date in `BACKUP_TIME_ZONE`. In order:
 
 1. Records the run in `health` (`cron`), which also keeps the Redis database active.
 2. Auto-starts this month's job (`kind: scheduled`) when `AUTO_START_ENABLED=true`, the local
@@ -386,7 +388,8 @@ $CRON_SECRET`, which Vercel Cron sends by itself; anything else gets 401. In ord
    something is due) gets a new one, and a job past its 168 h lifetime is woken so its tick
    ends it as `FAILED` with the ❌. Both go through `backup_process`'s path, under the 15 s
    control lease. A job that waits for you is never polled.
-4. Probes Google (a token refresh with both scopes, then Gmail's profile) and Drive (the root,
+4. Probes, all at once, so the slowest budget (Notion's 120 s) bounds the run, not their sum:
+   Google (a token refresh with both scopes, then Gmail's profile) and Drive (the root,
    this period's year folder, and a probe file created and deleted under `_dev/<YYYY>`) daily,
    and Notion (the gate, then Settings up to the export dialog, cancelled) on Mondays, two
    calendar days before `BACKUP_DAY_OF_MONTH`, and while a job waits for the Notion login.
@@ -409,6 +412,8 @@ $CRON_SECRET`, which Vercel Cron sends by itself; anything else gets 401. In ord
    through its own channel after 2 days of silence.
 
 A sub-step that throws is logged and skipped; the run answers 500 with the report naming it.
+A 500 therefore does not mean nothing ran: the report says which steps failed. Vercel Cron does
+not retry it; the next run is the next day.
 With nothing active and auto-start off, the cron publishes nothing to QStash.
 
 `?probe=notion|google|drive` runs only that probe, records it, and returns its content-free

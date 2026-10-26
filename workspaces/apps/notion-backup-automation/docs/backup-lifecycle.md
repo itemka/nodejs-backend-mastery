@@ -142,7 +142,7 @@ flowchart TD
   Create --> Watch{Active job late by over an hour,<br/>or past its lifetime?}
   Watch -->|yes| Rearm[backup_process path: new token,<br/>wakeup under the control lease]
   Watch -->|no| Probes
-  Rearm --> Probes["Probe Google and Drive; Notion on Mondays,<br/>2 days before the backup day,<br/>or while a job waits for its login"]
+  Rearm --> Probes["Probe at once: Google and Drive; Notion on Mondays,<br/>2 calendar days before the backup day,<br/>or while a job waits for its login"]
   Probes -->|a probe passes| Resume[Resume a job waiting<br/>for that login]
   Probes -->|a login newly gone| Lost[🔑 access is gone]
   Resume --> Warn

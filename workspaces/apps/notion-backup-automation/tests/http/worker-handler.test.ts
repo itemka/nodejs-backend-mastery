@@ -11,6 +11,7 @@ import { handleWorkerRequest } from '../../src/http/worker-handler.js';
 import { createLogger } from '../../src/shared/logger.js';
 import { backupHarness, storedJob } from '../support/backup-harness.js';
 import { FakeRedis } from '../support/fake-redis.js';
+import { TEST_TOKEN } from '../support/fixture-secrets.js';
 import { signedDelivery, TEST_BASE_URL, TEST_SIGNING_KEYS } from '../support/qstash.js';
 
 const PATH = '/api/jobs/process/2026-10';
@@ -106,7 +107,7 @@ describe('handleWorkerRequest', () => {
 
   it('answers 489 for a genuine message the app never sends, or one naming another job', async () => {
     const { built, deps } = setup();
-    const token = 'tok_0123456789abcdef';
+    const token = TEST_TOKEN;
     const cases = [
       signedDelivery(PATH, { jobId: '2026-11', reason: 'start', token }),
       signedDelivery(PATH, { extra: true, jobId: '2026-10', reason: 'start', token }),
@@ -129,7 +130,7 @@ describe('handleWorkerRequest', () => {
   it('answers 489 for a job that does not exist', async () => {
     const { deps } = setup();
     const response = await handleWorkerRequest(
-      signedDelivery(PATH, { jobId: '2026-10', reason: 'start', token: 'tok_0123456789abcdef' }),
+      signedDelivery(PATH, { jobId: '2026-10', reason: 'start', token: TEST_TOKEN }),
       deps,
     );
 
@@ -217,7 +218,7 @@ describe('handleWorkerRequest', () => {
       execute: () => Promise.reject(new StateSchemaInvalidError('job', '2026-10')),
     }));
     const response = await handleWorkerRequest(
-      signedDelivery(PATH, { jobId: '2026-10', reason: 'start', token: 'tok_0123456789abcdef' }),
+      signedDelivery(PATH, { jobId: '2026-10', reason: 'start', token: TEST_TOKEN }),
       deps,
     );
 
@@ -230,7 +231,7 @@ describe('handleWorkerRequest', () => {
       throw new ConfigError(['GOOGLE_REFRESH_TOKEN'], []);
     });
     const response = await handleWorkerRequest(
-      signedDelivery(PATH, { jobId: '2026-10', reason: 'start', token: 'tok_0123456789abcdef' }),
+      signedDelivery(PATH, { jobId: '2026-10', reason: 'start', token: TEST_TOKEN }),
       deps,
     );
 

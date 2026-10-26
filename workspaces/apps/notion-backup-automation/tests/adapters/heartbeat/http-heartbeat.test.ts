@@ -22,7 +22,7 @@ function setup(respond: (url: string) => Promise<Response>) {
         logs.push(line);
       },
     }),
-    url: new SecretValue(`${PING_URL}/`),
+    url: new SecretValue(`${PING_URL}//`),
   });
 
   return { heartbeat, logs, requests };

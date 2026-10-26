@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { POST } from '../../api/jobs/process/[jobId].js';
 import { serveWorker } from '../../src/config/containers.js';
 import { createLogger } from '../../src/shared/logger.js';
+import { TEST_TOKEN } from '../support/fixture-secrets.js';
 import { signedDelivery, TEST_BASE_URL, TEST_SIGNING_KEYS } from '../support/qstash.js';
 
 const authEnv = {
@@ -58,7 +59,7 @@ describe('POST /api/jobs/process/[jobId]', () => {
       signedDelivery('/api/jobs/process/2026-10', {
         jobId: '2026-10',
         reason: 'start',
-        token: 'tok_0123456789abcdef',
+        token: TEST_TOKEN,
       }),
       authEnv,
       silent,

@@ -6,6 +6,7 @@ import {
   workerPath,
 } from '../../../src/adapters/qstash/qstash-scheduler.js';
 import { createLogger } from '../../../src/shared/logger.js';
+import { TEST_TOKEN } from '../../support/fixture-secrets.js';
 import { FakeQStashApi, TEST_BASE_URL } from '../../support/qstash.js';
 
 function setup() {
@@ -30,14 +31,14 @@ describe('QStashScheduler', () => {
         delaySec: 300,
         jobId: '2026-10',
         reason: 'schedule',
-        token: 'tok_0123456789abcdef',
+        token: TEST_TOKEN,
       }),
     ).resolves.toEqual({ messageId: 'msg_1' });
 
     expect(api.published).toEqual([
       {
-        body: { jobId: '2026-10', reason: 'schedule', token: 'tok_0123456789abcdef' },
-        deduplicationId: '2026-10.tok_0123456789abcdef',
+        body: { jobId: '2026-10', reason: 'schedule', token: TEST_TOKEN },
+        deduplicationId: `2026-10.${TEST_TOKEN}`,
         delay: 300,
         flowControl: { key: 'nba-prod', parallelism: 1 },
         retries: 3,
@@ -53,7 +54,7 @@ describe('QStashScheduler', () => {
       delaySec: 0,
       jobId: '2026-10-r2',
       reason: 'start',
-      token: 'tok_0123456789abcdef',
+      token: TEST_TOKEN,
     });
 
     expect(api.published[0]).not.toHaveProperty('delay');
@@ -85,7 +86,7 @@ describe('QStashScheduler', () => {
       delaySec: 0,
       jobId: '2026-10',
       reason: 'start',
-      token: 'tok_0123456789abcdef',
+      token: TEST_TOKEN,
     });
 
     await expect(failure).rejects.toBeInstanceOf(SchedulerError);

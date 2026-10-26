@@ -36,7 +36,12 @@ export class HttpHeartbeat implements Heartbeat {
   }
 
   private async ping(kind: 'fail' | 'ok'): Promise<void> {
-    const base = this.url.reveal().replace(/\/+$/, '');
+    let base = this.url.reveal();
+
+    // Trailing slashes off, without a backtracking regex.
+    while (base.endsWith('/')) {
+      base = base.slice(0, -1);
+    }
 
     try {
       const response = await this.fetch(kind === 'fail' ? `${base}/fail` : base, {

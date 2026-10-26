@@ -6,8 +6,9 @@ import { isBearer } from '../../src/http/cron-auth.js';
 import type { CronHandlerDeps } from '../../src/http/cron-handler.js';
 import { handleCronRequest } from '../../src/http/cron-handler.js';
 import { createLogger } from '../../src/shared/logger.js';
+import { TEST_CRON_SECRET } from '../support/fixture-secrets.js';
 
-const SECRET = 'cron-secret-0123456789abcdefghijklmnopqrstuv';
+const SECRET = TEST_CRON_SECRET;
 const URL_BASE = 'https://nba.example.vercel.app/api/cron/daily';
 
 const okReport: DailyReport = {

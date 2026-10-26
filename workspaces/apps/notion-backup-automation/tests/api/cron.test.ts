@@ -3,8 +3,9 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { GET } from '../../api/cron/daily.js';
 import { serveCron } from '../../src/config/containers.js';
 import { createLogger } from '../../src/shared/logger.js';
+import { TEST_CRON_SECRET } from '../support/fixture-secrets.js';
 
-const SECRET = 'cron-secret-0123456789abcdefghijklmnopqrstuv';
+const SECRET = TEST_CRON_SECRET;
 const URL_BASE = 'https://nba.example.vercel.app/api/cron/daily';
 const logs: string[] = [];
 const quiet = {

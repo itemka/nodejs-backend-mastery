@@ -159,12 +159,16 @@ export class DailyMaintenance {
     const ranAt = clock.now().toISOString();
     const failedSteps: string[] = [];
 
+    const failed = (name: string, error: unknown) => {
+      failedSteps.push(name);
+      logger.error('cron.step.failed', { error, step: name });
+    };
+
     const step = async <T>(name: string, run: () => Promise<T>): Promise<T | undefined> => {
       try {
         return await run();
       } catch (error) {
-        failedSteps.push(name);
-        logger.error('cron.step.failed', { error, step: name });
+        failed(name, error);
 
         return undefined;
       }
@@ -183,13 +187,30 @@ export class DailyMaintenance {
     const probes: Partial<Record<ProbeName, 'failed' | 'ok' | ErrorCode>> = {};
     const resumed: string[] = [];
 
-    for (const name of this.probesDue(active?.job)) {
-      const outcome = await step(`probe.${name}`, () => this.probeAndWatch(name));
+    // At once, so the slowest budget (Notion's 120 s) bounds the probes, not their sum (210 s):
+    // the record and the heartbeat stay well inside the function's 300 s. Results are taken in
+    // the probes' order, so the report does not depend on which one finished first.
+    const results = await Promise.all(
+      this.probesDue(active?.job).map(async (name) => {
+        try {
+          return { name, outcome: await this.probeAndWatch(name) };
+        } catch (error) {
+          return { error, name };
+        }
+      }),
+    );
 
-      probes[name] = outcome?.code ?? (outcome === undefined ? 'failed' : 'ok');
+    for (const result of results) {
+      if ('error' in result) {
+        failed(`probe.${result.name}`, result.error);
+        probes[result.name] = 'failed';
+        continue;
+      }
 
-      if (outcome?.resumed !== undefined) {
-        resumed.push(outcome.resumed);
+      probes[result.name] = result.outcome.code ?? 'ok';
+
+      if (result.outcome.resumed !== undefined) {
+        resumed.push(result.outcome.resumed);
       }
     }
 
@@ -244,7 +265,10 @@ export class DailyMaintenance {
     return created ? 'started' : 'exists';
   }
 
-  /** The login a probe's last recorded failure showed gone, if any. */
+  /**
+   * The login a probe's last recorded failure showed gone, if any. A timeout is recorded too, so
+   * a login failure right after one counts as new: at most one more `lost` a day, by the gate.
+   */
   private async lostBefore(name: ProbeName): Promise<LoginService | undefined> {
     const snapshot = await this.options.health.read();
     const previous = {
