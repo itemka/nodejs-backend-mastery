@@ -506,9 +506,11 @@ Node.js cannot resolve a package name with three segments (`ERR_UNSUPPORTED_DIR_
 the sibling apps only use them through esbuild bundles or `tsx`. Import npm packages, or code
 inside this app, instead.
 
-`vercel.json` gives the worker and the cron 300 s, and includes
-`node_modules/@sparticuz/chromium/bin/**` in both, since the package finds its archives at
-runtime (S2). The cron entry runs `/api/cron/daily` daily at 04:00 UTC.
+`vercel.json` gives the worker and the cron 300 s, and includes Chromium's archives in both,
+since the package finds them at runtime, next to its own code (S2). The pattern names pnpm's
+real path, `../../../node_modules/.pnpm/@sparticuz+chromium@*/node_modules/@sparticuz/chromium/bin/**`:
+through the app's `node_modules/@sparticuz/chromium` symlink, Vercel rejects the function
+("files in symlinked directories"). The cron entry runs `/api/cron/daily` daily at 04:00 UTC.
 
 ## Deployment
 
