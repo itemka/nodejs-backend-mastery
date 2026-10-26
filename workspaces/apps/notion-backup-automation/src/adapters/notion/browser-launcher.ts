@@ -1,4 +1,11 @@
-import type { Browser, BrowserContext } from 'playwright-core';
+import { readdir, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
+import type {
+  Browser,
+  BrowserContext,
+  LaunchOptions as PlaywrightLaunchOptions,
+} from 'playwright-core';
 
 import { IntegrationError } from '../../application/integration-error.js';
 import type { NotionSession } from './notion-session.js';
@@ -20,8 +27,7 @@ export interface BrowserLauncher {
 
 /**
  * Local runs: your installed Google Chrome, or else Playwright's Chromium once it is installed
- * with `pnpm --filter notion-backup-automation exec playwright-core install chromium`. The
- * serverless launcher (`@sparticuz/chromium`) follows with the worker (Step 21).
+ * with `pnpm --filter notion-backup-automation exec playwright-core install chromium`.
  */
 export class LocalBrowserLauncher implements BrowserLauncher {
   async launch({ headless }: LaunchOptions): Promise<Browser> {
@@ -41,6 +47,126 @@ export class LocalBrowserLauncher implements BrowserLauncher {
       }
     }
   }
+}
+
+/** `@sparticuz/chromium` adds these; a browser holding the Notion session keeps web security on (S2). */
+const INSECURE_FLAGS = new Set([
+  '--allow-running-insecure-content',
+  '--disable-site-isolation-trials',
+  '--disable-web-security',
+]);
+
+/** Single-process Chromium sometimes dumps core on close: ~265 MB of memory, session included (S2). */
+const CORE_DUMP = /^core(\.|$)/;
+
+/** The parts of `@sparticuz/chromium` the launcher uses. */
+export interface ServerlessChromium {
+  readonly args: readonly string[];
+  executablePath(): Promise<string>;
+  setGraphicsMode: boolean;
+}
+
+export interface ServerlessBrowserLauncherOptions {
+  /** `@sparticuz/chromium`, loaded on first use (tests replace it). */
+  readonly loadChromium?: () => Promise<ServerlessChromium>;
+  /** Playwright's `chromium.launch` (tests replace it). */
+  readonly loadLaunch?: () => Promise<(options: PlaywrightLaunchOptions) => Promise<Browser>>;
+  /** Where Chromium unpacks and dumps core: `/tmp` on Vercel. */
+  readonly tmpDirectory?: string;
+}
+
+/**
+ * Vercel: the `@sparticuz/chromium` headless shell, as S2 proved it. Headless, without graphics,
+ * without the flags that turn off web security, and with `--single-process` (without it the
+ * Notion app never renders). It starts through a `/bin/sh` wrapper with `ulimit -c 0`, and core
+ * dumps in `/tmp` are deleted before the launch and when the browser closes.
+ */
+export class ServerlessBrowserLauncher implements BrowserLauncher {
+  private readonly loadChromium: () => Promise<ServerlessChromium>;
+  private readonly loadLaunch: () => Promise<
+    (options: PlaywrightLaunchOptions) => Promise<Browser>
+  >;
+  private readonly tmpDirectory: string;
+
+  constructor(options: ServerlessBrowserLauncherOptions = {}) {
+    this.loadChromium = options.loadChromium ?? loadSparticuzChromium;
+    this.loadLaunch = options.loadLaunch ?? loadPlaywrightLaunch;
+    this.tmpDirectory = options.tmpDirectory ?? tmpdir();
+  }
+
+  async launch(): Promise<Browser> {
+    let browser: Browser;
+
+    try {
+      const [chromium, launch] = await Promise.all([this.loadChromium(), this.loadLaunch()]);
+
+      chromium.setGraphicsMode = false;
+      await this.removeCoreDumps();
+
+      const executablePath = await this.withoutCoreDumps(await chromium.executablePath());
+
+      browser = await launch({
+        args: chromium.args.filter((flag) => !INSECURE_FLAGS.has(flag)),
+        executablePath,
+        headless: true,
+      });
+    } catch {
+      throw new IntegrationError('BROWSER_LAUNCH_FAILED', 'Serverless Chromium did not start');
+    }
+
+    browser.on('disconnected', () => {
+      void this.removeCoreDumps();
+    });
+
+    return browser;
+  }
+
+  /** Best effort; a dump that stays is deleted before the next launch. */
+  private async removeCoreDumps(): Promise<void> {
+    try {
+      const names = await readdir(this.tmpDirectory);
+
+      await Promise.all(
+        names
+          .filter((name) => CORE_DUMP.test(name))
+          .map((name) => rm(path.join(this.tmpDirectory, name), { force: true })),
+      );
+    } catch {
+      // See above.
+    }
+  }
+
+  /** A launcher script that runs Chromium with core dumps off. */
+  private async withoutCoreDumps(executablePath: string): Promise<string> {
+    const wrapper = path.join(this.tmpDirectory, 'chromium-no-core.sh');
+    const quoted = executablePath.replaceAll("'", String.raw`'\''`);
+
+    await writeFile(wrapper, `#!/bin/sh\nulimit -c 0\nexec '${quoted}' "$@"\n`, { mode: 0o700 });
+
+    return wrapper;
+  }
+}
+
+async function loadSparticuzChromium(): Promise<ServerlessChromium> {
+  const { default: chromium } = await import('@sparticuz/chromium');
+
+  return chromium;
+}
+
+async function loadPlaywrightLaunch(): Promise<
+  (options: PlaywrightLaunchOptions) => Promise<Browser>
+> {
+  const { chromium } = await import('playwright-core');
+
+  return (options) => chromium.launch(options);
+}
+
+/**
+ * The serverless launcher on Vercel (`VERCEL=1`), your Chrome everywhere else. Neither loads a
+ * browser package before its first launch.
+ */
+export function createBrowserLauncher(env: NodeJS.ProcessEnv = process.env): BrowserLauncher {
+  return env.VERCEL === '1' ? new ServerlessBrowserLauncher() : new LocalBrowserLauncher();
 }
 
 /**

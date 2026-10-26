@@ -23,6 +23,8 @@ export interface ErrorDefinition {
 const retryLater =
   'Wait for the service to recover; the job retries by itself, or run backup_retry.';
 const checkLogs = 'Check the logs and events for this job, then run backup_retry.';
+/** `auth:notion` resumes a job that waits for the Notion login (Step 21). */
+const notionLoginFix = 'Run auth:notion; it resumes the job (or run backup_retry).';
 
 /** Every error code the job can record. Messages never contain runtime data. */
 export const errorCatalog = {
@@ -58,7 +60,8 @@ export const errorCatalog = {
   },
   DRIVE_ROOT_INACCESSIBLE: {
     description: 'The Drive backup folder or its year folder is not visible or not writable.',
-    howToFix: 'Run drive:check and restore the folder access, then run backup_retry.',
+    howToFix:
+      'Run drive:check and restore the folder access; the next daily cron resumes the job (or run backup_retry).',
     retry: 'none',
     supervised: false,
   },
@@ -97,7 +100,7 @@ export const errorCatalog = {
   GOOGLE_AUTH_REQUIRED: {
     description: 'Google rejected the refresh token, or a required scope is missing.',
     howToFix:
-      'Run auth:google, update GOOGLE_REFRESH_TOKEN in Vercel, redeploy, then run backup_retry.',
+      'Run auth:google, update GOOGLE_REFRESH_TOKEN in Vercel and redeploy; the next daily cron resumes the job (or run backup_retry).',
     retry: 'none',
     supervised: false,
   },
@@ -115,13 +118,13 @@ export const errorCatalog = {
   },
   NOTION_INTERACTIVE_CHALLENGE: {
     description: 'Notion showed a CAPTCHA or a verification page.',
-    howToFix: 'Run auth:notion, then run backup_retry.',
+    howToFix: notionLoginFix,
     retry: 'none',
     supervised: false,
   },
   NOTION_SESSION_EXPIRED: {
     description: 'The saved Notion session is no longer signed in.',
-    howToFix: 'Run auth:notion, then run backup_retry.',
+    howToFix: notionLoginFix,
     retry: 'none',
     supervised: false,
   },
@@ -140,7 +143,7 @@ export const errorCatalog = {
   NOTION_WRONG_WORKSPACE: {
     description: 'The signed-in Notion account does not show the configured workspace.',
     howToFix:
-      'Check NOTION_WORKSPACE_URL and NOTION_WORKSPACE_NAME, run auth:notion, then run backup_retry.',
+      'Check NOTION_WORKSPACE_URL and NOTION_WORKSPACE_NAME, then run auth:notion; it resumes the job (or run backup_retry).',
     retry: 'none',
     supervised: false,
   },

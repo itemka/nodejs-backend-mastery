@@ -75,6 +75,7 @@ export function describeShrink(
 }
 
 export const serviceNames: Readonly<Record<LoginService, string>> = {
+  drive: 'Google Drive folder',
   google: 'Google',
   notion: 'Notion',
 };

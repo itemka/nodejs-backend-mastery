@@ -1,18 +1,22 @@
-import type { Locator, Page } from 'playwright-core';
+import type { BrowserContext, Locator, Page } from 'playwright-core';
 
 import { IntegrationError } from '../../application/integration-error.js';
 import type {
   ExportRequest,
   ExportTriggerOutcome,
   NotionExportTrigger,
+  NotionProbeResult,
   SessionProbe,
 } from '../../application/ports.js';
 import type { NotionExportFormat } from '../../config/env.js';
 import { abortable } from '../../shared/abortable.js';
+import type { Clock } from '../../shared/clock.js';
+import { systemClock } from '../../shared/clock.js';
 import type { Logger } from '../../shared/logger.js';
 import type { BrowserLauncher } from './browser-launcher.js';
 import { closeBrowser, newSessionContext } from './browser-launcher.js';
 import type { NotionSession, NotionSessionStore } from './notion-session.js';
+import { captureSession, sessionCookiesChanged } from './notion-session.js';
 import type { ExportDialog } from './notion-settings-page.js';
 import { NotionSettingsPage, waitForExportProgress } from './notion-settings-page.js';
 import { passSessionGate } from './session-gate.js';
@@ -24,13 +28,16 @@ export const DEFAULT_STEP_TIMEOUT_MS = 30_000;
 const UI_ATTEMPTS = 2;
 
 export interface PlaywrightNotionExportTriggerOptions {
+  /** Dates the cookies' expiry check when the session is saved again. */
+  readonly clock?: Clock;
   readonly exportFormat: NotionExportFormat;
   /** False opens a visible window (`dev:trigger --headed`). */
   readonly headless?: boolean;
   readonly launcher: BrowserLauncher;
   /** Step names, durations and outcomes only: never a URL, cookie or page content. */
   readonly logger: Logger;
-  readonly sessions: Pick<NotionSessionStore, 'load'>;
+  /** `save` keeps the session rolling: after a passed gate, changed cookies are saved again. */
+  readonly sessions: Pick<NotionSessionStore, 'load' | 'save'>;
   readonly stepTimeoutMs?: number;
   readonly workspace: { readonly name: string; readonly url: string };
 }
@@ -56,18 +63,22 @@ interface ReadyDialog {
  * `NotionExportTrigger` with Playwright. Every call decrypts the saved session into a new
  * browser context, replays the identity it was captured with, and closes the browser at the
  * end, whatever the outcome. Opening the dialog is safe to repeat; the final click happens only
- * in `requestExport`, right after `onBeforeFinalClick`, and once at most.
+ * in `requestExport`, right after `onBeforeFinalClick`, and once at most. A call that passed the
+ * session gate saves the session again when Notion changed its cookies, so the sign-in rolls
+ * forward instead of ageing out.
  */
 export class PlaywrightNotionExportTrigger implements NotionExportTrigger {
+  private readonly clock: Clock;
   private readonly exportFormat: NotionExportFormat;
   private readonly headless: boolean;
   private readonly launcher: BrowserLauncher;
   private readonly logger: Logger;
-  private readonly sessions: Pick<NotionSessionStore, 'load'>;
+  private readonly sessions: Pick<NotionSessionStore, 'load' | 'save'>;
   private readonly stepTimeoutMs: number;
   private readonly workspace: { readonly name: string; readonly url: string };
 
   constructor({
+    clock = systemClock,
     exportFormat,
     headless = true,
     launcher,
@@ -76,6 +87,7 @@ export class PlaywrightNotionExportTrigger implements NotionExportTrigger {
     stepTimeoutMs = DEFAULT_STEP_TIMEOUT_MS,
     workspace,
   }: PlaywrightNotionExportTriggerOptions) {
+    this.clock = clock;
     this.exportFormat = exportFormat;
     this.headless = headless;
     this.launcher = launcher;
@@ -83,6 +95,44 @@ export class PlaywrightNotionExportTrigger implements NotionExportTrigger {
     this.sessions = sessions;
     this.stepTimeoutMs = stepTimeoutMs;
     this.workspace = workspace;
+  }
+
+  /**
+   * The daily cron's Notion probe: the gate, then Settings up to the export dialog, which is
+   * cancelled, and the saved download credential after refresh. A successful app-session
+   * check alone must not resume a transfer whose file cookie is still missing or expired.
+   */
+  async probeExportDialog(signal?: AbortSignal): Promise<NotionProbeResult> {
+    const exportDialog = await this.withPage(signal, async (page) => {
+      const ready = await this.openDialog(page, signal);
+
+      if (ready !== 'in_progress') {
+        await ready.dialog.cancel();
+      }
+
+      return ready === 'in_progress' ? 'in_progress' : 'ready';
+    });
+
+    signal?.throwIfAborted();
+
+    // Reload after withPage's best-effort refresh: the transfer uses the persisted cookies,
+    // so a renewed browser cookie whose save failed is not enough to report recovery.
+    const session = await abortable(this.sessions.load(), signal);
+    const captured = captureSession(session.storageState, session.fingerprint, this.clock.now());
+
+    if (!captured.fileHostCookie) {
+      throw new IntegrationError(
+        'NOTION_SESSION_EXPIRED',
+        'The saved Notion session has no unexpired file_token cookie for file.notion.com',
+      );
+    }
+
+    return {
+      exportDialog,
+      ...(captured.authCookieExpiresAt === undefined
+        ? {}
+        : { authCookieExpiresAt: captured.authCookieExpiresAt }),
+    };
   }
 
   async probeSession(signal?: AbortSignal): Promise<SessionProbe> {
@@ -271,7 +321,11 @@ export class PlaywrightNotionExportTrigger implements NotionExportTrigger {
 
       page.setDefaultTimeout(this.stepTimeoutMs);
 
-      return await run(page, session);
+      const result = await run(page, session);
+
+      await this.refreshSession(context, session);
+
+      return result;
     } catch (error) {
       signal?.throwIfAborted();
 
@@ -281,4 +335,42 @@ export class PlaywrightNotionExportTrigger implements NotionExportTrigger {
       await closeBrowser(browser);
     }
   }
+
+  /**
+   * The rolling refresh: after `run` passed the gate, the browser's Notion cookies are saved
+   * again if they changed, with the identity the session was saved with. A capture without the
+   * sign-in or the file host's cookie keeps the saved one. Best effort: it never throws, since
+   * it may follow the final Export click.
+   */
+  private async refreshSession(context: BrowserContext, session: NotionSession): Promise<void> {
+    try {
+      const captured = captureSession(
+        await context.storageState(),
+        session.fingerprint,
+        this.clock.now(),
+      );
+
+      if (
+        !captured.fileHostCookie ||
+        !sessionCookiesChanged(session.storageState, captured.storageState)
+      ) {
+        return;
+      }
+
+      await this.sessions.save(captured);
+      this.logger.info('notion.session.refreshed', {
+        ...(captured.authCookieExpiresAt === undefined
+          ? {}
+          : { authCookieExpiresAt: captured.authCookieExpiresAt }),
+      });
+    } catch (error) {
+      this.logger.warn('notion.session.refresh_failed', {
+        reason: error instanceof IntegrationError ? error.code : errorName(error),
+      });
+    }
+  }
+}
+
+function errorName(error: unknown): string {
+  return error instanceof Error ? error.name : 'unknown';
 }

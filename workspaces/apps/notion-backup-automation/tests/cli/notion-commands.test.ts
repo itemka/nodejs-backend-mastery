@@ -6,12 +6,14 @@ import { captureSession, NotionSessionStore } from '../../src/adapters/notion/no
 import { keyPrefixFor } from '../../src/adapters/persistence/keys.js';
 import { RedisSecretStore } from '../../src/adapters/persistence/redis-secret-store.js';
 import { main } from '../../src/cli/main.js';
+import type { ErrorCode } from '../../src/domain/error-catalog.js';
 import { createEnvelopeKey } from '../../src/shared/envelope-crypto.js';
 import type { TestCli } from '../support/cli-context.js';
 import { testCli } from '../support/cli-context.js';
 import { fakeCredentials, FakeGoogle } from '../support/fake-google.js';
 import { FAKE_FINGERPRINT, fakeNotionBrowser } from '../support/fake-notion-browser.js';
 import { loadEmailFixture, toGmailMessage, withHeader } from '../support/gmail-fixtures.js';
+import { attentionJob, createdJob } from '../support/jobs.js';
 import { ManualClock } from '../support/manual-clock.js';
 import {
   accessDenied,
@@ -22,6 +24,7 @@ import {
   redirectTo,
   serveBytes,
 } from '../support/notion-hosts.js';
+import { FakeQStashApi, TEST_BASE_URL } from '../support/qstash.js';
 import { zipFixture } from '../support/zip-fixtures.js';
 
 /** The day after the fixture email arrived (2026-10-01T20:56:22Z). */
@@ -126,6 +129,36 @@ async function downloadDirectories(cli: TestCli): Promise<string[]> {
   return names.filter((name) => name.startsWith('nba-dev-download-'));
 }
 
+/** A browser in which you sign in to the configured workspace, with the file host cookie. */
+function signInBrowser() {
+  return fakeNotionBrowser({
+    storageState: {
+      cookies: [SIGNED_IN, cookie('file_token', '.notion.com', 'f'.repeat(40))],
+      origins: [],
+    },
+    switcherName: 'Test User’s Notion',
+  });
+}
+
+/** The CLI after a sign-in, with this month’s job waiting for you with `code`. */
+async function withWaitingJob(
+  env: Record<string, string>,
+  code: ErrorCode,
+  qstash?: FakeQStashApi,
+) {
+  const cli = await testCli({
+    browserLauncher: signInBrowser(),
+    clock: new ManualClock(NOW),
+    env,
+    ...(qstash === undefined ? {} : { qstash }),
+  });
+
+  await cli.jobs.create(createdJob());
+  await cli.jobs.update('2026-10', 1, attentionJob(code));
+
+  return cli;
+}
+
 describe('auth:notion', () => {
   it('names the missing variables', async () => {
     const cli = await testCli({ env: { APP_ENV: 'dev' } });
@@ -187,6 +220,67 @@ describe('auth:notion', () => {
     expect(cli.text()).toContain('Nothing was saved.');
     expect(cli.redis.strings).toEqual(saved);
     expect(browser.launches).toEqual([{ headless: false }]);
+  });
+
+  describe('then resumes a job that waits for the Notion login', () => {
+    it('in dev, without publishing: dev:tick runs it', async () => {
+      const qstash = new FakeQStashApi();
+      const cli = await withWaitingJob(notionEnv, 'NOTION_SESSION_EXPIRED', qstash);
+
+      await expect(main(['auth:notion'], cli.context)).resolves.toBe(0);
+      expect(cli.text()).toContain('✓ Job 2026-10 resumes from TRIGGERING_EXPORT');
+      expect(cli.text()).toContain(
+        'Next: APP_ENV=dev pnpm --filter notion-backup-automation cli dev:tick 2026-10',
+      );
+      expect(qstash.published).toEqual([]);
+      await expect(cli.jobs.get('2026-10')).resolves.toMatchObject({
+        job: { status: 'TRIGGERING_EXPORT' },
+      });
+    });
+
+    it('in prod, through QStash to the deployed worker', async () => {
+      const qstash = new FakeQStashApi();
+      const cli = await withWaitingJob(
+        {
+          ...notionEnv,
+          APP_BASE_URL: TEST_BASE_URL,
+          APP_ENV: 'prod',
+          QSTASH_TOKEN: 'fake-qstash-token',
+        },
+        'NOTION_WRONG_WORKSPACE',
+        qstash,
+      );
+
+      await expect(main(['auth:notion'], cli.context)).resolves.toBe(0);
+      expect(cli.text()).toContain('✓ Job 2026-10 resumes from TRIGGERING_EXPORT');
+      expect(qstash.published).toEqual([
+        expect.objectContaining({
+          body: expect.objectContaining({ jobId: '2026-10', reason: 'retry' }),
+          url: `${TEST_BASE_URL}/api/jobs/process/2026-10`,
+        }),
+      ]);
+    });
+
+    it('in prod without QStash access, names backup_retry and changes nothing', async () => {
+      const cli = await withWaitingJob({ ...notionEnv, APP_ENV: 'prod' }, 'NOTION_SESSION_EXPIRED');
+      const before = await cli.jobs.get('2026-10');
+
+      await expect(main(['auth:notion'], cli.context)).resolves.toBe(0);
+      expect(cli.text()).toContain(
+        'Job 2026-10 waits for the Notion login. QSTASH_TOKEN or APP_BASE_URL is not set here, so resume it with backup_retry.',
+      );
+      await expect(cli.jobs.get('2026-10')).resolves.toEqual(before);
+    });
+
+    it('leaves a job that waits for something else alone', async () => {
+      const qstash = new FakeQStashApi();
+      const cli = await withWaitingJob(notionEnv, 'GOOGLE_AUTH_REQUIRED', qstash);
+      const before = await cli.jobs.get('2026-10');
+
+      await expect(main(['auth:notion'], cli.context)).resolves.toBe(0);
+      expect(cli.text()).not.toContain('resume');
+      await expect(cli.jobs.get('2026-10')).resolves.toEqual(before);
+    });
   });
 });
 

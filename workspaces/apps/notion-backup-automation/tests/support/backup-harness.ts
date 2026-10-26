@@ -606,11 +606,13 @@ export function backupHarness(options: HarnessOptions = {}) {
     loginWarning: deliver('loginWarning'),
     success: deliver('success'),
   };
+  const gate = new InMemoryNotificationGate(clock);
+  const health = new RedisHealthStore(new FakeRedis(), keyPrefixFor('test'));
   const notifications = new JobNotifications({
     clock,
     devFolder: false,
-    gate: new InMemoryNotificationGate(clock),
-    health: new RedisHealthStore(new FakeRedis(), keyPrefixFor('test')),
+    gate,
+    health,
     jobs,
     logger,
     notifier,
@@ -647,10 +649,14 @@ export function backupHarness(options: HarnessOptions = {}) {
     drain: () => qstash.drain(processJob),
     drive,
     emails,
+    gate,
+    health,
     ids,
     jobs,
+    logger,
     logs,
     memory,
+    notifications,
     policy,
     processJob,
     qstash,

@@ -6,9 +6,10 @@ the ZIP in Google Drive. It runs as Vercel Functions.
 **Status:** Google OAuth, the Drive access check and the Gmail export-email finder (Phase 2),
 the Drive backup storage with its resumable uploader (Phase 3), the ZIP transfer from the
 export link to Drive (Phase 4), the Notion session bootstrap and export trigger with
-Playwright (Phase 5), and the backup job itself, run one idempotent tick at a time, with
-console and Telegram notifications (Phase 6), with a local CLI. The only function is still
-`GET /api/health`; the QStash worker and the daily cron come next.
+Playwright (Phase 5), the backup job itself, run one idempotent tick at a time, with console
+and Telegram notifications (Phase 6), and the QStash worker and the daily cron (Phase 7), with
+a local CLI. The functions are `GET /api/health`, `POST /api/jobs/process/[jobId]` and
+`GET /api/cron/daily`; the MCP server and the Telegram buttons come next.
 
 ## Layout
 
@@ -26,11 +27,14 @@ console and Telegram notifications (Phase 6), with a local CLI. The only functio
 | `src/adapters/notion/`        | Playwright: the browser launcher, the saved session, the session gate, the Settings page object, and the export trigger.          |
 | `src/adapters/notifications/` | The console and Telegram notifiers, and `CompositeNotifier`, which fans out and never throws.                                     |
 | `src/adapters/telegram/`      | The Bot API client over `fetch`, and the message formats (HTML-escaped, allowlisted fields, inline buttons).                      |
-| `src/config/containers.ts`    | The composition root: the notifiers `NOTIFIERS` lists, and the backup services for one `APP_ENV`.                                 |
-| `src/cli/`                    | The local CLI: `auth:*`, `drive:*`, `doctor`, `telegram:setup`, and the `dev:*` helpers, `dev:tick` among them.                   |
+| `src/adapters/qstash/`        | The QStash scheduler (EU, deduplicated, flow-controlled wakeups) and the signature verifier (`Receiver`, `devMode: false`).       |
+| `src/adapters/heartbeat/`     | The healthchecks.io ping after each cron run, or a no-op without `HEARTBEAT_PING_URL`.                                            |
+| `src/http/`                   | The functions' HTTP layer: QStash and cron authentication, the worker and cron handlers, content-free responses.                  |
+| `src/config/containers.ts`    | The composition root: the notifiers, the backup services for one `APP_ENV`, and the worker's and the cron's wiring.               |
+| `src/cli/`                    | The local CLI: `auth:*`, `drive:*`, `doctor`, `smoke:qstash`, `telegram:setup`, and the `dev:*` helpers, `dev:tick` among them.   |
 | `src/shared/`                 | The redacting JSON-line logger, envelope crypto (AES-256-GCM), the `.env.local` writer, masking, `SecretValue`, clock, IDs.       |
 | `tests/`                      | Vitest. `tests/contract/` holds the repository contract; `tests/live/` and `tests/browser/` the opt-in suites; `tests/fixtures/`. |
-| `vercel.json`                 | Region and per-function limits.                                                                                                   |
+| `vercel.json`                 | Region, per-function limits, the Chromium files the worker and the cron need, and the daily cron.                                 |
 | `.env.example`                | Template for the untracked `.env.local`.                                                                                          |
 
 ## Commands
@@ -83,6 +87,7 @@ APP_ENV=dev pnpm --filter notion-backup-automation cli dev:download [--email-sin
 APP_ENV=dev pnpm --filter notion-backup-automation cli dev:tick --start [--force]
 APP_ENV=dev pnpm --filter notion-backup-automation cli dev:tick <jobId> [--retry | --cancel]
 pnpm --filter notion-backup-automation cli telegram:setup --find-chat | --test | --info
+APP_ENV=prod pnpm --filter notion-backup-automation cli smoke:qstash
 ```
 
 | Command                      | What it does                                                                                                                                                                                                                                                                                                                                                                      |
@@ -93,11 +98,12 @@ pnpm --filter notion-backup-automation cli telegram:setup --find-chat | --test |
 | `drive:init`                 | S6 fallback 2: creates the app-owned `Full Workspace` folder at the top of My Drive (once), and prints its ID and the manual steps.                                                                                                                                                                                                                                               |
 | `doctor`                     | Refreshes the Google token and lists its scopes, reads the masked mailbox, finds the newest trusted export email since `--email-since` (a day in `BACKUP_TIME_ZONE`; default: the last 30 days), checks the Drive root (C1), pings Redis, and opens the Notion session secret of `APP_ENV`. Exits 1 if a check fails; an expired Testing token names the fix.                     |
 | `dev:upload`                 | Only with `APP_ENV=dev`. Uploads a local file as today's backup into `_dev/<YYYY>/` in the Drive root, through the same storage code the worker uses, and prints the Drive file ID, size, SHA-256 and the sidecar outcome. A second run with the same file uploads nothing. Exits 1 if the sidecar failed.                                                                        |
-| `auth:notion`                | Opens Chrome on Notion's login page; you sign in yourself, MFA included. Saves the session, encrypted, to Redis for `APP_ENV` and checks it again in a headless browser (see [Notion Session And Export](#notion-session-and-export)). Exits 1 if no cookie matches `file.notion.com`, since the export download needs one.                                                       |
+| `auth:notion`                | Opens Chrome on Notion's login page; you sign in yourself, MFA included. Saves the session, encrypted, to Redis for `APP_ENV` and checks it again in a headless browser (see [Notion Session And Export](#notion-session-and-export)). Exits 1 if no cookie matches `file.notion.com`, since the export download needs one. Then resumes a job that waits for the Notion login.   |
 | `dev:trigger`                | Only with `APP_ENV=dev`. Requests one real workspace export in Notion's Settings with the saved session, so Notion sends its export email. `--dry-run` goes up to the dialog's Export button, sets the dialog values, and cancels. `--headed` shows the window. Exits 1 when the click was sent but no confirmation appeared.                                                     |
 | `dev:download`               | Only with `APP_ENV=dev`. Finds the newest trusted export email since `--email-since` (default: the last 7 days), downloads its ZIP with the saved session's cookies into a temporary directory, checks the signature and the archive, prints the size, SHA-256 and file count, and deletes the copy. Nothing is uploaded.                                                         |
 | `dev:tick`                   | Only with `APP_ENV=dev`. The whole backup, one tick per call, with the worker's code (see [Backup Jobs](#backup-jobs)). `--start` creates this month's job (`--force`: `<period>-r<N>`); `<jobId>` runs its next step and prints the job and when the next step is due; `--retry` and `--cancel` stand in for `backup_retry` and `backup_cancel`. Exits 1 when the job needs you. |
 | `telegram:setup`             | `--find-chat`: after you send `/start` to the bot, reads its pending messages (without confirming them) and saves the one private chat as `TELEGRAM_CHAT_ID`. `--test`: sends a test message with a Status button. `--info`: shows who receives the bot's updates (the webhook's host and path, never a query); read-only. Setting the webhook comes later.                       |
+| `smoke:qstash`               | Publishes a signed `_ping` through QStash (EU) to the worker at `APP_BASE_URL` and waits up to 2 minutes for the worker to record its nonce in Redis for `APP_ENV`. Only a delivery whose signature the deployed worker verified can write it. Needs `QSTASH_TOKEN` and `APP_BASE_URL`.                                                                                           |
 
 While the Google OAuth app is in **Testing**, refresh tokens expire after 7 days. When `doctor`
 reports `GOOGLE_AUTH_REQUIRED`, run `auth:google` again.
@@ -245,8 +251,8 @@ window, use "Continue with email". Then:
 its login page is `NOTION_SESSION_EXPIRED`; a CAPTCHA or verification page (Cloudflare,
 hCaptcha, reCAPTCHA) is `NOTION_INTERACTIVE_CHALLENGE`; another workspace is
 `NOTION_WRONG_WORKSPACE`; a failed load, a 5xx or an app that never renders is
-`NOTION_UNAVAILABLE`. Each needs `auth:notion` and then `backup_retry`, except the last, which
-is retried.
+`NOTION_UNAVAILABLE`. Each of the first three needs `auth:notion`, which then resumes the
+waiting job; the last is retried.
 
 **The export trigger** (`NotionExportTrigger`) replays the session in a new context with
 downloads refused, so the browser never writes the ZIP. It walks Workspace switcher → Settings
@@ -261,8 +267,24 @@ folders for subpages **on**. A value that cannot be set, or any missing element,
 - `already_in_progress`: Notion showed an export already running, so nothing was clicked;
 - `in_doubt`: the click was sent but no confirmation appeared. Nothing throws after the click.
 
-Each step waits up to 30 s (S2). An abort closes the browser at once. The serverless launcher
-(`@sparticuz/chromium`) and writing back cookies Notion renews follow with the worker.
+Each step waits up to 30 s (S2). An abort closes the browser at once.
+
+**On Vercel** (`VERCEL=1`) the browser is `@sparticuz/chromium`'s headless shell, launched as
+S2 proved it: headless, no graphics, `--single-process` kept, and without the three flags that
+turn off web security. It starts through a `/bin/sh` wrapper that runs `ulimit -c 0`, and
+`core.*` files in `/tmp` are deleted before each launch and when the browser closes: a
+single-process Chromium sometimes dumps its memory, session included, on close.
+
+**The rolling refresh:** a call that passed the gate saves the session again when Notion
+changed its cookies (a value, an expiry, or the set), with the identity it was saved with. A
+capture without `token_v2` or the file host's cookie keeps the saved session. It is best
+effort and never throws, since it may follow the final click.
+
+**After `auth:notion`**, a job that waits on `NOTION_SESSION_EXPIRED`,
+`NOTION_INTERACTIVE_CHALLENGE` or `NOTION_WRONG_WORKSPACE` is retried as `backup_retry` would.
+A dev job publishes nothing (run `dev:tick`); any other is woken through QStash, which needs
+`QSTASH_TOKEN` and `APP_BASE_URL` in `.env.local`. Without them, the command names
+`backup_retry` instead.
 
 Flow diagrams of the gate, the trigger and `auth:notion`:
 [docs/notion-export-flow.md](docs/notion-export-flow.md).
@@ -270,8 +292,8 @@ Flow diagrams of the gate, the trigger and `auth:notion`:
 ## Backup Jobs
 
 A backup is a job (`job:<period>`, or `<period>-r<N>` when forced) that moves through the state
-machine in `src/domain/` one **tick** at a time. Each tick is one QStash delivery (later) or one
-`dev:tick` (now), and runs exactly one step:
+machine in `src/domain/` one **tick** at a time. Each tick is one QStash delivery to the worker,
+or one `dev:tick` locally, and runs exactly one step:
 
 1. Load the job; an unknown job is `not_found`, an ended one `terminal`.
 2. A job that waits for you needs no lease. Otherwise take the job's lease: 60 s for a light
@@ -325,8 +347,73 @@ it prints when the next one is due (5, 15, then every 30 minutes while it waits 
 A verified ZIP of this month already in `_dev/<YYYY>/` (from `dev:upload`) is adopted at once;
 delete it in Drive first, or use `--start --force`, to see a real export.
 
-Flow diagrams of the tick, the schedule token and the notifications:
+Flow diagrams of the tick, the schedule token, the notifications and the daily cron:
 [docs/backup-lifecycle.md](docs/backup-lifecycle.md).
+
+## Worker And Daily Cron
+
+**The worker**, `POST /api/jobs/process/[jobId]`, takes one signed QStash delivery. The
+scheduler publishes each wakeup to `<APP_BASE_URL>/api/jobs/process/<jobId>` on the EU endpoint,
+with the body `{ jobId, token, reason }`, the deduplication ID `<jobId>.<token>`, 3 retries,
+and flow control `nba-<APP_ENV>` with parallelism 1. The worker checks the `Upstash-Signature`
+against the raw body and `APP_BASE_URL` plus the request's path (never the Host header; a
+query fails), with the current and the next signing key, `exp` and `nbf` enforced. Only then
+does it parse the body, which must name the path's job. Its answers tell QStash what to do
+(S3), and carry codes only, since QStash keeps a failed delivery's body in its DLQ:
+
+| Case                                                                 | Response                                      |
+| -------------------------------------------------------------------- | --------------------------------------------- |
+| Step done, waiting, a recorded failure, a stale token, an ended job  | `200`                                         |
+| No genuine signature for this URL and body                           | `401 INVALID_SIGNATURE`                       |
+| A body the app never sends, or one naming another job                | `489 INVALID_MESSAGE`, non-retryable          |
+| An unknown job, or a stored record that fails its schema             | `489 JOB_NOT_FOUND` / `STATE_SCHEMA_INVALID`  |
+| Another worker holds the lease                                       | `503 LEASE_HELD` + `Retry-After`              |
+| The signing keys, `APP_BASE_URL`, Redis or the backup config missing | `503 CONFIG_INCOMPLETE`                       |
+| Redis failed, or the next wakeup could not be published              | `500 WORKER_FAILED`; QStash retries the token |
+
+The reserved job ID `_ping` only records the delivery's nonce in `health` (`qstashPing`): the
+deployed smoke test, `smoke:qstash`. It needs the signing keys, `APP_BASE_URL` and Redis, not
+the backup configuration.
+
+**The daily cron**, `GET /api/cron/daily` at 04:00 UTC, needs `Authorization: Bearer
+$CRON_SECRET`, which Vercel Cron sends by itself; anything else gets 401. In order:
+
+1. Records the run in `health` (`cron`), which also keeps the Redis database active.
+2. Auto-starts this month's job (`kind: scheduled`) when `AUTO_START_ENABLED=true`, the local
+   day is `BACKUP_DAY_OF_MONTH` or later, and no job is active. The period's job, once it exists,
+   is never started again.
+3. The watchdog: an active job whose next wakeup is more than an hour late (or missing while
+   something is due) gets a new one, and a job past its 168 h lifetime is woken so its tick
+   ends it as `FAILED` with the ❌. Both go through `backup_process`'s path, under the 15 s
+   control lease. A job that waits for you is never polled.
+4. Probes Google (a token refresh with both scopes, then Gmail's profile) and Drive (the root,
+   this period's year folder, and a probe file created and deleted under `_dev/<YYYY>`) daily,
+   and Notion (the gate, then Settings up to the export dialog, cancelled) on Mondays, two
+   calendar days before `BACKUP_DAY_OF_MONTH`, and while a job waits for the Notion login.
+   After any cookie refresh, the Notion probe reloads the saved session and requires an
+   unexpired `file_token` for the download host. An unusable persisted cookie keeps the login
+   failure, including when the browser renewed it but the save failed.
+   Each result, pass or code, goes into `health`. A Drive probe file that cannot be deleted is
+   logged by ID; the probe then reports the delete's own code (`GOOGLE_AUTH_REQUIRED`,
+   `DRIVE_UNAVAILABLE`), and `DRIVE_ROOT_INACCESSIBLE` only when Drive refused it.
+5. A probe that finds a login gone that it did not already find gone sends one 🔑 "access is
+   gone" (Google, Notion, or the Drive folder). A probe that passes resumes a job that waits
+   for that login, as `backup_retry` would: the Google fix needs no `backup_retry` either.
+   The retry is for the incident read before the probe, checked again under the job's lease,
+   so a newer incident that replaced it in the meantime is left for you.
+6. Warns 30, 7 and 1 days (`LOGIN_WARNING_DAYS`) before the Notion sign-in's recorded expiry,
+   once each (`notify:warning:notion:<expiresAt>:<days>`). After missed days, only the nearest
+   threshold is sent. A rolling refresh that moves the expiry starts over.
+7. Pings `HEARTBEAT_PING_URL`, or `<url>/fail` when a sub-step threw (5 s timeout; its own
+   failure is only logged). With the check's period and grace at 1 day, healthchecks.io alerts
+   through its own channel after 2 days of silence.
+
+A sub-step that throws is logged and skipped; the run answers 500 with the report naming it.
+With nothing active and auto-start off, the cron publishes nothing to QStash.
+
+`?probe=notion|google|drive` runs only that probe, records it, and returns its content-free
+result, such as `{"ok":true,"probe":"notion","notionSession":"valid","exportDialog":"ready"}`
+or `{"ok":false,"probe":"google","code":"GOOGLE_AUTH_REQUIRED"}`.
 
 ## Notifications And Telegram
 
@@ -373,17 +460,17 @@ Every key starts with `{nba:<APP_ENV>}:`, so `prod`, `dev` and `test` share the
 `notion-backup-state` database without overlap. The braces are a hash tag that keeps one
 environment's keys in one slot for the Lua scripts.
 
-| Key                           | Content                                                               |
-| ----------------------------- | --------------------------------------------------------------------- |
-| `job:<jobId>`                 | Hash `{ v, data }`: the compare-and-set version and the job JSON      |
-| `jobs`                        | Sorted set of job IDs by `createdAt`                                  |
-| `active`                      | The one active job ID; cleared when the job reaches a terminal status |
-| `lease:<jobId>`               | The worker holding the job (`SET NX PX`)                              |
-| `events:<jobId>`              | The newest 200 sanitized events                                       |
-| `email:<messageId>`           | The job that consumed this export email                               |
-| `secret:notion-storage-state` | The AES-256-GCM envelope of the Notion session                        |
-| `health`                      | The last result of each health probe, and the last login warning      |
-| `notify:<key>`                | A notification that must not repeat yet (`SET NX EX`, 24 h)           |
+| Key                           | Content                                                                                                                                   |
+| ----------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| `job:<jobId>`                 | Hash `{ v, data }`: the compare-and-set version and the job JSON                                                                          |
+| `jobs`                        | Sorted set of job IDs by `createdAt`                                                                                                      |
+| `active`                      | The one active job ID; cleared when the job reaches a terminal status                                                                     |
+| `lease:<jobId>`               | The worker holding the job (`SET NX PX`)                                                                                                  |
+| `events:<jobId>`              | The newest 200 sanitized events                                                                                                           |
+| `email:<messageId>`           | The job that consumed this export email                                                                                                   |
+| `secret:notion-storage-state` | The AES-256-GCM envelope of the Notion session                                                                                            |
+| `health`                      | The last result of each probe, the last cron run, the `_ping` nonce, and the last login warning                                           |
+| `notify:<key>`                | A notification that must not repeat yet (`SET NX EX`): 24 h, or until a day after a Notion expiry for `warning:notion:<expiresAt>:<days>` |
 
 A normal job's ID is its period (`2026-10`), so `job:<period>` is also the
 one-normal-job-per-period guard. A forced job is `<period>-r<N>`.
@@ -398,18 +485,70 @@ nothing else.
 
 The project imports this repository from GitHub:
 
-| Setting                                                              | Value                                        |
-| -------------------------------------------------------------------- | -------------------------------------------- |
-| Framework Preset                                                     | Other                                        |
-| Root Directory                                                       | `workspaces/apps/notion-backup-automation`   |
-| Include source files outside of the Root Directory in the Build Step | On                                           |
-| Build, install and output settings                                   | Defaults                                     |
-| Node.js version                                                      | 24.x (pinned by `engines` in `package.json`) |
-| Function region                                                      | `fra1` (from `vercel.json`)                  |
-| Environment variables                                                | None yet                                     |
+| Setting                                                              | Value                                           |
+| -------------------------------------------------------------------- | ----------------------------------------------- |
+| Framework Preset                                                     | Other                                           |
+| Root Directory                                                       | `workspaces/apps/notion-backup-automation`      |
+| Include source files outside of the Root Directory in the Build Step | On                                              |
+| Build, install and output settings                                   | Defaults                                        |
+| Node.js version                                                      | 24.x (pinned by `engines` in `package.json`)    |
+| Function region                                                      | `fra1` (from `vercel.json`)                     |
+| Environment variables                                                | Production only (see [Deployment](#deployment)) |
 
 Vercel compiles each `api/*.ts` file and resolves imports with plain Node.js rules; it does
 not bundle. So the functions must not import the repo's `@workspaces/packages/*` packages:
 Node.js cannot resolve a package name with three segments (`ERR_UNSUPPORTED_DIR_IMPORT`), and
 the sibling apps only use them through esbuild bundles or `tsx`. Import npm packages, or code
 inside this app, instead.
+
+`vercel.json` gives the worker and the cron 300 s, and includes
+`node_modules/@sparticuz/chromium/bin/**` in both, since the package finds its archives at
+runtime (S2). The cron entry runs `/api/cron/daily` daily at 04:00 UTC.
+
+## Deployment
+
+Secrets exist only in the **Production** environment. Previews get none, so every function but
+`/api/health` fails closed with 503 `CONFIG_INCOMPLETE`. The first time (and after any change of
+a variable, which applies to new deployments only):
+
+1. **Variables.** Add to Vercel → Settings → Environment Variables, Production only, from
+   1Password; mark each secret Sensitive:
+   - secrets: `UPSTASH_REDIS_REST_URL`, `UPSTASH_REDIS_REST_TOKEN`, `APP_ENCRYPTION_KEY`,
+     `QSTASH_TOKEN`, `QSTASH_CURRENT_SIGNING_KEY`, `QSTASH_NEXT_SIGNING_KEY`, `GOOGLE_CLIENT_ID`,
+     `GOOGLE_CLIENT_SECRET`, `GOOGLE_REFRESH_TOKEN`, `GEMINI_API_KEY`, `CRON_SECRET`,
+     `TELEGRAM_BOT_TOKEN`, `HEARTBEAT_PING_URL`;
+   - plain: `APP_ENV=prod`, `QSTASH_URL=https://qstash-eu-central-1.upstash.io`,
+     `GOOGLE_DRIVE_BACKUP_ROOT_FOLDER_ID`, `NOTION_WORKSPACE_URL`, `NOTION_WORKSPACE_NAME`,
+     `TELEGRAM_CHAT_ID`, `NOTIFIERS=console,telegram`, `AUTO_START_ENABLED=false`.
+
+   `CRON_SECRET` is `openssl rand -base64 32`; `HEARTBEAT_PING_URL` is the ping URL of a
+   healthchecks.io check with period 1 day and grace 1 day. `GEMINI_API_KEY` is required while
+   `AGENT_MODEL_PROVIDER` is `gemini` (the default), though nothing calls Gemini yet.
+
+2. **Deploy:** merge to `main`. Take the production URL and set `APP_BASE_URL` to it (an
+   origin, no trailing slash), then **Redeploy**: QStash destinations and the worker's
+   signature check both use it.
+3. **Notion session for prod:** with `APP_ENV=prod` and the production Redis credentials in
+   `.env.local`, run `APP_ENV=prod pnpm --filter notion-backup-automation auth:notion`.
+4. **Smoke tests**, with `CRON_SECRET` from 1Password in your shell:
+
+   ```sh
+   curl -s https://<app>.vercel.app/api/health
+   curl -si -X POST https://<app>.vercel.app/api/jobs/process/_ping
+   curl -si https://<app>.vercel.app/api/cron/daily
+   APP_ENV=prod pnpm --filter notion-backup-automation cli smoke:qstash
+   curl -s -H "Authorization: Bearer $CRON_SECRET" "https://<app>.vercel.app/api/cron/daily?probe=notion"
+   curl -s -H "Authorization: Bearer $CRON_SECRET" "https://<app>.vercel.app/api/cron/daily?probe=google"
+   curl -s -H "Authorization: Bearer $CRON_SECRET" "https://<app>.vercel.app/api/cron/daily?probe=drive"
+   ```
+
+   Expect `{"ok":true,…}`, then 401 for the unsigned worker call and the cron without the
+   secret, "ping delivered and verified", `"notionSession":"valid"` with `"exportDialog":"ready"`,
+   both scopes for Google, and `"ok":true` for Drive. `NBA_LIVE_REDIS=1 … test:live` checks
+   Redis itself.
+
+5. **Heartbeat:** after the first scheduled cron run, the healthchecks.io check shows a ping
+   and is "up".
+
+Real backups start only through an explicit start (the MCP server, next), or through the cron
+once `AUTO_START_ENABLED=true`.

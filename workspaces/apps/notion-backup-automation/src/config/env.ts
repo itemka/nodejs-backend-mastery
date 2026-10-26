@@ -288,8 +288,46 @@ const workerShape = {
   ...notifyShape,
 };
 
+/**
+ * The worker's signature check and its `_ping`: the signing keys, the URL they sign, and Redis
+ * for the nonce. Checked before the full worker configuration, so a signed `_ping` proves the
+ * delivery path even while the backup configuration is incomplete.
+ */
+export const workerAuthEnvSchema = z.object({
+  ...coreShape,
+  ...redisShape,
+  ...qstashVerifyShape,
+  APP_BASE_URL: qstashPublishShape.APP_BASE_URL,
+});
+
 /** `/api/jobs/process/[jobId]`: one tick of one job. */
 export const workerEnvSchema = z.object(workerShape).superRefine(requireGeminiKey);
+
+/** `smoke:qstash`: publishes a signed `_ping` and reads its nonce back from Redis. */
+export const qstashSmokeEnvSchema = z.object({
+  ...coreShape,
+  ...redisShape,
+  ...qstashPublishShape,
+});
+
+/**
+ * `auth:notion`'s resume of a job that waits for the Notion login. Publishing is optional: in
+ * `prod` without `QSTASH_TOKEN` or `APP_BASE_URL`, the command prints the `backup_retry` hint.
+ */
+export const loginResumeEnvSchema = z.object({
+  ...coreShape,
+  ...redisShape,
+  ...policyShape,
+  APP_BASE_URL: qstashPublishShape.APP_BASE_URL.optional(),
+  QSTASH_TOKEN: secret.optional(),
+  QSTASH_URL: qstashPublishShape.QSTASH_URL,
+});
+
+/** The cron's own authentication, checked before anything else is configured or run. */
+export const cronAuthEnvSchema = z.object({ CRON_SECRET: secret });
+
+/** Days before the Notion sign-in expires on which one warning each is sent. */
+const warningDays = z.coerce.number().int().min(1).max(90);
 
 /** `/api/cron/daily`: the worker's needs plus the cron secret and the auto-start settings. */
 export const cronEnvSchema = z
@@ -298,14 +336,19 @@ export const cronEnvSchema = z
     AUTO_START_ENABLED: flag(false),
     BACKUP_DAY_OF_MONTH: integer(1, 28, 1),
     CRON_SECRET: secret,
+    /** healthchecks.io's ping URL; unset, the heartbeat is off. */
+    HEARTBEAT_PING_URL: httpsUrl.optional(),
+    LOGIN_WARNING_DAYS: commaList(warningDays, ['30', '7', '1']),
   })
   .superRefine(requireGeminiKey);
 
 export type BackupEnv = z.output<typeof backupEnvSchema>;
 export type PersistenceEnv = z.output<typeof persistenceEnvSchema>;
 export type McpEnv = z.output<typeof mcpEnvSchema>;
+export type WorkerAuthEnv = z.output<typeof workerAuthEnvSchema>;
 export type WorkerEnv = z.output<typeof workerEnvSchema>;
 export type CronEnv = z.output<typeof cronEnvSchema>;
+export type LoginResumeEnv = z.output<typeof loginResumeEnvSchema>;
 
 const byName = (a: string, b: string) => a.localeCompare(b);
 

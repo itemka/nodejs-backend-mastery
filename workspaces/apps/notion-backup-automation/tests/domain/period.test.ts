@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
   isAutoStartDue,
+  isNotionProbeDay,
   localDateFor,
   periodFor,
   startOfLocalDay,
@@ -95,5 +96,35 @@ describe('isAutoStartDue', () => {
 describe('yearOfPeriod', () => {
   it('returns the year', () => {
     expect(yearOfPeriod('2027-01')).toBe('2027');
+  });
+});
+
+describe('isNotionProbeDay', () => {
+  it('is Mondays in the backup time zone', () => {
+    // Sunday 23:30 UTC is already Monday in Warsaw.
+    expect(isNotionProbeDay(utc('2026-10-11T23:30:00Z'), warsaw, 20)).toBe(true);
+    expect(isNotionProbeDay(utc('2026-10-12T04:00:00Z'), warsaw, 20)).toBe(true);
+    expect(isNotionProbeDay(utc('2026-10-13T04:00:00Z'), warsaw, 20)).toBe(false);
+  });
+
+  it('is two days before the backup day, across a month end', () => {
+    expect(isNotionProbeDay(utc('2026-10-08T04:00:00Z'), warsaw, 10)).toBe(true);
+    expect(isNotionProbeDay(utc('2026-10-09T04:00:00Z'), warsaw, 10)).toBe(false);
+    // Friday 30 October: 1 November is two days later.
+    expect(isNotionProbeDay(utc('2026-10-30T04:00:00Z'), warsaw, 1)).toBe(true);
+    expect(isNotionProbeDay(utc('2026-10-29T04:00:00Z'), warsaw, 1)).toBe(false);
+  });
+
+  it('counts calendar days, not 48 hours, across a DST change', () => {
+    const newYork = 'America/New_York';
+
+    // Saturday 31 October, 00:00 EDT: 2 November is two days later, though 48 hours later it
+    // is still 1 November (23:00 EST).
+    expect(isNotionProbeDay(utc('2026-10-31T04:00:00Z'), newYork, 2)).toBe(true);
+    expect(isNotionProbeDay(utc('2026-11-01T04:00:00Z'), newYork, 2)).toBe(false);
+    // Friday 6 March, 23:00 EST: 8 March is two days later, though 48 hours later it is
+    // already 9 March (00:00 EDT).
+    expect(isNotionProbeDay(utc('2026-03-07T04:00:00Z'), newYork, 8)).toBe(true);
+    expect(isNotionProbeDay(utc('2026-03-07T04:00:00Z'), newYork, 9)).toBe(false);
   });
 });

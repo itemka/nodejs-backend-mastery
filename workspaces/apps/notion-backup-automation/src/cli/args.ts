@@ -22,6 +22,7 @@ export type ParsedCommand =
   | { readonly command: 'drive:check'; readonly year: string | undefined }
   | { readonly command: 'drive:init' }
   | { readonly command: 'help' }
+  | { readonly command: 'smoke:qstash' }
   | { readonly command: 'telegram:setup'; readonly mode: 'find-chat' | 'info' | 'test' };
 
 /** A wrong command line. The message is shown with the usage text. */
@@ -64,6 +65,10 @@ Commands:
       a new one, <period>-r<N>); <jobId> runs its next step and prints when the next one is due;
       --retry resumes a job that needs attention; --cancel ends it. Nothing is published to
       QStash: run dev:tick again for each step.
+  smoke:qstash
+      Publishes a signed _ping through QStash to the deployed worker at APP_BASE_URL and waits
+      up to 2 minutes for the worker to record it in Redis for APP_ENV (APP_ENV=prod: the
+      production deployment).
   telegram:setup --find-chat | --test | --info
       --find-chat: after you send /start to the bot, saves your private chat's ID as
       TELEGRAM_CHAT_ID in .env.local. --test sends a test message to TELEGRAM_CHAT_ID. --info shows
@@ -155,6 +160,12 @@ export function parseCommand(argv: readonly string[]): ParsedCommand {
       parse(rest, {});
 
       return { command: 'drive:init' };
+    }
+
+    case 'smoke:qstash': {
+      parse(rest, {});
+
+      return { command: 'smoke:qstash' };
     }
 
     case 'telegram:setup': {

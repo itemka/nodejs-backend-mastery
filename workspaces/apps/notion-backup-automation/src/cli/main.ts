@@ -9,6 +9,7 @@ import { ConsentError } from '../adapters/google/loopback-consent.js';
 import { LocalBrowserLauncher } from '../adapters/notion/browser-launcher.js';
 import { createRedisClient } from '../adapters/persistence/redis-client.js';
 import { RedisJobRepository } from '../adapters/persistence/redis-job-repository.js';
+import { SchedulerError } from '../adapters/qstash/qstash-scheduler.js';
 import { TelegramApiError } from '../adapters/telegram/telegram-client.js';
 import { ApplicationError } from '../application/application-error.js';
 import { IntegrationError } from '../application/integration-error.js';
@@ -27,6 +28,7 @@ import { runDevUpload } from './commands/dev-upload.js';
 import { runDoctor } from './commands/doctor.js';
 import { runDriveCheck } from './commands/drive-check.js';
 import { runDriveInit } from './commands/drive-init.js';
+import { runSmokeQStash } from './commands/smoke-qstash.js';
 import { runTelegramSetup } from './commands/telegram-setup.js';
 import type { CliContext } from './context.js';
 
@@ -91,6 +93,10 @@ export async function main(argv: readonly string[], context: CliContext): Promis
         return 0;
       }
 
+      case 'smoke:qstash': {
+        return await runSmokeQStash(context);
+      }
+
       case 'telegram:setup': {
         return await runTelegramSetup(parsed, context);
       }
@@ -109,7 +115,11 @@ function reportError(error: unknown, context: CliContext): void {
   } else if (error instanceof IntegrationError) {
     context.print(ui.fail(`${error.code}: ${error.message}`));
     context.print(ui.muted(`Fix: ${describeError(error.code).howToFix}`));
-  } else if (error instanceof ApplicationError || error instanceof TelegramApiError) {
+  } else if (
+    error instanceof ApplicationError ||
+    error instanceof SchedulerError ||
+    error instanceof TelegramApiError
+  ) {
     context.print(ui.fail(`${error.code}: ${error.message}`));
   } else if (error instanceof ConsentError) {
     context.print(ui.fail(`${error.reason}: ${error.message}`));

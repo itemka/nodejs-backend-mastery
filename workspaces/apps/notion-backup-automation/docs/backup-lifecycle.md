@@ -1,4 +1,4 @@
-# notion-backup-automation — Backup Job Tick, Wakeups, and Notifications
+# notion-backup-automation — Backup Job Tick, Wakeups, Notifications, and the Daily Cron
 
 Workflow diagrams for the [notion-backup-automation workspace](../). Behavior is described in
 the [README](../README.md#backup-jobs); the Notion steps inside a tick are in
@@ -101,3 +101,53 @@ flowchart LR
 
 Nothing in this path throws: a failed channel, gate or event write is logged, and the tick
 goes on.
+
+## Worker Delivery — `POST /api/jobs/process/[jobId]`
+
+The signature is checked before anything is parsed or configured beyond the signing keys, so
+a `_ping` proves the delivery path even while the backup configuration is incomplete.
+
+```mermaid
+flowchart TD
+  Post([QStash POST]) --> Auth{Signing keys,<br/>APP_BASE_URL, Redis set?}
+  Auth -->|no| Config([503 CONFIG_INCOMPLETE])
+  Auth -->|yes| Sig{Genuine for APP_BASE_URL + path<br/>and the raw body?}
+  Sig -->|no| Unauthorized([401])
+  Sig -->|yes| Body{A body the app sends,<br/>naming the path's job?}
+  Body -->|no| Invalid([489 non-retryable])
+  Body -->|_ping| Ping([Record the nonce in health: 200])
+  Body -->|wakeup| Tick[One tick]
+  Tick -->|done · stale · terminal| Ok([200])
+  Tick -->|lease held| Retry([503 + Retry-After])
+  Tick -->|unknown job · invalid record| Dlq([489])
+  Tick -->|Redis or publish failed| Error([500: QStash retries the token])
+```
+
+## Daily Cron — `DailyMaintenance.run`
+
+Each sub-step that throws is logged and skipped; any one turns the heartbeat into `/fail`. With
+no active job and auto-start off, nothing is published.
+
+Recovery uses the waiting incident captured before its probe and checks it again under the
+lease. An incident raised during the probe stays waiting. The Notion probe also checks the
+persisted download cookie after refresh; reaching the dialog with only an app session does
+not resume a transfer whose file cookie is missing or expired.
+
+```mermaid
+flowchart TD
+  Cron([Vercel Cron, Bearer CRON_SECRET]) --> Touch[Record the run in health]
+  Touch --> Start{Auto-start enabled, due,<br/>and no job active?}
+  Start -->|yes| Create[Start this month's job]
+  Start -->|no| Watch
+  Create --> Watch{Active job late by over an hour,<br/>or past its lifetime?}
+  Watch -->|yes| Rearm[backup_process path: new token,<br/>wakeup under the control lease]
+  Watch -->|no| Probes
+  Rearm --> Probes["Probe Google and Drive; Notion on Mondays,<br/>2 days before the backup day,<br/>or while a job waits for its login"]
+  Probes -->|a probe passes| Resume[Resume a job waiting<br/>for that login]
+  Probes -->|a login newly gone| Lost[🔑 access is gone]
+  Resume --> Warn
+  Lost --> Warn["🔑 Notion expiry: 30, 7, 1 days,<br/>each once per expiry"]
+  Warn --> Beat{Any sub-step threw?}
+  Beat -->|no| Ok([Heartbeat ping])
+  Beat -->|yes| Fail([Heartbeat /fail])
+```

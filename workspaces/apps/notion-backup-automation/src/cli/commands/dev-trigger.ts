@@ -38,6 +38,7 @@ export async function runDevTrigger(
   }
 
   const trigger = new PlaywrightNotionExportTrigger({
+    clock: context.clock,
     exportFormat: env.NOTION_EXPORT_FORMAT,
     headless: !options.headed,
     launcher: context.browserLauncher,

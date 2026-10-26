@@ -6,11 +6,14 @@ import { NotionSessionStore } from '../adapters/notion/notion-session.js';
 import { keyPrefixFor } from '../adapters/persistence/keys.js';
 import type { HashCommands } from '../adapters/persistence/redis-health-store.js';
 import { RedisSecretStore } from '../adapters/persistence/redis-secret-store.js';
-import type { JobRepository } from '../application/ports.js';
+import type { QStashApi, QStashConnection } from '../adapters/qstash/qstash-scheduler.js';
+import { createQStashClient } from '../adapters/qstash/qstash-scheduler.js';
+import type { JobRepository, Scheduler } from '../application/ports.js';
 import type { AppEnv } from '../config/env.js';
 import type { Clock } from '../shared/clock.js';
 import { createEnvelopeKey } from '../shared/envelope-crypto.js';
 import type { Logger } from '../shared/logger.js';
+import type { Sleep } from '../shared/sleep.js';
 
 /** The Redis commands the CLI uses; `@upstash/redis` and test fakes both provide them. */
 export interface CliRedis extends HashCommands {
@@ -45,8 +48,26 @@ export interface CliContext {
   openBrowser: (url: string) => Promise<void>;
   /** One line of human-facing output. */
   print: (text: string) => void;
+  /** Replaces the QStash client of `smoke:qstash` and `auth:notion` (tests). */
+  qstash?: QStashApi;
+  /** Replaces the wait between `smoke:qstash`'s checks (tests). */
+  sleep?: Sleep;
   /** Where `dev:download` makes its temporary directory; the system's when unset (tests). */
   tempDirectory?: string;
+}
+
+/**
+ * Publishes nothing: a dev job runs only through `dev:tick`, which prints when the next step is
+ * due. Its wakeups never reach the deployed worker, whose Redis prefix is `prod`.
+ */
+export const noPublishScheduler: Scheduler = {
+  cancel: () => Promise.resolve(),
+  schedule: () => Promise.resolve({}),
+};
+
+/** The QStash client for `QSTASH_URL`, or the test's. */
+export function createQStashApi(context: CliContext, connection: QStashConnection): QStashApi {
+  return context.qstash ?? createQStashClient(connection);
 }
 
 export interface GoogleCredentialsEnv {

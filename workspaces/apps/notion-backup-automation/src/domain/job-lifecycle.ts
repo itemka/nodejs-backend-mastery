@@ -382,6 +382,32 @@ export function retryJob(
 }
 
 /**
+ * `retryJob` for the incident a caller read: refused (`INCIDENT_CHANGED`) once the job has
+ * another incident, or another occurrence of it, so acting on an old reading never closes a
+ * newer incident.
+ */
+export function retryIncident(
+  job: BackupJob,
+  now: Date,
+  policy: BackupPolicy,
+  incident: Incident,
+): BackupJob {
+  const current = job.incident;
+
+  if (
+    current?.code !== incident.code ||
+    current.stage !== incident.stage ||
+    current.openedAt !== incident.openedAt ||
+    current.occurrences !== incident.occurrences ||
+    current.state !== incident.state
+  ) {
+    throw new InvalidJobStateError('INCIDENT_CHANGED', job.status);
+  }
+
+  return retryJob(job, now, policy);
+}
+
+/**
  * Supervision ends without a fix (the supervisor's `notify_user`, or no supervisor at all): the
  * job stays NEEDS_ATTENTION, and its incident now waits for a person, with no wakeup.
  */

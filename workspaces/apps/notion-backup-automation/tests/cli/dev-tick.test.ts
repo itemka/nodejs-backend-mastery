@@ -83,7 +83,9 @@ describe('dev:tick', () => {
     expect(cli.text()).toContain(
       '  error           NOTION_SESSION_EXPIRED: The saved Notion session is no longer signed in.',
     );
-    expect(cli.text()).toContain('  fix             Run auth:notion, then run backup_retry.');
+    expect(cli.text()).toContain(
+      '  fix             Run auth:notion; it resumes the job (or run backup_retry).',
+    );
 
     await expect(main(['dev:tick', '2026-10'], cli.context)).resolves.toBe(1);
     expect(cli.text()).toContain('Nothing is scheduled: job 2026-10 waits for you.');

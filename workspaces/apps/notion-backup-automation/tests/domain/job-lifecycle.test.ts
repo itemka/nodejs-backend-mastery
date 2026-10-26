@@ -19,11 +19,12 @@ import {
   recordLinkExpired,
   requestCancel,
   resumeAfterBackoff,
+  retryIncident,
   retryJob,
   rollbackTransfer,
   startNewExportAttempt,
 } from '../../src/domain/job-lifecycle.js';
-import type { BackupJob } from '../../src/domain/job.js';
+import type { BackupJob, Incident } from '../../src/domain/job.js';
 import type { JobStatus } from '../../src/domain/statuses.js';
 import { jobStatuses } from '../../src/domain/statuses.js';
 import {
@@ -631,6 +632,43 @@ describe('backup_retry', () => {
     );
     expect(invalidState(() => retryJob(jobInStatus('COMPLETE'), minutesAfter(10), policy))).toBe(
       'JOB_TERMINAL',
+    );
+  });
+});
+
+describe('retryIncident', () => {
+  it('retries the job while it has the incident it was given', () => {
+    const job = attentionJob('NOTION_SESSION_EXPIRED');
+    const incident = job.incident ?? expect.fail('no incident');
+
+    expect(retryIncident(job, minutesAfter(10), policy, incident)).toEqual(
+      retryJob(job, minutesAfter(10), policy),
+    );
+  });
+
+  it.each<[string, (incident: Incident) => Incident]>([
+    ['another code', (incident) => ({ ...incident, code: 'NOTION_WRONG_WORKSPACE' })],
+    ['another stage', (incident) => ({ ...incident, stage: 'TRANSFER' })],
+    ['a later opening', (incident) => ({ ...incident, openedAt: minutesAfter(5).toISOString() })],
+    ['another occurrence', (incident) => ({ ...incident, occurrences: incident.occurrences + 1 })],
+    ['another state', (incident) => ({ ...incident, state: 'awaiting_supervisor' })],
+  ])('refuses once the job has an incident with %s', (_, change) => {
+    const job = attentionJob('NOTION_SESSION_EXPIRED');
+    const read = job.incident ?? expect.fail('no incident');
+    const newer = { ...job, incident: change(read) };
+
+    expect(invalidState(() => retryIncident(newer, minutesAfter(10), policy, read))).toBe(
+      'INCIDENT_CHANGED',
+    );
+  });
+
+  it('refuses a job whose incident is closed', () => {
+    const job = attentionJob('NOTION_SESSION_EXPIRED');
+    const read = job.incident ?? expect.fail('no incident');
+    const retried = retryJob(job, minutesAfter(10), policy);
+
+    expect(invalidState(() => retryIncident(retried, minutesAfter(11), policy, read))).toBe(
+      'INCIDENT_CHANGED',
     );
   });
 });

@@ -1,7 +1,7 @@
 import { z } from 'zod';
 
 import { IntegrationError } from '../../application/integration-error.js';
-import type { SecretStore, StoredSecret } from '../../application/ports.js';
+import type { NotionLoginInfo, SecretStore, StoredSecret } from '../../application/ports.js';
 import type { EnvelopeMeta } from '../../shared/envelope-crypto.js';
 import { EnvelopeError } from '../../shared/envelope-crypto.js';
 import { cookieHeaderFor } from '../transfer/download-cookies.js';
@@ -158,6 +158,25 @@ export function sessionMeta(session: CapturedSession): EnvelopeMeta {
   };
 }
 
+/**
+ * Whether the browser's cookies differ from the saved ones: a value, an expiry or the set of
+ * cookies. A rolling refresh saves the session again only then.
+ */
+export function sessionCookiesChanged(
+  saved: NotionStorageState,
+  current: NotionStorageState,
+): boolean {
+  const fingerprint = (state: NotionStorageState) =>
+    state.cookies
+      .map(({ domain, expires, name, path, value }) =>
+        JSON.stringify([domain, path, name, value, expires]),
+      )
+      .toSorted()
+      .join('\n');
+
+  return fingerprint(saved) !== fingerprint(current);
+}
+
 export interface NotionSessionStoreOptions {
   secrets: SecretStore;
 }
@@ -167,11 +186,26 @@ export interface NotionSessionStoreOptions {
  * `APP_ENCRYPTION_KEY`. The value is the `storageState` JSON; the fingerprint and the cookie
  * facts are the envelope's `meta`.
  */
-export class NotionSessionStore {
+export class NotionSessionStore implements NotionLoginInfo {
   private readonly secrets: SecretStore;
 
   constructor({ secrets }: NotionSessionStoreOptions) {
     this.secrets = secrets;
+  }
+
+  /** The saved sign-in's recorded expiry; undefined when none is saved or it cannot be read. */
+  async authCookieExpiresAt(): Promise<string | undefined> {
+    try {
+      const session = await this.load();
+
+      return session.authCookieExpiresAt;
+    } catch (error) {
+      if (error instanceof IntegrationError) {
+        return undefined;
+      }
+
+      throw error;
+    }
   }
 
   /**
