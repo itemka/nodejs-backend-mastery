@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import {
   ConfigError,
+  cronAuthEnvSchema,
   cronEnvSchema,
   driveEnvSchema,
   googleApiEnvSchema,
@@ -13,6 +14,7 @@ import {
   persistenceEnvSchema,
   QSTASH_EU_URL,
   secretStoreEnvSchema,
+  workerAuthEnvSchema,
   workerEnvSchema,
 } from '../../src/config/env.js';
 
@@ -107,6 +109,7 @@ describe('loadEnv', () => {
       EMAIL_WAIT_TIMEOUT_HOURS: 48,
       JOB_MAX_LIFETIME_HOURS: 168,
       LOG_LEVEL: 'info',
+      LOGIN_WARNING_DAYS: [30, 7, 1],
       MAX_EXPORT_ATTEMPTS: 3,
       MAX_STAGE_RETRIES: 3,
       NOTIFIERS: ['console'],
@@ -128,6 +131,42 @@ describe('loadEnv', () => {
     expect(env.AUTO_START_ENABLED).toBe(true);
     expect(env.MAX_EXPORT_ATTEMPTS).toBe(2);
     expect(env.MCP_ALLOWED_ORIGINS).toEqual(['https://a.example.com', 'https://b.example.com']);
+  });
+
+  it('parses the cron’s warning days and heartbeat URL', () => {
+    const env = loadEnv(cronEnvSchema, {
+      ...cronVars,
+      HEARTBEAT_PING_URL: 'https://hc-ping.example/0b4c9a1e',
+      LOGIN_WARNING_DAYS: '14, 3',
+    });
+
+    expect(env.LOGIN_WARNING_DAYS).toEqual([14, 3]);
+    expect(env.HEARTBEAT_PING_URL).toBe('https://hc-ping.example/0b4c9a1e');
+    expect(loadEnv(cronEnvSchema, cronVars).HEARTBEAT_PING_URL).toBeUndefined();
+    expect(
+      configError(() =>
+        loadEnv(cronEnvSchema, {
+          ...cronVars,
+          HEARTBEAT_PING_URL: 'http://hc-ping.example/0b4c9a1e',
+          LOGIN_WARNING_DAYS: '30, 0',
+        }),
+      ).invalid,
+    ).toEqual(['HEARTBEAT_PING_URL', 'LOGIN_WARNING_DAYS']);
+  });
+
+  it('checks the worker’s signature with Redis, the keys and the URL only', () => {
+    const auth = loadEnv(workerAuthEnvSchema, workerVars);
+
+    expect(Object.keys(auth).toSorted()).toEqual([
+      'APP_BASE_URL',
+      'APP_ENV',
+      'LOG_LEVEL',
+      'QSTASH_CURRENT_SIGNING_KEY',
+      'QSTASH_NEXT_SIGNING_KEY',
+      'UPSTASH_REDIS_REST_TOKEN',
+      'UPSTASH_REDIS_REST_URL',
+    ]);
+    expect(Object.keys(loadEnv(cronAuthEnvSchema, cronVars))).toEqual(['CRON_SECRET']);
   });
 
   it('reads only the variables of the schema', () => {

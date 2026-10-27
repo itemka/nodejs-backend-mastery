@@ -163,7 +163,7 @@ describe('JobNotifications', () => {
         kind: 'attention',
         notification: {
           code: 'NOTION_SESSION_EXPIRED',
-          howToFix: 'Run auth:notion, then run backup_retry.',
+          howToFix: 'Run auth:notion; it resumes the job (or run backup_retry).',
           jobId: '2026-10',
           period: '2026-10',
           reason: 'The saved Notion session is no longer signed in.',

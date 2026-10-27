@@ -293,8 +293,17 @@ export interface ExportTransfer {
   run(request: TransferRequest): Promise<TransferResult>;
 }
 
+export const wakeupReasons = [
+  'manual',
+  'retry',
+  'schedule',
+  'start',
+  'supervisor',
+  'watchdog',
+] as const;
+
 /** Why a wakeup was published; QStash shows it per message. */
-export type WakeupReason = 'manual' | 'retry' | 'schedule' | 'start' | 'supervisor' | 'watchdog';
+export type WakeupReason = (typeof wakeupReasons)[number];
 
 export interface Wakeup {
   /** 0 for an immediate wakeup. */
@@ -362,7 +371,8 @@ export interface AttentionNotification {
   readonly supervisorSummary?: string;
 }
 
-export type LoginService = 'google' | 'notion';
+/** `drive` is the backup folder's access (`drive:check`), apart from the Google sign-in itself. */
+export type LoginService = 'drive' | 'google' | 'notion';
 
 /**
  * - `expiring`: the recorded Notion sign-in expires within the warning days;
@@ -396,4 +406,48 @@ export interface Notifier {
 export interface NotificationGate {
   /** True for the first claim of `key` within `ttlSec`, false while an earlier claim lives. */
   claim(key: string, ttlSec: number): Promise<boolean>;
+}
+
+/** The saved Notion session's facts, read without opening a browser. */
+export interface NotionLoginInfo {
+  /** The earliest sign-in cookie expiry; undefined when none is recorded or no session is saved. */
+  authCookieExpiresAt(): Promise<string | undefined>;
+}
+
+/** The Notion probe passed: signed in, export dialog reached, saved file cookie unexpired. */
+export interface NotionProbeResult {
+  readonly authCookieExpiresAt?: string;
+  /** `in_progress`: Notion showed an export already running instead of the dialog. */
+  readonly exportDialog: 'in_progress' | 'ready';
+}
+
+/** The Google probe passed: a token refreshed with these scopes, and Gmail answered. */
+export interface GoogleProbeResult {
+  /** Short names, such as `gmail.readonly`. */
+  readonly scopes: readonly string[];
+}
+
+/** The Drive probe passed: the root and the period's year folder resolved, and `_dev` is writable. */
+export interface DriveProbeResult {
+  /** `app-owned` when `drive:init` created the root (S6 fallback 2). */
+  readonly mode: 'app-owned' | 'existing';
+}
+
+/**
+ * The daily cron's checks of each dependency, the same ones the backup uses. A failure throws
+ * `IntegrationError` with its cataloged code; nothing is clicked, uploaded or kept.
+ */
+export interface HealthProbes {
+  /** Resolves the period's year folder, then creates and deletes a probe file under `_dev`. */
+  drive(period: Period, signal?: AbortSignal): Promise<DriveProbeResult>;
+  google(signal?: AbortSignal): Promise<GoogleProbeResult>;
+  /** The gate and export dialog (cancelled), then the saved download cookie after refresh. */
+  notion(signal?: AbortSignal): Promise<NotionProbeResult>;
+}
+
+/** The outside "is the app alive" check (healthchecks.io). It never throws. */
+export interface Heartbeat {
+  /** A cron sub-step threw. */
+  fail(): Promise<void>;
+  ok(): Promise<void>;
 }

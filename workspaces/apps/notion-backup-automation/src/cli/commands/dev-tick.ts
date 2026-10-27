@@ -6,7 +6,6 @@ import {
   describeSize,
   formatDuration,
 } from '../../application/notification-text.js';
-import type { Scheduler } from '../../application/ports.js';
 import type { TickResult } from '../../application/process-job.js';
 import type { BackupServices } from '../../config/containers.js';
 import { createBackupServices } from '../../config/containers.js';
@@ -17,20 +16,9 @@ import { DEV_FOLDER_NAME, yearFolderName } from '../../domain/naming.js';
 import { isTerminal } from '../../domain/statuses.js';
 import type { DevTickRequest } from '../args.js';
 import type { CliContext } from '../context.js';
-import { fetchOption } from '../context.js';
+import { fetchOption, noPublishScheduler } from '../context.js';
 
 const COMMAND = 'APP_ENV=dev pnpm --filter notion-backup-automation cli dev:tick';
-
-/** Publishes nothing: `dev:tick` prints when the next step is due, and you run it. */
-class PrintedScheduler implements Scheduler {
-  cancel(): Promise<void> {
-    return Promise.resolve();
-  }
-
-  schedule(): Promise<{ messageId?: string }> {
-    return Promise.resolve({});
-  }
-}
 
 /**
  * `dev:tick`: the whole backup run locally, one tick per call, with the code the worker runs.
@@ -53,7 +41,7 @@ export async function runDevTick(request: DevTickRequest, context: CliContext): 
     jobs: context.createJobRepository(connection, keyPrefixFor(env.APP_ENV)),
     logger: context.logger,
     redis: context.createRedis(connection),
-    scheduler: new PrintedScheduler(),
+    scheduler: noPublishScheduler,
     ...fetchOption(context),
   });
 

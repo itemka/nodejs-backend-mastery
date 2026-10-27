@@ -1,4 +1,5 @@
 import { IntegrationError } from '../../application/integration-error.js';
+import type { ErrorCode } from '../../domain/error-catalog.js';
 import type { IdGenerator } from '../../shared/ids.js';
 import { randomIds } from '../../shared/ids.js';
 import type { GoogleApiClient } from '../google/google-api-client.js';
@@ -184,14 +185,22 @@ async function checkYearFolder(
   return { check: { detail, id: 'C2', outcome: 'fail' }, folderId: undefined };
 }
 
-interface ProbeResult {
+export interface ProbeResult {
   detail: string;
+  /**
+   * Set when a probe was left behind by a failure that says nothing about folder access: the
+   * auth or availability code of the DELETE, or `DRIVE_UNAVAILABLE` for an ambiguous create.
+   */
+  failureCode?: ErrorCode;
   leftoverIds: readonly string[];
   ok: boolean;
 }
 
-/** Creates an empty, marked probe file under `parentId`, then deletes it. */
-async function probeWrite(
+/**
+ * Creates an app-marked probe file in `parentId`, then deletes it. A probe that could not be
+ * deleted is reported in `leftoverIds`, for you to remove in Drive.
+ */
+export async function probeWrite(
   api: GoogleApiClient,
   parentId: string,
   name: string,
@@ -227,6 +236,7 @@ async function probeWrite(
     if (!recovered.complete || recovered.ids.length !== 1 || recovered.ids[0] === undefined) {
       return {
         detail: 'probe creation outcome is ambiguous; remove the reported probes manually',
+        failureCode: 'DRIVE_UNAVAILABLE',
         leftoverIds: recovered.ids,
         ok: false,
       };
@@ -244,10 +254,13 @@ async function probeWrite(
   } catch (error) {
     // A lost DELETE response can lead to a retry returning 404: the probe is already gone.
     if (!(error instanceof GoogleApiError) || error.status !== 404) {
+      const failureCode = cleanupCode(error);
+
       return {
         detail: `created a probe file but cannot delete it: ${cleanupFailure(error)}`,
         leftoverIds: [probeId],
         ok: false,
+        ...(failureCode === undefined ? {} : { failureCode }),
       };
     }
   }
@@ -331,6 +344,15 @@ function cleanupFailure(error: unknown): string {
   }
 
   return error instanceof IntegrationError ? error.code : 'unexpected cleanup failure';
+}
+
+/** A failed DELETE's code, unless Drive refused it: only a refusal is about folder access. */
+function cleanupCode(error: unknown): ErrorCode | undefined {
+  if (error instanceof GoogleApiError && error.code === 'INTEGRATION_UNCLASSIFIED') {
+    return undefined;
+  }
+
+  return error instanceof IntegrationError ? error.code : 'UNKNOWN_ERROR';
 }
 
 /**

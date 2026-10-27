@@ -18,7 +18,19 @@ const SESSION: NotionSession = {
       'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36',
     viewport: { height: 900, width: 1440 },
   },
-  storageState: { cookies: [], origins: [] },
+  storageState: {
+    cookies: ['token_v2', 'file_token'].map((name) => ({
+      domain: name === 'token_v2' ? '.app.notion.com' : '.notion.com',
+      expires: Date.parse('2027-10-02T00:00:00.000Z') / 1000,
+      httpOnly: true,
+      name,
+      path: '/',
+      sameSite: 'Lax' as const,
+      secure: true,
+      value: 'fake-browser-fixture-cookie',
+    })),
+    origins: [],
+  },
 };
 
 /** The values every export must use (Phase 0). */
@@ -35,6 +47,7 @@ async function setup(workspace: string | WorkspaceOptions = {}, stepTimeoutMs = 
   const ui = await NotionUi.start();
   const logs: string[] = [];
   const trigger = new PlaywrightNotionExportTrigger({
+    clock: { now: () => new Date('2026-10-26T04:00:00.000Z') },
     exportFormat: 'markdown',
     launcher,
     logger: createLogger({
@@ -43,7 +56,7 @@ async function setup(workspace: string | WorkspaceOptions = {}, stepTimeoutMs = 
         logs.push(line);
       },
     }),
-    sessions: { load: () => Promise.resolve(SESSION) },
+    sessions: { load: () => Promise.resolve(SESSION), save: () => Promise.resolve() },
     stepTimeoutMs,
     workspace: {
       // The configured name has a straight apostrophe; the fixture shows ’ (Phase 0).
@@ -127,6 +140,25 @@ describe('rehearseExport', () => {
     const { trigger, ui } = await setup({ broken: ['settings-menu'] });
 
     await expect(trigger.rehearseExport()).resolves.toMatchObject({ settingsOpenedBy: 'shortcut' });
+    expect(ui.exports).toEqual([]);
+  });
+});
+
+describe('probeExportDialog', () => {
+  it('reaches the export dialog and cancels it, with the sign-in’s expiry', async () => {
+    const { trigger, ui } = await setup();
+
+    await expect(trigger.probeExportDialog()).resolves.toEqual({
+      authCookieExpiresAt: SESSION.authCookieExpiresAt,
+      exportDialog: 'ready',
+    });
+    expect(ui.exports).toEqual([]);
+  });
+
+  it('reports a changed Settings page as NOTION_UI_CHANGED, without exporting', async () => {
+    const { trigger, ui } = await setup({ broken: ['general'] }, 1500);
+
+    await expect(trigger.probeExportDialog()).rejects.toMatchObject({ code: 'NOTION_UI_CHANGED' });
     expect(ui.exports).toEqual([]);
   });
 });

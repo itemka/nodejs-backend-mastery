@@ -1,7 +1,7 @@
 import { InvalidJobStateError, InvalidTransitionError } from '../domain/domain-errors.js';
 import type { JobEvent } from '../domain/job-event.js';
-import { cancelJob, requestCancel, retryJob } from '../domain/job-lifecycle.js';
-import type { BackupJob } from '../domain/job.js';
+import { cancelJob, requestCancel, retryIncident, retryJob } from '../domain/job-lifecycle.js';
+import type { BackupJob, Incident } from '../domain/job.js';
 import { newBackupJob } from '../domain/job.js';
 import { nextForcedRevision } from '../domain/naming.js';
 import { periodFor } from '../domain/period.js';
@@ -135,8 +135,11 @@ export class BackupApplicationService {
     return stored.map(({ job }) => job);
   }
 
-  /** `backup_process`: a new token and an immediate wakeup. Nothing runs inline. */
-  async process(jobId: string): Promise<ProcessResult> {
+  /**
+   * `backup_process`, and the daily cron's watchdog (`reason` `watchdog`): a new token and an
+   * immediate wakeup. Nothing runs inline.
+   */
+  async process(jobId: string, reason: WakeupReason = 'manual'): Promise<ProcessResult> {
     const stored = await this.require(jobId);
 
     if (isTerminal(stored.job.status)) {
@@ -152,7 +155,7 @@ export class BackupApplicationService {
           return { job: current.job, queued: false, reason: 'terminal' };
         }
 
-        const saved = await this.reschedule(current, 'manual', (job) => job);
+        const saved = await this.reschedule(current, reason, (job) => job);
 
         return { job: saved.job, queued: true, reason: 'queued' };
       },
@@ -165,27 +168,32 @@ export class BackupApplicationService {
    * failed stage), with that stage's retries reset and the incident closed, then a wakeup.
    */
   async retry(jobId: string, fromStage?: Stage): Promise<{ readonly job: BackupJob }> {
-    const stored = await this.require(jobId);
-    const rule = (job: BackupJob) => retryJob(job, this.clock.now(), this.policy, fromStage);
-
-    // Refused before anything is published.
-    this.asInvalidStateSync(jobId, () => rule(stored.job));
-
-    const saved = await this.asInvalidState(jobId, () =>
-      this.withControlLease(
-        jobId,
-        async () => this.reschedule(await this.require(jobId), 'retry', rule, 'backup_retry'),
-        () => {
-          throw new ApplicationError(
-            'INVALID_STATE',
-            `Job ${jobId} is being processed; try again in a minute`,
-            jobId,
-          );
-        },
+    const job = await this.asInvalidState(jobId, () =>
+      this.retryWith(jobId, (current) =>
+        retryJob(current, this.clock.now(), this.policy, fromStage),
       ),
     );
 
-    return { job: saved.job };
+    return { job };
+  }
+
+  /**
+   * `backup_retry` for the incident the caller read, such as a login the daily cron found
+   * fixed. Undefined, with the job unchanged, once the job has another incident: a retry and a
+   * worker may have replaced it since. The check runs again under the lease and on every reload.
+   */
+  async retryIncident(jobId: string, incident: Incident): Promise<BackupJob | undefined> {
+    try {
+      return await this.retryWith(jobId, (current) =>
+        retryIncident(current, this.clock.now(), this.policy, incident),
+      );
+    } catch (error) {
+      if (error instanceof InvalidJobStateError && error.reason === 'INCIDENT_CHANGED') {
+        return undefined;
+      }
+
+      throw toApplicationError(error, jobId);
+    }
   }
 
   /**
@@ -291,14 +299,6 @@ export class BackupApplicationService {
     }
   }
 
-  private asInvalidStateSync(jobId: string, run: () => unknown): void {
-    try {
-      run();
-    } catch (error) {
-      throw toApplicationError(error, jobId);
-    }
-  }
-
   /** Best effort: a superseded message that still arrives is stale and does nothing. */
   private async cancelSuperseded(previous: BackupJob): Promise<void> {
     const messageId = previous.schedule?.messageId;
@@ -348,6 +348,30 @@ export class BackupApplicationService {
     await this.cancelSuperseded(current.job);
 
     return saved;
+  }
+
+  /**
+   * `rule` checked on the stored job, so a refusal publishes nothing, then again under the
+   * lease, with a new token and a wakeup.
+   */
+  private async retryWith(jobId: string, rule: (job: BackupJob) => BackupJob): Promise<BackupJob> {
+    const stored = await this.require(jobId);
+
+    rule(stored.job);
+
+    const saved = await this.withControlLease(
+      jobId,
+      async () => this.reschedule(await this.require(jobId), 'retry', rule, 'backup_retry'),
+      () => {
+        throw new ApplicationError(
+          'INVALID_STATE',
+          `Job ${jobId} is being processed; try again in a minute`,
+          jobId,
+        );
+      },
+    );
+
+    return saved.job;
   }
 
   private async require(jobId: string): Promise<StoredJob> {

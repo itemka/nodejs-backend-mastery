@@ -102,6 +102,30 @@ export function isAutoStartDue(now: Date, timeZone: string, dayOfMonth: number):
   return Number(localDateParts(now, timeZone).day) >= dayOfMonth;
 }
 
+const weekdayFormatters = new Map<string, Intl.DateTimeFormat>();
+
+/**
+ * The scheduled Notion probe runs on Mondays and two days before the backup day, both local, so
+ * a lost session or a changed Settings page shows up before the backup needs them. "Two days"
+ * are calendar days, not 48 hours, which a DST change would shift by a day.
+ */
+export function isNotionProbeDay(now: Date, timeZone: string, backupDayOfMonth: number): boolean {
+  let formatter = weekdayFormatters.get(timeZone);
+
+  if (formatter === undefined) {
+    formatter = new Intl.DateTimeFormat('en-US', { timeZone, weekday: 'short' });
+    weekdayFormatters.set(timeZone, formatter);
+  }
+
+  const { day, month, year } = localDateParts(now, timeZone);
+  // Calendar arithmetic on the local date; Date.UTC rolls over a month or year end.
+  const inTwoDays = new Date(
+    Date.UTC(Number(year), Number(month) - 1, Number(day) + 2),
+  ).getUTCDate();
+
+  return formatter.format(now) === 'Mon' || inTwoDays === backupDayOfMonth;
+}
+
 export function yearOfPeriod(period: Period): string {
   return period.slice(0, 4);
 }

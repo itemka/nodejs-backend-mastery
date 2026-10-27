@@ -18,6 +18,8 @@
     "drive:check": "tsx src/cli/main.ts drive:check"
   },
   "dependencies": {
+    "@sparticuz/chromium": "153.0.0",
+    "@upstash/qstash": "^2.12.1",
     "@upstash/redis": "^1.39.0",
     "google-auth-library": "^11.3.1",
     "playwright-core": "1.63.0",

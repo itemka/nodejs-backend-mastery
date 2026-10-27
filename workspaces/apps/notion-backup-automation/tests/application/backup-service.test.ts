@@ -25,6 +25,19 @@ async function errorOf(promise: Promise<unknown>): Promise<ApplicationError> {
   throw new Error('Expected an ApplicationError');
 }
 
+/** A job that waits for the Notion login, and the incident it has. */
+async function waitingForLogin() {
+  const harness = backupHarness();
+
+  harness.trigger.script = [new IntegrationError('NOTION_SESSION_EXPIRED')];
+  await harness.service.start();
+  await harness.drain();
+
+  const read = await storedJob(harness, '2026-10');
+
+  return { harness, incident: read.incident ?? expect.fail('no incident') };
+}
+
 /** Runs ticks until the job reaches `status`. */
 async function tickUntil(harness: BackupHarness, jobId: string, status: string): Promise<void> {
   for (let tick = 0; tick < 50; tick += 1) {
@@ -327,6 +340,48 @@ describe('BackupApplicationService.retry', () => {
     await expect(errorOf(harness.service.retry('2026-10'))).resolves.toMatchObject({
       code: 'INVALID_STATE',
     });
+  });
+});
+
+describe('BackupApplicationService.retryIncident', () => {
+  it('retries a job that still has the incident, with a wakeup', async () => {
+    const { harness, incident } = await waitingForLogin();
+
+    await expect(harness.service.retryIncident('2026-10', incident)).resolves.toMatchObject({
+      status: 'TRIGGERING_EXPORT',
+    });
+    expect(harness.qstash.published.at(-1)).toMatchObject({ delaySec: 0, reason: 'retry' });
+  });
+
+  it('leaves a newer incident alone, publishing nothing', async () => {
+    const { harness, incident } = await waitingForLogin();
+
+    // You retry it yourself meanwhile, and the worker hits the same code again.
+    harness.clock.advance(60_000);
+    harness.trigger.script = [new IntegrationError('NOTION_SESSION_EXPIRED')];
+    await harness.service.retry('2026-10');
+    await harness.drain();
+
+    const before = await storedJob(harness, '2026-10');
+    const published = harness.qstash.published.length;
+
+    expect(before.incident).toMatchObject({ code: 'NOTION_SESSION_EXPIRED' });
+    await expect(harness.service.retryIncident('2026-10', incident)).resolves.toBeUndefined();
+    await expect(storedJob(harness, '2026-10')).resolves.toEqual(before);
+    expect(harness.qstash.published).toHaveLength(published);
+  });
+
+  it('refuses like backup_retry otherwise', async () => {
+    const { harness, incident } = await waitingForLogin();
+
+    await harness.memory.acquireLease('2026-10', 'another-worker', CONTROL_LEASE_MS);
+
+    await expect(
+      errorOf(harness.service.retryIncident('2026-10', incident)),
+    ).resolves.toMatchObject({ code: 'INVALID_STATE' });
+    await expect(
+      errorOf(harness.service.retryIncident('2026-11', incident)),
+    ).resolves.toMatchObject({ code: 'JOB_NOT_FOUND' });
   });
 });
 

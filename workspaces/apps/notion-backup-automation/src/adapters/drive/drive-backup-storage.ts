@@ -120,6 +120,13 @@ export class DriveBackupStorage implements BackupStorage {
     await this.readRoot(signal);
   }
 
+  /** The S6 outcome: `app-owned` when `drive:init` created the root, else `existing`. */
+  async rootMode(signal?: AbortSignal): Promise<'app-owned' | 'existing'> {
+    const root = await this.readRoot(signal);
+
+    return root.appProperties?.[ROOT_APP_PROPERTY] === 'true' ? 'app-owned' : 'existing';
+  }
+
   async ensureYearFolder(period: Period, signal?: AbortSignal): Promise<string> {
     const base = await this.resolveBase(true, signal);
     const year = yearFolderName(period);

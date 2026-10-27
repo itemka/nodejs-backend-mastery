@@ -1,3 +1,20 @@
 # False positive: a dummy base64 string in a unit test ("a key that is too short"), replaced with a
 # run-time value in ae7e5a2. Fingerprints are `<commit>:<file>:<rule>:<line>`.
 fe6d2328fed8bbf1af60d5dc224fb5219921d002:workspaces/apps/notion-backup-automation/tests/config/env.test.ts:generic-api-key:168
+
+# False positives: fake wakeup tokens and a fake cron secret in PR #61's tests (4db553a), now built at
+# run time in tests/support/fixture-secrets.ts.
+4db553a6bd4fdb376c420c224fcb554bd979eb0f:workspaces/apps/notion-backup-automation/tests/adapters/qstash/qstash-scheduler.test.ts:generic-api-key:33
+4db553a6bd4fdb376c420c224fcb554bd979eb0f:workspaces/apps/notion-backup-automation/tests/adapters/qstash/qstash-scheduler.test.ts:generic-api-key:39
+4db553a6bd4fdb376c420c224fcb554bd979eb0f:workspaces/apps/notion-backup-automation/tests/adapters/qstash/qstash-scheduler.test.ts:generic-api-key:56
+4db553a6bd4fdb376c420c224fcb554bd979eb0f:workspaces/apps/notion-backup-automation/tests/adapters/qstash/qstash-scheduler.test.ts:generic-api-key:88
+4db553a6bd4fdb376c420c224fcb554bd979eb0f:workspaces/apps/notion-backup-automation/tests/adapters/qstash/qstash-signature-verifier.test.ts:generic-api-key:7
+4db553a6bd4fdb376c420c224fcb554bd979eb0f:workspaces/apps/notion-backup-automation/tests/api/cron.test.ts:generic-api-key:7
+4db553a6bd4fdb376c420c224fcb554bd979eb0f:workspaces/apps/notion-backup-automation/tests/api/worker.test.ts:generic-api-key:61
+4db553a6bd4fdb376c420c224fcb554bd979eb0f:workspaces/apps/notion-backup-automation/tests/application/daily-maintenance.test.ts:generic-api-key:496
+4db553a6bd4fdb376c420c224fcb554bd979eb0f:workspaces/apps/notion-backup-automation/tests/application/daily-maintenance.test.ts:generic-api-key:502
+4db553a6bd4fdb376c420c224fcb554bd979eb0f:workspaces/apps/notion-backup-automation/tests/http/cron-handler.test.ts:generic-api-key:10
+4db553a6bd4fdb376c420c224fcb554bd979eb0f:workspaces/apps/notion-backup-automation/tests/http/worker-handler.test.ts:generic-api-key:109
+4db553a6bd4fdb376c420c224fcb554bd979eb0f:workspaces/apps/notion-backup-automation/tests/http/worker-handler.test.ts:generic-api-key:132
+4db553a6bd4fdb376c420c224fcb554bd979eb0f:workspaces/apps/notion-backup-automation/tests/http/worker-handler.test.ts:generic-api-key:220
+4db553a6bd4fdb376c420c224fcb554bd979eb0f:workspaces/apps/notion-backup-automation/tests/http/worker-handler.test.ts:generic-api-key:233
