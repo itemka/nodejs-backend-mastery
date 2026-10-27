@@ -356,9 +356,11 @@ Flow diagrams of the tick, the schedule token, the notifications and the daily c
 scheduler publishes each wakeup to `<APP_BASE_URL>/api/jobs/process/<jobId>` on the EU endpoint,
 with the body `{ jobId, token, reason }`, the deduplication ID `<jobId>.<token>`, 3 retries,
 and flow control `nba-<APP_ENV>` with parallelism 1. The worker checks the `Upstash-Signature`
-against the raw body and `APP_BASE_URL` plus the request's path (never the Host header; a
-query fails), with the current and the next signing key, `exp` and `nbf` enforced. Only then
-does it parse the body, which must name the path's job. Its answers tell QStash what to do
+against the raw body and `APP_BASE_URL` plus the request's path, with the current and the next
+signing key, `exp` and `nbf` enforced. It never uses the Host header, nor the query: Vercel
+routes `api/jobs/process/[jobId].ts` to `[jobId]?jobId=<segment>`, a query QStash never
+signed. A refused signature is logged as `worker.unauthorized` with the path and the query's
+keys. Only then does it parse the body, which must name the path's job. Its answers tell QStash what to do
 (S3), and carry codes only, since QStash keeps a failed delivery's body in its DLQ:
 
 | Case                                                                 | Response                                      |

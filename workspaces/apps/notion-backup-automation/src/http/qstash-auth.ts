@@ -40,19 +40,20 @@ export interface DeliveryCheckOptions {
 
 /**
  * Verifies a QStash delivery against its raw body and its URL: `APP_BASE_URL` plus the request's
- * path. The app never publishes a query string, and the signature binds the full URL (S3), so
- * a query fails the check. Only then is the body parsed.
+ * path, which is what the app publishes to (S3). The query is left out: Vercel routes
+ * `api/jobs/process/[jobId].ts` to `[jobId]?jobId=<segment>`, so the function sees a query that
+ * QStash never signed. Only a genuine delivery's body is parsed.
  */
 export async function checkDelivery(
   request: Request,
   { appBaseUrl, verifier }: DeliveryCheckOptions,
 ): Promise<DeliveryCheck> {
   const body = await request.text();
-  const { pathname, search } = new URL(request.url);
+  const { pathname } = new URL(request.url);
   const genuine = await verifier.verify({
     body,
     signature: request.headers.get('upstash-signature') ?? '',
-    url: new URL(`${pathname}${search}`, appBaseUrl).href,
+    url: new URL(pathname, appBaseUrl).href,
   });
 
   if (!genuine) {

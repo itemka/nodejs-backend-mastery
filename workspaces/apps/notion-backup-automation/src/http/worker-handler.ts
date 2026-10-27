@@ -49,7 +49,13 @@ export async function handleWorkerRequest(
     const check = await checkDelivery(request, deps);
 
     if (check.outcome === 'unauthorized') {
-      logger.warn('worker.unauthorized');
+      const { pathname, searchParams } = new URL(request.url);
+
+      // Where it arrived, to tell a URL mismatch from wrong keys; query values are dropped.
+      logger.warn('worker.unauthorized', {
+        path: pathname.slice(0, 200),
+        queryKeys: [...searchParams.keys()].slice(0, 5),
+      });
 
       return unauthorized('INVALID_SIGNATURE');
     }
