@@ -49,6 +49,22 @@ async function started(harness: ReturnType<typeof backupHarness>) {
   return { job, token };
 }
 
+/**
+ * The request as the function receives it on Vercel: the router maps `api/jobs/process/[jobId].ts`
+ * to `dest: /api/jobs/process/[jobId]?jobId=$1`, so a query QStash never signed is added.
+ */
+async function asVercelRoutesIt(request: Request): Promise<Request> {
+  const url = new URL(request.url);
+
+  url.searchParams.set('jobId', url.pathname.split('/').at(-1) ?? '');
+
+  return new Request(url, {
+    body: await request.text(),
+    headers: request.headers,
+    method: request.method,
+  });
+}
+
 async function body(response: Response): Promise<unknown> {
   return response.json();
 }
@@ -86,23 +102,39 @@ describe('handleWorkerRequest', () => {
     const otherJob = signedDelivery(PATH, message, {
       signedUrl: `${TEST_BASE_URL}/api/jobs/process/2026-11`,
     });
-    const genuine = signedDelivery(PATH, message);
-    const withQuery = new Request(`${genuine.url}?replay=1`, {
-      body: JSON.stringify(message),
-      headers: genuine.headers,
-      method: 'POST',
-    });
 
-    for (const request of [unsigned, forged, otherJob, withQuery]) {
+    for (const request of [unsigned, forged, otherJob]) {
       const response = await handleWorkerRequest(request, deps);
 
       expect(response.status).toBe(401);
       await expect(body(response)).resolves.toEqual({ error: 'INVALID_SIGNATURE' });
     }
 
-    expect(logs.filter((line) => line.includes('worker.unauthorized'))).toHaveLength(4);
+    expect(logs.filter((line) => line.includes('worker.unauthorized'))).toHaveLength(3);
+    expect(logs.join('\n')).toContain('"path":"/api/jobs/process/2026-10"');
     expect(harness.qstash.deliveries).toEqual([]);
     await expect(storedJob(harness, '2026-10')).resolves.toMatchObject({ status: 'CREATED' });
+  });
+
+  it('accepts a delivery as Vercel hands it over, with ?jobId=<segment> added', async () => {
+    const { deps, harness } = setup();
+    const { token } = await started(harness);
+
+    const tick = await handleWorkerRequest(
+      await asVercelRoutesIt(signedDelivery(PATH, { jobId: '2026-10', reason: 'start', token })),
+      deps,
+    );
+    const ping = await handleWorkerRequest(
+      await asVercelRoutesIt(
+        signedDelivery('/api/jobs/process/_ping', { jobId: '_ping', nonce: 'nonce_0123456789' }),
+      ),
+      deps,
+    );
+
+    expect(tick.status).toBe(200);
+    await expect(body(tick)).resolves.toMatchObject({ outcome: 'done', step: 'begin_trigger' });
+    expect(ping.status).toBe(200);
+    await expect(body(ping)).resolves.toEqual({ outcome: 'ping' });
   });
 
   it('answers 489 for a genuine message the app never sends, or one naming another job', async () => {
