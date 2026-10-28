@@ -610,6 +610,14 @@ runtime exports point to JavaScript in `dist/`. `pnpm install` also builds that 
 CLI and test use; after schema changes or an install with `--ignore-scripts`, run
 `pnpm --filter @workspaces/telegram-contracts build` before using either app.
 
+While it compiles, Vercel also type-checks each traced file and prints errors to the build log
+without failing the build. That check differs from `tsc` in two ways. It applies `target` and
+`module` only when they are in this app's `tsconfig.json`; without them it uses ES2021 and
+`strict: false`. It also does not follow pnpm's symlinks, so `@types/node` finds `undici-types`
+only through the app's own `undici-types` devDependency. Keep that version in the range that
+`@types/node` declares. Without these, `Request` and `Response` have no members and dozens of false
+errors hide real ones.
+
 The functions must not import the repo's `@workspaces/packages/*` packages: Node.js cannot resolve
 a package name with three segments (`ERR_UNSUPPORTED_DIR_IMPORT`), and the sibling apps only use
 those packages through esbuild bundles or `tsx`.
