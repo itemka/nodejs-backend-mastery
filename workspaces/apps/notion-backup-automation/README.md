@@ -33,7 +33,7 @@ remote MCP server and the Telegram buttons (Phase 8), with a local CLI. The func
 | `src/http/`                   | The functions' HTTP layer: QStash, cron, MCP bearer and Telegram authentication, rate limits, the handlers, content-free bodies.      |
 | `src/mcp/`                    | The MCP server factory, the 7 tools (Zod schemas, annotations), and the allowlisted views they and Telegram's `/status` return.       |
 | `src/telegram/`               | The authenticated integration: normalized update schema, leased receipts, buttons mapped to job methods and second-tap confirmations. |
-| `src/config/containers.ts`    | The composition root: the notifiers, the backup services, the control services of `/mcp` and the webhook, and each function.          |
+| `src/config/containers.ts`    | The composition root of the worker, the cron and the CLI. `control-containers.ts` builds `/mcp` and the webhook, never the browser.   |
 | `src/cli/`                    | The local CLI: `auth:*`, `drive:*`, `doctor`, `smoke:qstash`, `telegram:setup`, and the `dev:*` helpers, `dev:tick` among them.       |
 | `src/shared/`                 | The redacting JSON-line logger, envelope crypto (AES-256-GCM), the `.env.local` writer, masking, `SecretValue`, clock, IDs.           |
 | `tests/`                      | Vitest. `tests/contract/` holds the repository contract; `tests/live/` and `tests/browser/` the opt-in suites; `tests/fixtures/`.     |
@@ -620,6 +620,11 @@ real path, `../../../node_modules/.pnpm/@sparticuz+chromium@*/node_modules/@spar
 through the app's `node_modules/@sparticuz/chromium` symlink, Vercel rejects the function
 ("files in symlinked directories"). The cron entry runs `/api/cron/daily` daily at 04:00 UTC.
 
+`api/mcp.ts` and `api/integrations/telegram.ts` import `src/config/control-containers.ts`, never
+`containers.ts`. Vercel traces every import, `import()` included, so reaching the Notion adapters
+made both functions as large as the worker (73.5 MB): Playwright and serverless Chromium.
+`tests/api/browser-imports.test.ts` fails when either entry reaches them again.
+
 ## Deployment
 
 Secrets exist only in the **Production** environment. Previews get none, so every function but
@@ -694,7 +699,8 @@ a variable, which applies to new deployments only):
    Add the MCP client ([MCP Client Setup](#mcp-client-setup)): `tools/list` shows 7 tools,
    `backup_list` returns persisted jobs, and `backup_health` reports hub configuration and
    fresh probe results. Inspect deployed function bundles: the hub has no backup/Google/
-   Playwright dependencies.
+   Playwright dependencies, and this app's `/api/mcp` and `/api/integrations/telegram` have no
+   Playwright or Chromium.
 
 Real backups start only through an explicit start (`backup_start` from an MCP client), or
 through the cron once `AUTO_START_ENABLED=true`.

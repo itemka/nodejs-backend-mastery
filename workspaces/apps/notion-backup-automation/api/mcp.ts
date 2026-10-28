@@ -1,4 +1,4 @@
-import { serveMcp } from '../src/config/containers.js';
+import { serveMcp } from '../src/config/control-containers.js';
 
 /** The remote MCP server (`/mcp` is rewritten here); `Bearer $MCP_AUTH_TOKEN` only. */
 export function POST(request: Request): Promise<Response> {
