@@ -1,4 +1,10 @@
 {
   "extends": "../../../tsconfig.base.json",
+  "compilerOptions": {
+    // Vercel's function type check reads `target` and `module` from this file, not from
+    // `extends`; without them it uses ES2021 and `strict: false`. Keep both equal to the base.
+    "target": "ES2024",
+    "module": "NodeNext"
+  },
   "include": ["api/**/*.ts", "src/**/*.ts", "tests/**/*.ts", "vitest.config.ts"]
 }

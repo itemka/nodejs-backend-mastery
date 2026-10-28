@@ -130,6 +130,11 @@ The app's `vercel-build` script builds `@workspaces/telegram-contracts` before V
 traces its functions. The package exports JavaScript in `dist/`; runtime exports must
 not point to TypeScript sources that the Node builder renames during packaging.
 
+Vercel's type check of each function applies `target` and `module` only when they are in
+this app's `tsconfig.json`, and finds `undici-types` only through the app's own
+devDependency, since it does not follow pnpm's symlinks. Keep that version in the range
+that `@types/node` declares, or the build log fills with false `Request`/`Response` errors.
+
 ## Setup CLI
 
 From the repository root:
