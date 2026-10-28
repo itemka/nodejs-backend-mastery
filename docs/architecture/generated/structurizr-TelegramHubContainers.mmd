@@ -1,0 +1,45 @@
+graph LR
+  linkStyle default fill:#ffffff
+
+  subgraph diagram ["Container View: telegram-webhook-hub"]
+    style diagram fill:#ffffff,stroke:#ffffff
+
+    1["<div style='font-weight: bold'>Developer</div><div style='font-size: 70%; margin-top: 0px'>[Person]</div><div style='font-size: 80%; margin-top:10px'>Runs the apps locally while<br />learning backend patterns.</div>"]
+    style 1 fill:#ffffff,stroke:#444444,color:#444444
+    21["<div style='font-weight: bold'>notion-backup-automation</div><div style='font-size: 70%; margin-top: 0px'>[Software System]</div><div style='font-size: 80%; margin-top:10px'>Notion backup agent with<br />local Google OAuth setup and<br />Notion sign-in, a Playwright<br />export trigger in Notion's<br />Settings, Gmail export-email<br />discovery, Drive access<br />diagnostics,<br />checksum-verified Drive<br />backup storage, a resumable<br />backup job run one idempotent<br />tick at a time by a<br />QStash-woken worker, a daily<br />cron with health probes,<br />login warnings and a<br />heartbeat, console and<br />Telegram notifications, a<br />bearer-protected remote MCP<br />server, an authenticated<br />Telegram hub integration for<br />status and action buttons,<br />and a deployed health check.</div>"]
+    style 21 fill:#ffffff,stroke:#444444,color:#444444
+    38["<div style='font-weight: bold'>Upstash Redis</div><div style='font-size: 70%; margin-top: 0px'>[Software System]</div><div style='font-size: 80%; margin-top:10px'>Managed state in isolated<br />application namespaces:<br />backup jobs, leases, events,<br />encrypted Notion session and<br />confirmations; the<br />independent hub stores only<br />delivery leases, receipts and<br />rate limits in its own prefix<br />or database.</div>"]
+    style 38 fill:#8c8c8c,stroke:#626262,color:#ffffff
+    39["<div style='font-weight: bold'>Telegram Bot API</div><div style='font-size: 70%; margin-top: 0px'>[Software System]</div><div style='font-size: 80%; margin-top:10px'>The private chat with Artsem<br />Automation Hub: configured<br />integrations receive commands<br />and button taps and send<br />sanitized reports; only<br />telegram-webhook-hub owns the<br />token and calls this API.</div>"]
+    style 39 fill:#8c8c8c,stroke:#626262,color:#ffffff
+
+    subgraph 29 ["telegram-webhook-hub"]
+      style 29 fill:#ffffff,stroke:#444444,color:#444444
+
+      30["<div style='font-weight: bold'>Webhook function</div><div style='font-size: 70%; margin-top: 0px'>[Container: Vercel Function (Node.js)]</div><div style='font-size: 80%; margin-top:10px'>POST /api/webhook: verifies<br />the Telegram secret before<br />dependencies, accepts only<br />the owner chat/sender, leases<br />and deduplicates updates,<br />routes configured commands<br />and callback namespaces to<br />authenticated HTTPS<br />integrations, and leaves<br />transient failures retryable.</div>"]
+      style 30 fill:#ffffff,stroke:#444444,color:#444444
+      31["<div style='font-weight: bold'>Messages function</div><div style='font-size: 70%; margin-top: 0px'>[Container: Vercel Function (Node.js)]</div><div style='font-size: 80%; margin-top:10px'>POST /api/messages with a<br />per-integration bearer token:<br />validates an allowlisted<br />sendMessage, removeButtons or<br />answerCallbackQuery operation<br />and sends only to the<br />configured owner chat.</div>"]
+      style 31 fill:#ffffff,stroke:#444444,color:#444444
+      32["<div style='font-weight: bold'>Health function</div><div style='font-size: 70%; margin-top: 0px'>[Container: Vercel Function (Node.js)]</div><div style='font-size: 80%; margin-top:10px'>Public GET /api/health with<br />no credentials or private<br />configuration in its<br />response.</div>"]
+      style 32 fill:#ffffff,stroke:#444444,color:#444444
+      33["<div style='font-weight: bold'>Bot setup CLI</div><div style='font-size: 70%; margin-top: 0px'>[Container: Node.js + TypeScript CLI]</div><div style='font-size: 80%; margin-top:10px'>telegram:setup --find-chat,<br />--test, --info, or guarded<br />webhook registration: the<br />only application that<br />configures the bot's webhook;<br />replacement requires<br />--replace and preserves<br />pending updates.</div>"]
+      style 33 fill:#ffffff,stroke:#444444,color:#444444
+      34["<div style='font-weight: bold'>Hub configuration</div><div style='font-size: 70%; margin-top: 0px'>[Container: .env.local and Vercel Production environment]</div><div style='font-size: 80%; margin-top:10px'>Bot API token, private chat<br />ID, webhook secret, explicit<br />integration registry with<br />per-integration bearer<br />tokens, and independent Redis<br />prefix/connection settings.</div>"]
+      style 34 fill:#ffffff,stroke:#444444,color:#444444
+    end
+
+    1-. "<div>Discovers the chat, inspects<br />webhook ownership, tests, and<br />configures the bot</div><div style='font-size: 70%'>[Terminal]</div>" .->33
+    1-. "<div>Checks the independent hub<br />deployment</div><div style='font-size: 70%'>[HTTPS]</div>" .->32
+    33-. "<div>Reads hub settings and<br />records discovered chat<br />identity</div><div style='font-size: 70%'>[Local file I/O]</div>" .->34
+    33-. "<div>Finds the private chat, sends<br />a namespaced test, reads and<br />sets the sole webhook</div><div style='font-size: 70%'>[Bot API over HTTPS]</div>" .->39
+    39-. "<div>Delivers messages and<br />callback queries</div><div style='font-size: 70%'>[HTTPS POST (Telegram secret header)]</div>" .->30
+    30-. "<div>Leases updates, records<br />completed deliveries, and<br />counts retry-safe ingress<br />limits in the hub namespace</div><div style='font-size: 70%'>[Redis REST over HTTPS]</div>" .->38
+    30-. "<div>Forwards validated normalized<br />updates to the configured<br />backup integration</div><div style='font-size: 70%'>[HTTPS POST (integration bearer)]</div>" .->21
+    30-. "<div>Sends generic help and<br />acknowledges unsupported<br />callbacks</div><div style='font-size: 70%'>[Bot API over HTTPS]</div>" .->39
+    31-. "<div>Sends replies and<br />notifications, answers<br />callbacks, and removes<br />buttons for the owner chat</div><div style='font-size: 70%'>[Bot API over HTTPS]</div>" .->39
+    1-. "<div>Checks that a deployment is<br />live</div><div style='font-size: 70%'>[HTTPS]</div>" .->21
+    21-. "<div>Pings Redis, stores and reads<br />the encrypted Notion session,<br />and keeps the dev job's<br />state, leases and events</div><div style='font-size: 70%'>[Redis REST over HTTPS]</div>" .->38
+    21-. "<div>Sends test messages and dev<br />backup reports through the<br />hub</div><div style='font-size: 70%'>[HTTPS POST (integration bearer)]</div>" .->31
+    1-. "<div>Sends /start and /status to<br />the bot, taps report buttons,<br />and reads backup reports</div><div style='font-size: 70%'>[Telegram app]</div>" .->39
+
+  end

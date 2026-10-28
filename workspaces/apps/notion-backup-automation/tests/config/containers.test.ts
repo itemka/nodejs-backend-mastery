@@ -4,7 +4,7 @@ import type { SuccessNotification } from '../../src/application/ports.js';
 import type { NotifierEnv } from '../../src/config/containers.js';
 import { createNotifier } from '../../src/config/containers.js';
 import { createLogger } from '../../src/shared/logger.js';
-import { FAKE_CHAT_ID, fakeBotToken, FakeTelegram } from '../support/fake-telegram.js';
+import { FAKE_HUB_URL, fakeHubToken, FakeTelegram } from '../support/fake-telegram.js';
 
 const success: SuccessNotification = {
   driveFileId: '1AbCdEfGhIjKlMnOpQrStUvWxYz',
@@ -49,21 +49,23 @@ describe('createNotifier', () => {
     const { logs, notifier, telegram } = notifierFor({
       ...base,
       NOTIFIERS: ['console', 'telegram'],
-      TELEGRAM_BOT_TOKEN: fakeBotToken,
-      TELEGRAM_CHAT_ID: FAKE_CHAT_ID,
+      TELEGRAM_HUB_TOKEN: fakeHubToken,
+      TELEGRAM_HUB_URL: FAKE_HUB_URL,
     });
 
     await notifier.success(success);
 
     expect(logs.map(({ event }) => event)).toEqual(['notify.success']);
-    expect(telegram.sentMessages()).toEqual([expect.objectContaining({ chat_id: FAKE_CHAT_ID })]);
+    expect(telegram.sentMessages()).toEqual([
+      expect.objectContaining({ html: expect.stringContaining('Notion backup stored') }),
+    ]);
   });
 
   it('leaves Telegram out, with a warning naming what is missing, when it is not configured', async () => {
     const { logs, notifier, telegram } = notifierFor({
       ...base,
       NOTIFIERS: ['console', 'telegram'],
-      TELEGRAM_BOT_TOKEN: fakeBotToken,
+      TELEGRAM_HUB_TOKEN: fakeHubToken,
     });
 
     await notifier.success(success);
@@ -71,7 +73,7 @@ describe('createNotifier', () => {
     expect(logs).toEqual([
       expect.objectContaining({
         event: 'notify.telegram.unconfigured',
-        missing: ['TELEGRAM_CHAT_ID'],
+        missing: ['TELEGRAM_HUB_URL'],
       }),
       expect.objectContaining({ event: 'notify.success' }),
     ]);

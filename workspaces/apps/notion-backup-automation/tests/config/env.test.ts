@@ -10,10 +10,14 @@ import {
   googlePickerEnvSchema,
   loadEnv,
   loadHealthEnv,
+  mcpAuthEnvSchema,
   mcpEnvSchema,
   persistenceEnvSchema,
   QSTASH_EU_URL,
   secretStoreEnvSchema,
+  telegramIntegrationId,
+  telegramWebhookAuthEnvSchema,
+  telegramWebhookEnvSchema,
   workerAuthEnvSchema,
   workerEnvSchema,
 } from '../../src/config/env.js';
@@ -58,7 +62,7 @@ const persistenceVars = {
 const mcpVars = {
   ...persistenceVars,
   APP_BASE_URL: 'https://notion-backup-automation.vercel.app',
-  MCP_AUTH_TOKEN: 'mcp-token-value-1234',
+  MCP_AUTH_TOKEN: 'mcp-token-value-1234-mcp-token-value-1234',
   QSTASH_TOKEN: 'qstash-token-value-1234',
 };
 
@@ -250,27 +254,27 @@ describe('loadEnv', () => {
     ).toEqual(['APP_BASE_URL']);
   });
 
-  it('keeps Telegram optional, and checks the bot token and chat ID formats', () => {
+  it('keeps Telegram optional, and validates the hub credential and URL', () => {
     const botToken = ['8123456789', `AAH${'q'.repeat(32)}`].join(':');
     const env = loadEnv(workerEnvSchema, {
       ...workerVars,
       NOTIFIERS: 'console, telegram',
-      TELEGRAM_BOT_TOKEN: botToken,
-      TELEGRAM_CHAT_ID: '424242',
+      TELEGRAM_HUB_TOKEN: botToken,
+      TELEGRAM_HUB_URL: 'https://hub.example',
     });
 
     expect(env.NOTIFIERS).toEqual(['console', 'telegram']);
-    expect(loadEnv(workerEnvSchema, workerVars).TELEGRAM_BOT_TOKEN).toBeUndefined();
+    expect(loadEnv(workerEnvSchema, workerVars).TELEGRAM_HUB_TOKEN).toBeUndefined();
     expect(
       configError(() =>
         loadEnv(workerEnvSchema, {
           ...workerVars,
           NOTIFIERS: 'console,email',
-          TELEGRAM_BOT_TOKEN: 'leaked-not-a-token',
-          TELEGRAM_CHAT_ID: '@me',
+          TELEGRAM_HUB_TOKEN: 'leaked-not-a-token',
+          TELEGRAM_HUB_URL: '@me',
         }),
       ).invalid,
-    ).toEqual(['NOTIFIERS', 'TELEGRAM_BOT_TOKEN', 'TELEGRAM_CHAT_ID']);
+    ).toEqual(['NOTIFIERS', 'TELEGRAM_HUB_TOKEN', 'TELEGRAM_HUB_URL']);
   });
 
   it.each(['0', '1', '1.5', 'half'])('rejects EXPORT_SHRINK_RATIO=%s', (value) => {
@@ -339,5 +343,108 @@ describe('CLI env subsets', () => {
     expect(configError(() => loadEnv(secretStoreEnvSchema, persistenceVars)).missing).toEqual([
       'APP_ENCRYPTION_KEY',
     ]);
+  });
+});
+
+describe('/mcp and Telegram webhook env subsets', () => {
+  const webhookSecret = 'a1'.repeat(32);
+  const botToken = ['8123456789', `AAH${'f'.repeat(32)}`].join(':');
+
+  it('checks the MCP token and Origin list first, and refuses a short token', () => {
+    expect(
+      loadEnv(mcpAuthEnvSchema, {
+        MCP_ALLOWED_ORIGINS: 'https://claude.ai',
+        MCP_AUTH_TOKEN: mcpVars.MCP_AUTH_TOKEN,
+      }),
+    ).toEqual({
+      MCP_ALLOWED_ORIGINS: ['https://claude.ai'],
+      MCP_AUTH_TOKEN: mcpVars.MCP_AUTH_TOKEN,
+    });
+    expect(
+      configError(() => loadEnv(mcpAuthEnvSchema, { MCP_AUTH_TOKEN: 'mcp-token-value-1234' }))
+        .invalid,
+    ).toEqual(['MCP_AUTH_TOKEN']);
+    expect(
+      configError(() =>
+        loadEnv(mcpAuthEnvSchema, {
+          MCP_ALLOWED_ORIGINS: 'https://claude.ai/path',
+          MCP_AUTH_TOKEN: mcpVars.MCP_AUTH_TOKEN,
+        }),
+      ).invalid,
+    ).toEqual(['MCP_ALLOWED_ORIGINS']);
+  });
+
+  it('reads whether Telegram and the heartbeat are set for /mcp, never their values', () => {
+    const env = loadEnv(mcpEnvSchema, {
+      ...mcpVars,
+      HEARTBEAT_PING_URL: 'https://hc-ping.example/0b4c9a1e',
+      NOTIFIERS: 'console,telegram',
+      TELEGRAM_HUB_TOKEN: botToken,
+    });
+
+    expect(env).toMatchObject({
+      HEARTBEAT_PING_URL: true,
+      NOTIFIERS: ['console', 'telegram'],
+      TELEGRAM_HUB_TOKEN: true,
+      TELEGRAM_HUB_URL: false,
+    });
+    expect(JSON.stringify(env)).not.toContain(botToken);
+  });
+
+  it('checks the independent integration token before loading services', () => {
+    expect(loadEnv(telegramWebhookAuthEnvSchema, { TELEGRAM_HUB_TOKEN: webhookSecret })).toEqual({
+      TELEGRAM_HUB_TOKEN: webhookSecret,
+    });
+    expect(
+      configError(() => loadEnv(telegramWebhookAuthEnvSchema, { TELEGRAM_HUB_TOKEN: 'short' }))
+        .invalid,
+    ).toEqual(['TELEGRAM_HUB_TOKEN']);
+  });
+
+  it('needs the hub URL, integration token, Redis and QStash publishing', () => {
+    expect(
+      configError(() =>
+        loadEnv(telegramWebhookEnvSchema, { ...mcpVars, TELEGRAM_HUB_TOKEN: webhookSecret }),
+      ).missing,
+    ).toEqual(['TELEGRAM_HUB_URL']);
+    expect(
+      loadEnv(telegramWebhookEnvSchema, {
+        ...mcpVars,
+        TELEGRAM_HUB_TOKEN: webhookSecret,
+        TELEGRAM_HUB_URL: 'https://hub.example',
+      }),
+    ).not.toHaveProperty('TELEGRAM_BOT_TOKEN');
+  });
+
+  it('matches the hub registry limits for integration credentials and namespace IDs', () => {
+    expect(
+      configError(() =>
+        loadEnv(telegramWebhookAuthEnvSchema, {
+          TELEGRAM_HUB_TOKEN: 'a'.repeat(257),
+        }),
+      ).invalid,
+    ).toEqual(['TELEGRAM_HUB_TOKEN']);
+    expect(
+      configError(() =>
+        loadEnv(telegramWebhookEnvSchema, {
+          ...mcpVars,
+          TELEGRAM_HUB_TOKEN: webhookSecret,
+          TELEGRAM_HUB_URL: 'https://hub.example',
+          TELEGRAM_INTEGRATION_ID: 's',
+        }),
+      ).invalid,
+    ).toEqual(['TELEGRAM_INTEGRATION_ID']);
+  });
+});
+
+describe('the hub integration ID', () => {
+  it('is nb-<APP_ENV> unless TELEGRAM_INTEGRATION_ID names another route', () => {
+    expect(telegramIntegrationId({ APP_ENV: 'dev' })).toBe('nb-dev');
+    expect(telegramIntegrationId({ APP_ENV: 'prod', TELEGRAM_INTEGRATION_ID: undefined })).toBe(
+      'nb-prod',
+    );
+    expect(telegramIntegrationId({ APP_ENV: 'prod', TELEGRAM_INTEGRATION_ID: 'nb-staging' })).toBe(
+      'nb-staging',
+    );
   });
 });

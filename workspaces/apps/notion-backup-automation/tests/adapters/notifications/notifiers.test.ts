@@ -15,8 +15,8 @@ import type {
 import { createLogger } from '../../../src/shared/logger.js';
 import { SecretValue } from '../../../src/shared/secret-value.js';
 import {
-  FAKE_CHAT_ID,
-  fakeBotToken,
+  FAKE_HUB_URL,
+  fakeHubToken,
   FakeTelegram,
   hangingReply,
   telegramError,
@@ -59,10 +59,11 @@ function recordingLogger() {
 function telegramNotifier(telegram: FakeTelegram, timeoutMs?: number): TelegramNotifier {
   return new TelegramNotifier({
     appEnv: 'prod',
-    chatId: FAKE_CHAT_ID,
     client: new TelegramClient({
       fetch: telegram.fetch,
-      token: new SecretValue(fakeBotToken),
+      hubUrl: FAKE_HUB_URL,
+      integrationId: 'nb-prod',
+      token: new SecretValue(fakeHubToken),
       ...(timeoutMs === undefined ? {} : { timeoutMs }),
     }),
     timeZone: 'Europe/Warsaw',
@@ -115,9 +116,9 @@ describe('TelegramNotifier', () => {
     await telegramNotifier(telegram).success(success);
 
     expect(telegram.sentMessages()).toEqual([
-      expect.objectContaining({ chat_id: FAKE_CHAT_ID, parse_mode: 'HTML' }),
+      expect.objectContaining({ html: expect.any(String) }),
     ]);
-    expect(String(telegram.sentMessages()[0]?.text)).toContain('✅ <b>Notion backup stored</b>');
+    expect(String(telegram.sentMessages()[0]?.html)).toContain('✅ <b>Notion backup stored</b>');
   });
 
   it('rejects when Telegram does, so the composite can log it', async () => {
@@ -159,7 +160,7 @@ describe('CompositeNotifier', () => {
     expect(delivered).toEqual(['2026-10']);
     expect(lines).toEqual([
       expect.objectContaining({
-        code: 'telegram_500',
+        code: 'hub_500',
         event: 'notify.failed',
         kind: 'success',
         notifier: 'telegram',

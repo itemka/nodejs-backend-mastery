@@ -17,7 +17,8 @@ import {
   loadEnv,
   persistenceEnvSchema,
   secretStoreEnvSchema,
-  telegramBotEnvSchema,
+  telegramChatEnvSchema,
+  telegramIntegrationId,
 } from '../../config/env.js';
 import { localDateFor, startOfLocalDay } from '../../domain/period.js';
 import { createEnvelopeKey, EnvelopeError } from '../../shared/envelope-crypto.js';
@@ -281,46 +282,58 @@ async function checkRedis(context: CliContext): Promise<CheckResult[]> {
   }
 }
 
-/**
- * The bot, and whether your chat is set. Telegram is optional: without it, notifications go to
- * the console only, so a missing configuration is a warning, not a failure.
- */
+/** Whether the hub accepts this integration's token; it sends nothing. The hub owns the bot. */
 async function checkTelegram(context: CliContext): Promise<CheckResult> {
-  const hasToken = (context.env.TELEGRAM_BOT_TOKEN ?? '') !== '';
-  const hasChat = (context.env.TELEGRAM_CHAT_ID ?? '') !== '';
+  const hasToken = (context.env.TELEGRAM_HUB_TOKEN ?? '') !== '';
+  const hasUrl = (context.env.TELEGRAM_HUB_URL ?? '') !== '';
 
-  if (!hasToken) {
+  if (!hasToken && !hasUrl) {
     return {
-      detail: hasChat
-        ? 'TELEGRAM_BOT_TOKEN missing; notifications go to the console only'
-        : 'not configured; notifications go to the console only',
+      detail: 'not configured; notifications go to the console only',
       name: 'telegram',
-      status: hasChat ? 'warn' : 'skip',
+      status: 'skip',
     };
   }
 
-  const env = tryLoad(() => loadEnv(telegramBotEnvSchema, context.env));
+  if (!hasToken || !hasUrl) {
+    return {
+      detail: `${hasToken ? 'TELEGRAM_HUB_URL' : 'TELEGRAM_HUB_TOKEN'} missing; notifications go to the console only`,
+      name: 'telegram',
+      status: 'warn',
+    };
+  }
+
+  const env = tryLoad(() => loadEnv(telegramChatEnvSchema, context.env));
 
   if (!env.ok) {
     return { detail: env.detail, name: 'telegram', status: 'fail' };
   }
 
-  try {
-    const bot = await new TelegramClient({
-      token: new SecretValue(env.value.TELEGRAM_BOT_TOKEN),
-      ...fetchOption(context),
-    }).getMe();
-    const name = bot.username === undefined ? `bot ${bot.id}` : `bot @${bot.username}`;
+  const integrationId = telegramIntegrationId(env.value);
 
-    return hasChat
-      ? { detail: `${name}, TELEGRAM_CHAT_ID set`, name: 'telegram', status: 'ok' }
-      : {
-          detail: `${name}; TELEGRAM_CHAT_ID missing: run telegram:setup --find-chat`,
-          name: 'telegram',
-          status: 'warn',
-        };
+  try {
+    await new TelegramClient({
+      hubUrl: env.value.TELEGRAM_HUB_URL,
+      integrationId,
+      token: new SecretValue(env.value.TELEGRAM_HUB_TOKEN),
+      ...fetchOption(context),
+    }).checkAccess();
+
+    return {
+      detail: `hub accepts TELEGRAM_HUB_TOKEN; buttons use the ${integrationId} namespace`,
+      name: 'telegram',
+      status: 'ok',
+    };
   } catch (error) {
-    return { detail: describe(error), name: 'telegram', status: 'fail' };
+    const refused = error instanceof TelegramApiError && error.errorCode === 401;
+
+    return {
+      detail: refused
+        ? 'the hub refuses TELEGRAM_HUB_TOKEN: it must equal this route’s token in HUB_INTEGRATIONS'
+        : describe(error),
+      name: 'telegram',
+      status: 'fail',
+    };
   }
 }
 

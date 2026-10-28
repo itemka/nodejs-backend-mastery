@@ -15,19 +15,15 @@ import {
 import type { TelegramClient, TelegramMessage } from '../telegram/telegram-client.js';
 
 export interface TelegramNotifierOptions extends MessageFormatOptions {
-  /** `TELEGRAM_CHAT_ID`: the private chat with the bot. */
-  readonly chatId: string;
   readonly client: Pick<TelegramClient, 'sendMessage'>;
 }
 
 /** Sends each notification to your chat. A failed send throws `TelegramApiError`. */
 export class TelegramNotifier implements Notifier {
-  private readonly chatId: string;
   private readonly client: Pick<TelegramClient, 'sendMessage'>;
   private readonly format: MessageFormatOptions;
 
-  constructor({ appEnv, chatId, client, timeZone }: TelegramNotifierOptions) {
-    this.chatId = chatId;
+  constructor({ appEnv, client, timeZone }: TelegramNotifierOptions) {
     this.client = client;
     this.format = { appEnv, timeZone };
   }
@@ -49,6 +45,6 @@ export class TelegramNotifier implements Notifier {
   }
 
   private async send(message: TelegramMessage): Promise<void> {
-    await this.client.sendMessage(this.chatId, message);
+    await this.client.sendMessage(message);
   }
 }

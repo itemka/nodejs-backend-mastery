@@ -1,69 +1,19 @@
+import type { HubOperation, TelegramMessage } from '@workspaces/telegram-contracts';
+import { hubOperationSchema } from '@workspaces/telegram-contracts';
 import { z } from 'zod';
 
-import { redactString } from '../../shared/redact.js';
 import type { SecretValue } from '../../shared/secret-value.js';
 
-export const TELEGRAM_API_ORIGIN = 'https://api.telegram.org';
-
-/** The most text one message may carry. */
-export const MAX_MESSAGE_LENGTH = 4096;
-
-/** The most bytes an inline button's `callback_data` may carry. */
-export const MAX_CALLBACK_DATA_BYTES = 64;
+export type { TelegramButton, TelegramMessage } from '@workspaces/telegram-contracts';
+export { MAX_CALLBACK_DATA_BYTES, MAX_MESSAGE_LENGTH } from '@workspaces/telegram-contracts';
 
 const DEFAULT_TIMEOUT_MS = 10_000;
-const MAX_DESCRIPTION_LENGTH = 200;
-
-export type TelegramButton =
-  | { readonly callbackData: string; readonly text: string }
-  | { readonly text: string; readonly url: string };
-
-/** A message in Telegram's HTML parse mode, with rows of inline buttons. */
-export interface TelegramMessage {
-  readonly buttons?: readonly (readonly TelegramButton[])[];
-  /** Every value in it is already escaped. */
-  readonly html: string;
-}
-
-export interface TelegramBot {
-  readonly id: number;
-  readonly username?: string;
-}
-
-export interface TelegramChat {
-  readonly firstName?: string;
-  readonly id: number;
-  readonly type: string;
-  readonly username?: string;
-}
-
-/** A `getUpdates` entry; only messages are read, for `telegram:setup --find-chat`. */
-export interface TelegramUpdate {
-  readonly chat?: TelegramChat;
-  readonly updateId: number;
-}
-
-export interface WebhookInfo {
-  readonly lastErrorAt?: Date;
-  /** Telegram's text, redacted. */
-  readonly lastErrorMessage?: string;
-  readonly pendingUpdateCount: number;
-  /** Empty when no webhook is set. */
-  readonly url: string;
-}
-
-/**
- * - `api`: Telegram answered `ok: false`;
- * - `http`: a non-JSON reply;
- * - `network`, `timeout`: no reply.
- */
+const MESSAGES_PATH = '/api/messages';
 export type TelegramFailure = 'api' | 'http' | 'network' | 'timeout';
 
-/** A failed Bot API call. Its message never holds the token or the request URL. */
+/** A content-free hub failure; neither remote errors nor credentials escape. */
 export class TelegramApiError extends Error {
-  /** `telegram_<error_code>` for an API error, else the failure kind; what `notify.failed` logs. */
   readonly code: string;
-  /** Telegram's `error_code`, or the HTTP status of a non-JSON reply. */
   readonly errorCode: number | undefined;
   readonly failure: TelegramFailure;
   readonly retryAfterSec: number | undefined;
@@ -78,225 +28,185 @@ export class TelegramApiError extends Error {
     this.failure = failure;
     this.errorCode = details.errorCode;
     this.retryAfterSec = details.retryAfterSec;
-    this.code =
-      failure === 'api' && details.errorCode !== undefined
-        ? `telegram_${details.errorCode}`
-        : failure;
+    this.code = details.errorCode === undefined ? failure : `hub_${details.errorCode}`;
   }
 }
 
+/**
+ * Whether the hub refused a request for good: any 4xx except 408 and 429, such as an operation
+ * it does not accept or Telegram's own refusal (`422 TELEGRAM_REJECTED`). A resend gets the same.
+ */
+export function isPermanentRefusal(error: unknown): error is TelegramApiError {
+  if (!(error instanceof TelegramApiError) || error.failure !== 'api') {
+    return false;
+  }
+
+  const status = error.errorCode ?? 0;
+
+  return status >= 400 && status < 500 && status !== 408 && status !== 429;
+}
+
 export interface TelegramClientOptions {
-  /** Replaced by tests; `https://api.telegram.org` by default. */
-  readonly apiOrigin?: string;
   readonly fetch?: typeof fetch;
+  readonly hubUrl: string;
+  /** This deployment's callback namespace at the hub, from `telegramIntegrationId`. */
+  readonly integrationId: string;
   readonly timeoutMs?: number;
   readonly token: SecretValue<string>;
 }
 
-const userSchema = z.object({ id: z.number().int(), username: z.string().optional() });
-
-const updateSchema = z.object({
-  message: z
-    .object({
-      chat: z.object({
-        first_name: z.string().optional(),
-        id: z.number().int(),
-        type: z.string(),
-        username: z.string().optional(),
-      }),
-    })
-    .optional(),
-  update_id: z.number().int(),
-});
-
-const webhookInfoSchema = z.object({
-  last_error_date: z.number().int().optional(),
-  last_error_message: z.string().optional(),
-  pending_update_count: z.number().int(),
-  url: z.string(),
-});
-
-const sentMessageSchema = z.object({ message_id: z.number().int() });
-
-const failureSchema = z.object({
-  description: z.string().optional(),
-  error_code: z.number().int(),
-  ok: z.literal(false),
-  parameters: z.object({ retry_after: z.number().optional() }).optional(),
-});
-
-/**
- * The few Bot API methods the app uses, as JSON `POST`s over `fetch`, with no SDK. The token is
- * part of every request path, so neither a URL nor a `fetch` error is ever passed on.
- */
+/** An integration-scoped HTTP client. Only the hub calls Telegram itself. */
 export class TelegramClient {
-  private readonly apiOrigin: string;
   private readonly fetchImpl: typeof fetch;
+  private readonly hubUrl: string;
+  private readonly integrationId: string;
   private readonly timeoutMs: number;
   private readonly token: SecretValue<string>;
 
   constructor({
-    apiOrigin = TELEGRAM_API_ORIGIN,
     fetch: fetchImpl = globalThis.fetch,
+    hubUrl,
+    integrationId,
     timeoutMs = DEFAULT_TIMEOUT_MS,
     token,
   }: TelegramClientOptions) {
-    this.apiOrigin = apiOrigin;
     this.fetchImpl = fetchImpl;
+    this.hubUrl = hubUrl;
+    this.integrationId = integrationId;
     this.timeoutMs = timeoutMs;
     this.token = token;
   }
 
-  async getMe(signal?: AbortSignal): Promise<TelegramBot> {
-    const bot = await this.call('getMe', {}, userSchema, signal);
-
-    return { id: bot.id, ...(bot.username === undefined ? {} : { username: bot.username }) };
-  }
-
-  /**
-   * Pending messages, without confirming them: no `offset` is sent, so Telegram keeps them.
-   * Fails with `telegram_409` while a webhook is set.
-   */
-  async getUpdates(signal?: AbortSignal): Promise<TelegramUpdate[]> {
-    const updates = await this.call(
-      'getUpdates',
-      { allowed_updates: ['message'], limit: 100, timeout: 0 },
-      z.array(updateSchema),
+  async answerCallbackQuery(
+    callbackId: string,
+    text?: string,
+    signal?: AbortSignal,
+  ): Promise<void> {
+    await this.send(
+      {
+        action: 'answerCallbackQuery',
+        callbackId,
+        ...(text === undefined ? {} : { text: text.slice(0, 200) }),
+      },
+      z.object({ ok: z.literal(true) }),
       signal,
     );
-
-    return updates.map(({ message, update_id: updateId }) => {
-      if (message === undefined) {
-        return { updateId };
-      }
-
-      const { first_name: firstName, id, type, username } = message.chat;
-
-      return {
-        chat: {
-          id,
-          type,
-          ...(firstName === undefined ? {} : { firstName }),
-          ...(username === undefined ? {} : { username }),
-        },
-        updateId,
-      };
-    });
   }
 
-  async getWebhookInfo(signal?: AbortSignal): Promise<WebhookInfo> {
-    const info = await this.call('getWebhookInfo', {}, webhookInfoSchema, signal);
-
-    return {
-      pendingUpdateCount: info.pending_update_count,
-      url: info.url,
-      ...(info.last_error_date === undefined
-        ? {}
-        : { lastErrorAt: new Date(info.last_error_date * 1000) }),
-      ...(info.last_error_message === undefined
-        ? {}
-        : { lastErrorMessage: clip(redactString(info.last_error_message)) }),
-    };
+  async removeButtons(messageId: number, signal?: AbortSignal): Promise<void> {
+    await this.send(
+      { action: 'removeButtons', messageId },
+      z.object({ ok: z.literal(true) }),
+      signal,
+    );
   }
 
-  /** Sends `message` in HTML parse mode, without link previews. */
   async sendMessage(
-    chatId: string,
     message: TelegramMessage,
     signal?: AbortSignal,
   ): Promise<{ messageId: number }> {
-    const body: Record<string, unknown> = {
-      chat_id: chatId,
-      link_preview_options: { is_disabled: true },
-      parse_mode: 'HTML',
-      text: message.html,
+    const namespaced = {
+      ...message,
+      ...(message.buttons === undefined
+        ? {}
+        : {
+            buttons: message.buttons.map((row) =>
+              row.map((button) =>
+                'callbackData' in button
+                  ? { ...button, callbackData: `${this.integrationId}:${button.callbackData}` }
+                  : button,
+              ),
+            ),
+          }),
     };
+    const operation = hubOperationSchema.parse({ action: 'sendMessage', message: namespaced });
 
-    if (message.buttons !== undefined && message.buttons.length > 0) {
-      body.reply_markup = {
-        inline_keyboard: message.buttons.map((row) =>
-          row.map((button) =>
-            'url' in button
-              ? { text: button.text, url: button.url }
-              : { callback_data: button.callbackData, text: button.text },
-          ),
-        ),
-      };
-    }
-
-    const sent = await this.call('sendMessage', body, sentMessageSchema, signal);
-
-    return { messageId: sent.message_id };
+    return this.send(operation, z.object({ messageId: z.number().int().positive() }), signal);
   }
 
-  private async call<T>(
-    method: string,
-    body: Record<string, unknown>,
-    resultSchema: z.ZodType<T>,
-    signal: AbortSignal | undefined,
-  ): Promise<T> {
-    const timeout = AbortSignal.timeout(this.timeoutMs);
-    let response: Response;
-    let text: string;
+  /**
+   * Whether the hub accepts this integration's token, without sending anything: the hub answers
+   * an authenticated `GET /api/messages` with 405 and a wrong token with 401.
+   */
+  async checkAccess(signal?: AbortSignal): Promise<void> {
+    const { response } = await this.fetchHub({ method: 'GET' }, signal);
 
-    try {
-      response = await this.fetchImpl(`${this.apiOrigin}/bot${this.token.reveal()}/${method}`, {
-        body: JSON.stringify(body),
+    if (response.status !== 405) {
+      throw new TelegramApiError(
+        'api',
+        `Telegram hub token check failed (HTTP ${response.status})`,
+        {
+          errorCode: response.status,
+        },
+      );
+    }
+  }
+
+  private async send<T>(
+    operation: HubOperation,
+    schema: z.ZodType<T>,
+    signal?: AbortSignal,
+  ): Promise<T> {
+    const { body, response } = await this.fetchHub(
+      {
+        body: JSON.stringify(hubOperationSchema.parse(operation)),
         headers: { 'content-type': 'application/json' },
         method: 'POST',
+      },
+      signal,
+    );
+
+    if (!response.ok) {
+      const after = Number(response.headers.get('retry-after'));
+
+      throw new TelegramApiError('api', `Telegram hub request failed (HTTP ${response.status})`, {
+        errorCode: response.status,
+        ...(Number.isFinite(after) && after > 0 ? { retryAfterSec: after } : {}),
+      });
+    }
+
+    let raw: unknown;
+
+    try {
+      raw = JSON.parse(body) as unknown;
+    } catch {
+      throw new TelegramApiError('http', 'Telegram hub returned an invalid response');
+    }
+
+    const parsed = schema.safeParse(raw);
+
+    if (!parsed.success) {
+      throw new TelegramApiError('http', 'Telegram hub returned an invalid response');
+    }
+
+    return parsed.data;
+  }
+
+  /** One call to `/api/messages`, body read within the timeout; a fetch error is never passed on. */
+  private async fetchHub(
+    init: Pick<RequestInit, 'body' | 'headers' | 'method'>,
+    signal: AbortSignal | undefined,
+  ): Promise<{ body: string; response: Response }> {
+    const timeout = AbortSignal.timeout(this.timeoutMs);
+
+    try {
+      const response = await this.fetchImpl(new URL(MESSAGES_PATH, this.hubUrl), {
+        ...init,
+        headers: { ...init.headers, authorization: `Bearer ${this.token.reveal()}` },
         redirect: 'error',
         signal: signal === undefined ? timeout : AbortSignal.any([timeout, signal]),
       });
-      // Read inside the try: a stalled body ends with the timeout, like a stalled request.
-      text = await response.text();
+
+      return { body: await response.text(), response };
     } catch {
-      // The caller's abort wins; the error itself is dropped, since it may name the URL.
       signal?.throwIfAborted();
 
-      throw timeout.aborted
-        ? new TelegramApiError('timeout', `Telegram ${method} timed out`)
-        : new TelegramApiError('network', `Telegram ${method} failed: network error`);
-    }
-
-    const result = z
-      .object({ ok: z.literal(true), result: resultSchema })
-      .or(failureSchema)
-      .safeParse(parseJson(text));
-
-    if (!result.success) {
       throw new TelegramApiError(
-        'http',
-        `Telegram ${method} returned an unexpected reply (HTTP ${response.status})`,
-        { errorCode: response.status },
+        timeout.aborted ? 'timeout' : 'network',
+        timeout.aborted
+          ? 'Telegram hub request timed out'
+          : 'Telegram hub request failed: network error',
       );
     }
-
-    if (!result.data.ok) {
-      const { description, error_code: errorCode, parameters } = result.data;
-      const retryAfterSec = parameters?.retry_after;
-
-      throw new TelegramApiError(
-        'api',
-        `Telegram ${method} failed: ${errorCode}${description === undefined ? '' : ` ${clip(redactString(description))}`}`,
-        { errorCode, ...(retryAfterSec === undefined ? {} : { retryAfterSec }) },
-      );
-    }
-
-    return result.data.result;
   }
-}
-
-/** Unparseable text is not JSON at all; the schema check then reports the reply. */
-function parseJson(text: string): unknown {
-  try {
-    return JSON.parse(text) as unknown;
-  } catch {
-    return text;
-  }
-}
-
-function clip(text: string): string {
-  return text.length > MAX_DESCRIPTION_LENGTH
-    ? `${text.slice(0, MAX_DESCRIPTION_LENGTH - 1)}…`
-    : text;
 }

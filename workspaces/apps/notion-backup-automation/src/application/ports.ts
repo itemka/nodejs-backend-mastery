@@ -408,6 +408,22 @@ export interface NotificationGate {
   claim(key: string, ttlSec: number): Promise<boolean>;
 }
 
+/** At most `limit` uses per fixed window of `windowSec`. */
+export interface RateLimit {
+  readonly limit: number;
+  readonly windowSec: number;
+}
+
+export type RateLimitResult =
+  | { readonly allowed: false; readonly retryAfterSec: number }
+  | { readonly allowed: true };
+
+/** Counts uses across every function instance, such as `/mcp` requests per hour. */
+export interface RateLimiter {
+  /** Counts one use of `name` in the current window; refused once `limit` uses are counted. */
+  take(name: string, limit: RateLimit): Promise<RateLimitResult>;
+}
+
 /** The saved Notion session's facts, read without opening a browser. */
 export interface NotionLoginInfo {
   /** The earliest sign-in cookie expiry; undefined when none is recorded or no session is saved. */

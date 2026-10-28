@@ -9,3 +9,9 @@ export const TEST_TOKEN = `tok_${HEX_DIGITS}`;
 
 /** The daily cron's bearer secret. */
 export const TEST_CRON_SECRET = `cron-secret-${HEX_DIGITS}${HEX_DIGITS}`;
+
+/** `/mcp`'s bearer token: at least 32 characters, as `MCP_AUTH_TOKEN` requires. */
+export const TEST_MCP_TOKEN = `mcp-token-${HEX_DIGITS}${HEX_DIGITS}`;
+
+/** The Telegram webhook's secret header: `A-Z a-z 0-9 _ -`, 32 to 256 characters. */
+export const TEST_WEBHOOK_SECRET = `webhook-secret-${HEX_DIGITS}${HEX_DIGITS}`;

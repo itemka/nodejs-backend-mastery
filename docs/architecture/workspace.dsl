@@ -37,22 +37,33 @@ workspace "nodejs-backend-mastery" "C4 model of the runnable apps in this monore
             claudeCapabilitiesCli = container "Scenario CLI" "Argument-driven scenario runner on top of @workspaces/llm-client and the Anthropic SDK; validates sample file types and sizes before sending." "Node.js CLI"
         }
 
-        notionBackup = softwareSystem "notion-backup-automation" "Notion backup agent with local Google OAuth setup and Notion sign-in, a Playwright export trigger in Notion's Settings, Gmail export-email discovery, Drive access diagnostics, checksum-verified Drive backup storage, a resumable backup job run one idempotent tick at a time by a QStash-woken worker, a daily cron with health probes, login warnings and a heartbeat, console and Telegram notifications, and a deployed health check." {
+        notionBackup = softwareSystem "notion-backup-automation" "Notion backup agent with local Google OAuth setup and Notion sign-in, a Playwright export trigger in Notion's Settings, Gmail export-email discovery, Drive access diagnostics, checksum-verified Drive backup storage, a resumable backup job run one idempotent tick at a time by a QStash-woken worker, a daily cron with health probes, login warnings and a heartbeat, console and Telegram notifications, a bearer-protected remote MCP server, an authenticated Telegram hub integration for status and action buttons, and a deployed health check." {
             notionBackupHealth = container "Health function" "Public GET /api/health returning ok and the short commit SHA, with no caching and no other data." "Vercel Function (Node.js)"
             notionBackupWorker = container "Worker function" "POST /api/jobs/process/[jobId]: verifies the QStash signature against APP_BASE_URL plus the path and the raw body, runs one tick of one job (serverless Chromium for the export trigger), publishes the next wakeup, and records the _ping smoke test's nonce." "Vercel Function (Node.js, 300 s)"
             notionBackupCron = container "Daily cron function" "GET /api/cron/daily with the cron secret: auto-start when enabled, the watchdog and lifetime check, Google, Drive and Notion probes, login warnings, resuming a job whose login works again, and the heartbeat; ?probe= runs one probe." "Vercel Function (Node.js, 300 s, Vercel Cron)"
-            notionBackupCli = container "Local CLI" "auth:google, auth:notion, drive:check, drive:init, doctor, smoke:qstash, dev:upload, dev:trigger, dev:download, dev:tick, and telegram:setup: Google consent, a Notion sign-in you complete in a Chrome window that then resumes a job waiting for it, the deployed QStash smoke test, trusted export-email discovery, Drive probes, Redis/session diagnostics, checksum-verified test uploads into the _dev folder, dev-session export requests and download checks, the whole dev backup job one tick per call, and the Telegram chat setup and test message." "Node.js + TypeScript CLI + Playwright"
-            notionBackupConfig = container "Local configuration" "Google OAuth credentials and refresh token, the Telegram bot token and chat ID, plus connection and encryption settings; auth:google and telegram:setup --find-chat write them with mode 0600." ".env.local file"
+            notionBackupMcp = container "MCP function" "POST /mcp (rewritten to /api/mcp) with the bearer token, an Origin rule and an hourly limit: a new stateless MCP server per request with 7 tools (start, status, list, process, retry, cancel, health) whose views come from an allowlist; it publishes wakeups and never runs a step." "Vercel Function (Node.js, MCP Streamable HTTP)"
+            notionBackupIntegration = container "Telegram integration function" "POST /api/integrations/telegram with the integration bearer token: normalized commands and callbacks from the hub, backup action deduplication and single-use confirmations; status, retry, cancel and login guidance use the existing backup application methods." "Vercel Function (Node.js)"
+            notionBackupCli = container "Local CLI" "auth:google, auth:notion, drive:check, drive:init, doctor, smoke:qstash, dev:upload, dev:trigger, dev:download, dev:tick, and telegram:setup: Google consent, a Notion sign-in you complete in a Chrome window that then resumes a job waiting for it, the deployed QStash smoke test, trusted export-email discovery, Drive probes, Redis/session diagnostics, checksum-verified test uploads into the _dev folder, dev-session export requests and download checks, the whole dev backup job one tick per call, and Telegram test notifications through the independent hub; bot setup is owned by the hub CLI." "Node.js + TypeScript CLI + Playwright"
+            notionBackupConfig = container "Local configuration" "Google OAuth credentials and refresh token, the Telegram hub URL, integration ID and bearer token, plus connection and encryption settings; no bot token or webhook configuration." ".env.local file"
+        }
+
+        telegramHub = softwareSystem "telegram-webhook-hub" "Independent Vercel project for Artsem Automation Hub: the bot's only webhook owner, generic authenticated integration routing, namespaced callbacks, rate limiting, retry-safe delivery receipts, and all Bot API calls. Integrations share validated HTTP schemas, not implementation imports." {
+            telegramHubWebhook = container "Webhook function" "POST /api/webhook: verifies the Telegram secret before dependencies, accepts only the owner chat/sender, leases and deduplicates updates, routes configured commands and callback namespaces to authenticated HTTPS integrations, and leaves transient failures retryable." "Vercel Function (Node.js)"
+            telegramHubMessages = container "Messages function" "POST /api/messages with a per-integration bearer token: validates an allowlisted sendMessage, removeButtons or answerCallbackQuery operation and sends only to the configured owner chat." "Vercel Function (Node.js)"
+            telegramHubHealth = container "Health function" "Public GET /api/health with no credentials or private configuration in its response." "Vercel Function (Node.js)"
+            telegramHubCli = container "Bot setup CLI" "telegram:setup --find-chat, --test, --info, or guarded webhook registration: the only application that configures the bot's webhook; replacement requires --replace and preserves pending updates." "Node.js + TypeScript CLI"
+            telegramHubConfig = container "Hub configuration" "Bot API token, private chat ID, webhook secret, explicit integration registry with per-integration bearer tokens, and independent Redis prefix/connection settings." ".env.local and Vercel Production environment"
         }
 
         googleOAuth = softwareSystem "Google OAuth" "Consent, authorization-code exchange with PKCE, and access-token refresh for gmail.readonly and drive.file." "External"
         gmail = softwareSystem "Gmail API" "Read-only mailbox access and Notion export-email discovery; email content and download links stay out of logs." "External"
         googleDrive = softwareSystem "Google Drive API" "Folder visibility checks, year-folder and app-owned root creation, temporary access probes, and resumable backup uploads checked against Drive's checksums, through drive.file." "External"
-        upstashRedis = softwareSystem "Upstash Redis" "Managed backup state: jobs with compare-and-set versions, leases, events, consumed export emails and notification marks, plus the encrypted Notion session; auth:notion stores the session, and doctor checks connectivity and decrypts it locally." "External"
-        telegram = softwareSystem "Telegram Bot API" "The app's private chat with your bot: backup reports, attention alerts with buttons, and login warnings; no message carries a URL but the Drive file link, a token or email content." "External"
+        upstashRedis = softwareSystem "Upstash Redis" "Managed state in isolated application namespaces: backup jobs, leases, events, encrypted Notion session and confirmations; the independent hub stores only delivery leases, receipts and rate limits in its own prefix or database." "External"
+        telegram = softwareSystem "Telegram Bot API" "The private chat with Artsem Automation Hub: configured integrations receive commands and button taps and send sanitized reports; only telegram-webhook-hub owns the token and calls this API." "External"
         notion = softwareSystem "Notion" "The web app on app.notion.com (sign-in and the Settings export dialog), the export email's Mailgun link, and the export file host file.notion.com; no Notion API is used." "External"
         qstash = softwareSystem "Upstash QStash" "EU endpoint: delayed, signed, deduplicated wakeups of the worker, one at a time per environment; no schedules are configured in its console." "External"
         healthchecks = softwareSystem "healthchecks.io" "The outside heartbeat: alerts through its own channel when the daily cron stops pinging for two days." "External"
+        mcpClient = softwareSystem "MCP client" "Claude Code (user scope), Cursor or Codex, configured with the backup server's URL and bearer token." "External"
 
         developer -> playgroundUi "Chats and compares models in the browser"
         playgroundUi -> playgroundApi "Calls REST + SSE endpoints" "JSON/SSE over HTTP"
@@ -86,8 +97,24 @@ workspace "nodejs-backend-mastery" "C4 model of the runnable apps in this monore
         notionBackupCli -> gmail "Reads the mailbox profile and finds and validates export emails" "REST over HTTPS (gmail.readonly)"
         notionBackupCli -> googleDrive "Checks folders, manages access probes, finds or creates the app-owned root, and uploads test backups to _dev" "REST over HTTPS (drive.file)"
         notionBackupCli -> upstashRedis "Pings Redis, stores and reads the encrypted Notion session, and keeps the dev job's state, leases and events" "Redis REST over HTTPS"
-        notionBackupCli -> telegram "Finds your chat, sends the test message and job notifications, and reads who holds the webhook" "Bot API over HTTPS"
-        developer -> telegram "Sends /start to the bot and reads backup reports" "Telegram app"
+        notionBackupCli -> telegramHubMessages "Sends test messages and dev backup reports through the hub" "HTTPS POST (integration bearer)"
+        developer -> telegram "Sends /start and /status to the bot, taps report buttons, and reads backup reports" "Telegram app"
+        developer -> mcpClient "Starts and follows backups"
+        mcpClient -> notionBackupMcp "Lists and calls the backup tools" "MCP Streamable HTTP over HTTPS (Bearer)"
+        notionBackupMcp -> upstashRedis "Creates, reads and updates jobs, reads the health results, and counts the rate limits" "Redis REST over HTTPS"
+        notionBackupMcp -> qstash "Publishes immediate wakeups and cancels superseded ones" "REST over HTTPS"
+        developer -> telegramHubCli "Discovers the chat, inspects webhook ownership, tests, and configures the bot" "Terminal"
+        developer -> telegramHubHealth "Checks the independent hub deployment" "HTTPS"
+        telegramHubCli -> telegramHubConfig "Reads hub settings and records discovered chat identity" "Local file I/O"
+        telegramHubCli -> telegram "Finds the private chat, sends a namespaced test, reads and sets the sole webhook" "Bot API over HTTPS"
+        telegram -> telegramHubWebhook "Delivers messages and callback queries" "HTTPS POST (Telegram secret header)"
+        telegramHubWebhook -> upstashRedis "Leases updates, records completed deliveries, and counts retry-safe ingress limits in the hub namespace" "Redis REST over HTTPS"
+        telegramHubWebhook -> notionBackupIntegration "Forwards validated normalized updates to the configured backup integration" "HTTPS POST (integration bearer)"
+        telegramHubWebhook -> telegram "Sends generic help and acknowledges unsupported callbacks" "Bot API over HTTPS"
+        telegramHubMessages -> telegram "Sends replies and notifications, answers callbacks, and removes buttons for the owner chat" "Bot API over HTTPS"
+        notionBackupIntegration -> upstashRedis "Reads and updates backup jobs, deduplicates actions, and keeps one-time confirmations" "Redis REST over HTTPS"
+        notionBackupIntegration -> qstash "Publishes the wakeup of a retried job" "REST over HTTPS"
+        notionBackupIntegration -> telegramHubMessages "Replies, answers taps and removes used buttons" "HTTPS POST (integration bearer)"
         notionBackupCli -> notion "Checks the saved session, requests workspace exports in Settings, and downloads an export with the session's cookies" "Playwright + Chrome; HTTPS"
         notionBackupCli -> qstash "Publishes the signed _ping smoke test, and a wakeup for a prod job that waited for the Notion login" "REST over HTTPS"
         qstash -> notionBackupWorker "Delivers signed wakeups and the _ping" "HTTPS POST (Upstash-Signature JWT)"
@@ -97,14 +124,14 @@ workspace "nodejs-backend-mastery" "C4 model of the runnable apps in this monore
         notionBackupWorker -> googleOAuth "Refreshes access tokens" "OAuth 2.0 over HTTPS"
         notionBackupWorker -> gmail "Finds the export email and re-reads its link" "REST over HTTPS (gmail.readonly)"
         notionBackupWorker -> googleDrive "Adopts an existing backup, or uploads the verified ZIP" "REST over HTTPS (drive.file)"
-        notionBackupWorker -> telegram "Sends backup reports and attention alerts" "Bot API over HTTPS"
+        notionBackupWorker -> telegramHubMessages "Sends backup reports and attention alerts" "HTTPS POST (integration bearer)"
         notionBackupCron -> upstashRedis "Records the run and the probe results, finds the active job, and marks warnings as sent" "Redis REST over HTTPS"
         notionBackupCron -> qstash "Starts, re-arms or resumes the active job with a wakeup" "REST over HTTPS"
         notionBackupCron -> notion "Probes the session and the export dialog, without exporting" "serverless Chromium; HTTPS"
         notionBackupCron -> googleOAuth "Probes the refresh token and its scopes" "OAuth 2.0 over HTTPS"
         notionBackupCron -> gmail "Probes the mailbox profile" "REST over HTTPS (gmail.readonly)"
         notionBackupCron -> googleDrive "Probes the root and the year folder, and a probe file under _dev" "REST over HTTPS (drive.file)"
-        notionBackupCron -> telegram "Sends login warnings and lost-access alerts" "Bot API over HTTPS"
+        notionBackupCron -> telegramHubMessages "Sends login warnings and lost-access alerts" "HTTPS POST (integration bearer)"
         notionBackupCron -> healthchecks "Pings after each run, or /fail when a sub-step threw" "HTTPS GET"
         healthchecks -> developer "Alerts when the pings stop" "Email or Telegram"
     }
@@ -130,7 +157,12 @@ workspace "nodejs-backend-mastery" "C4 model of the runnable apps in this monore
             autoLayout lr
         }
 
-        container notionBackup "NotionBackupContainers" "Notion backup CLI, local configuration, the deployed health, worker and cron functions, and their Notion, Google, Redis, QStash, Telegram and healthchecks.io dependencies." {
+        container notionBackup "NotionBackupContainers" "Notion backup CLI, deployed control and worker functions, authenticated Telegram hub integration, and their external service dependencies." {
+            include *
+            autoLayout lr
+        }
+
+        container telegramHub "TelegramHubContainers" "Independent Telegram hub ingress, messaging and setup CLI, with isolated delivery state and the authenticated backup integration." {
             include *
             autoLayout lr
         }

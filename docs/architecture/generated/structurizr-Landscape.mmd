@@ -18,35 +18,47 @@ graph LR
     style 19 fill:#ffffff,stroke:#444444,color:#444444
     2["<div style='font-weight: bold'>Ollama</div><div style='font-size: 70%; margin-top: 0px'>[Software System]</div><div style='font-size: 80%; margin-top:10px'>Local LLM runtime exposing an<br />OpenAI-compatible API on<br />localhost:11434.</div>"]
     style 2 fill:#8c8c8c,stroke:#626262,color:#ffffff
-    21["<div style='font-weight: bold'>notion-backup-automation</div><div style='font-size: 70%; margin-top: 0px'>[Software System]</div><div style='font-size: 80%; margin-top:10px'>Notion backup agent with<br />local Google OAuth setup and<br />Notion sign-in, a Playwright<br />export trigger in Notion's<br />Settings, Gmail export-email<br />discovery, Drive access<br />diagnostics,<br />checksum-verified Drive<br />backup storage, a resumable<br />backup job run one idempotent<br />tick at a time by a<br />QStash-woken worker, a daily<br />cron with health probes,<br />login warnings and a<br />heartbeat, console and<br />Telegram notifications, and a<br />deployed health check.</div>"]
+    21["<div style='font-weight: bold'>notion-backup-automation</div><div style='font-size: 70%; margin-top: 0px'>[Software System]</div><div style='font-size: 80%; margin-top:10px'>Notion backup agent with<br />local Google OAuth setup and<br />Notion sign-in, a Playwright<br />export trigger in Notion's<br />Settings, Gmail export-email<br />discovery, Drive access<br />diagnostics,<br />checksum-verified Drive<br />backup storage, a resumable<br />backup job run one idempotent<br />tick at a time by a<br />QStash-woken worker, a daily<br />cron with health probes,<br />login warnings and a<br />heartbeat, console and<br />Telegram notifications, a<br />bearer-protected remote MCP<br />server, an authenticated<br />Telegram hub integration for<br />status and action buttons,<br />and a deployed health check.</div>"]
     style 21 fill:#ffffff,stroke:#444444,color:#444444
-    27["<div style='font-weight: bold'>Google OAuth</div><div style='font-size: 70%; margin-top: 0px'>[Software System]</div><div style='font-size: 80%; margin-top:10px'>Consent, authorization-code<br />exchange with PKCE, and<br />access-token refresh for<br />gmail.readonly and<br />drive.file.</div>"]
-    style 27 fill:#8c8c8c,stroke:#626262,color:#ffffff
-    28["<div style='font-weight: bold'>Gmail API</div><div style='font-size: 70%; margin-top: 0px'>[Software System]</div><div style='font-size: 80%; margin-top:10px'>Read-only mailbox access and<br />Notion export-email<br />discovery; email content and<br />download links stay out of<br />logs.</div>"]
-    style 28 fill:#8c8c8c,stroke:#626262,color:#ffffff
-    29["<div style='font-weight: bold'>Google Drive API</div><div style='font-size: 70%; margin-top: 0px'>[Software System]</div><div style='font-size: 80%; margin-top:10px'>Folder visibility checks,<br />year-folder and app-owned<br />root creation, temporary<br />access probes, and resumable<br />backup uploads checked<br />against Drive's checksums,<br />through drive.file.</div>"]
-    style 29 fill:#8c8c8c,stroke:#626262,color:#ffffff
+    29["<div style='font-weight: bold'>telegram-webhook-hub</div><div style='font-size: 70%; margin-top: 0px'>[Software System]</div><div style='font-size: 80%; margin-top:10px'>Independent Vercel project<br />for Artsem Automation Hub:<br />the bot's only webhook owner,<br />generic authenticated<br />integration routing,<br />namespaced callbacks, rate<br />limiting, retry-safe delivery<br />receipts, and all Bot API<br />calls. Integrations share<br />validated HTTP schemas, not<br />implementation imports.</div>"]
+    style 29 fill:#ffffff,stroke:#444444,color:#444444
     3["<div style='font-weight: bold'>VoyageAI API</div><div style='font-size: 70%; margin-top: 0px'>[Software System]</div><div style='font-size: 80%; margin-top:10px'>Hosted embeddings API<br />(voyage-3-large by default).</div>"]
     style 3 fill:#8c8c8c,stroke:#626262,color:#ffffff
-    30["<div style='font-weight: bold'>Upstash Redis</div><div style='font-size: 70%; margin-top: 0px'>[Software System]</div><div style='font-size: 80%; margin-top:10px'>Managed backup state: jobs<br />with compare-and-set<br />versions, leases, events,<br />consumed export emails and<br />notification marks, plus the<br />encrypted Notion session;<br />auth:notion stores the<br />session, and doctor checks<br />connectivity and decrypts it<br />locally.</div>"]
-    style 30 fill:#8c8c8c,stroke:#626262,color:#ffffff
-    31["<div style='font-weight: bold'>Telegram Bot API</div><div style='font-size: 70%; margin-top: 0px'>[Software System]</div><div style='font-size: 80%; margin-top:10px'>The app's private chat with<br />your bot: backup reports,<br />attention alerts with<br />buttons, and login warnings;<br />no message carries a URL but<br />the Drive file link, a token<br />or email content.</div>"]
-    style 31 fill:#8c8c8c,stroke:#626262,color:#ffffff
-    32["<div style='font-weight: bold'>Notion</div><div style='font-size: 70%; margin-top: 0px'>[Software System]</div><div style='font-size: 80%; margin-top:10px'>The web app on app.notion.com<br />(sign-in and the Settings<br />export dialog), the export<br />email's Mailgun link, and the<br />export file host<br />file.notion.com; no Notion<br />API is used.</div>"]
-    style 32 fill:#8c8c8c,stroke:#626262,color:#ffffff
-    33["<div style='font-weight: bold'>Upstash QStash</div><div style='font-size: 70%; margin-top: 0px'>[Software System]</div><div style='font-size: 80%; margin-top:10px'>EU endpoint: delayed, signed,<br />deduplicated wakeups of the<br />worker, one at a time per<br />environment; no schedules are<br />configured in its console.</div>"]
-    style 33 fill:#8c8c8c,stroke:#626262,color:#ffffff
-    34["<div style='font-weight: bold'>healthchecks.io</div><div style='font-size: 70%; margin-top: 0px'>[Software System]</div><div style='font-size: 80%; margin-top:10px'>The outside heartbeat: alerts<br />through its own channel when<br />the daily cron stops pinging<br />for two days.</div>"]
-    style 34 fill:#8c8c8c,stroke:#626262,color:#ffffff
+    35["<div style='font-weight: bold'>Google OAuth</div><div style='font-size: 70%; margin-top: 0px'>[Software System]</div><div style='font-size: 80%; margin-top:10px'>Consent, authorization-code<br />exchange with PKCE, and<br />access-token refresh for<br />gmail.readonly and<br />drive.file.</div>"]
+    style 35 fill:#8c8c8c,stroke:#626262,color:#ffffff
+    36["<div style='font-weight: bold'>Gmail API</div><div style='font-size: 70%; margin-top: 0px'>[Software System]</div><div style='font-size: 80%; margin-top:10px'>Read-only mailbox access and<br />Notion export-email<br />discovery; email content and<br />download links stay out of<br />logs.</div>"]
+    style 36 fill:#8c8c8c,stroke:#626262,color:#ffffff
+    37["<div style='font-weight: bold'>Google Drive API</div><div style='font-size: 70%; margin-top: 0px'>[Software System]</div><div style='font-size: 80%; margin-top:10px'>Folder visibility checks,<br />year-folder and app-owned<br />root creation, temporary<br />access probes, and resumable<br />backup uploads checked<br />against Drive's checksums,<br />through drive.file.</div>"]
+    style 37 fill:#8c8c8c,stroke:#626262,color:#ffffff
+    38["<div style='font-weight: bold'>Upstash Redis</div><div style='font-size: 70%; margin-top: 0px'>[Software System]</div><div style='font-size: 80%; margin-top:10px'>Managed state in isolated<br />application namespaces:<br />backup jobs, leases, events,<br />encrypted Notion session and<br />confirmations; the<br />independent hub stores only<br />delivery leases, receipts and<br />rate limits in its own prefix<br />or database.</div>"]
+    style 38 fill:#8c8c8c,stroke:#626262,color:#ffffff
+    39["<div style='font-weight: bold'>Telegram Bot API</div><div style='font-size: 70%; margin-top: 0px'>[Software System]</div><div style='font-size: 80%; margin-top:10px'>The private chat with Artsem<br />Automation Hub: configured<br />integrations receive commands<br />and button taps and send<br />sanitized reports; only<br />telegram-webhook-hub owns the<br />token and calls this API.</div>"]
+    style 39 fill:#8c8c8c,stroke:#626262,color:#ffffff
     4["<div style='font-weight: bold'>Anthropic API</div><div style='font-size: 70%; margin-top: 0px'>[Software System]</div><div style='font-size: 80%; margin-top:10px'>Hosted Claude models API.</div>"]
     style 4 fill:#8c8c8c,stroke:#626262,color:#ffffff
+    40["<div style='font-weight: bold'>Notion</div><div style='font-size: 70%; margin-top: 0px'>[Software System]</div><div style='font-size: 80%; margin-top:10px'>The web app on app.notion.com<br />(sign-in and the Settings<br />export dialog), the export<br />email's Mailgun link, and the<br />export file host<br />file.notion.com; no Notion<br />API is used.</div>"]
+    style 40 fill:#8c8c8c,stroke:#626262,color:#ffffff
+    41["<div style='font-weight: bold'>Upstash QStash</div><div style='font-size: 70%; margin-top: 0px'>[Software System]</div><div style='font-size: 80%; margin-top:10px'>EU endpoint: delayed, signed,<br />deduplicated wakeups of the<br />worker, one at a time per<br />environment; no schedules are<br />configured in its console.</div>"]
+    style 41 fill:#8c8c8c,stroke:#626262,color:#ffffff
+    42["<div style='font-weight: bold'>healthchecks.io</div><div style='font-size: 70%; margin-top: 0px'>[Software System]</div><div style='font-size: 80%; margin-top:10px'>The outside heartbeat: alerts<br />through its own channel when<br />the daily cron stops pinging<br />for two days.</div>"]
+    style 42 fill:#8c8c8c,stroke:#626262,color:#ffffff
+    43["<div style='font-weight: bold'>MCP client</div><div style='font-size: 70%; margin-top: 0px'>[Software System]</div><div style='font-size: 80%; margin-top:10px'>Claude Code (user scope),<br />Cursor or Codex, configured<br />with the backup server's URL<br />and bearer token.</div>"]
+    style 43 fill:#8c8c8c,stroke:#626262,color:#ffffff
     5["<div style='font-weight: bold'>local-llm-playground</div><div style='font-size: 70%; margin-top: 0px'>[Software System]</div><div style='font-size: 80%; margin-top:10px'>Local-only LLM lab: chat,<br />streaming chat, multi-model<br />compare, and llm-checker<br />recommendations.</div>"]
     style 5 fill:#ffffff,stroke:#444444,color:#444444
     8["<div style='font-weight: bold'>rag-pipeline</div><div style='font-size: 70%; margin-top: 0px'>[Software System]</div><div style='font-size: 80%; margin-top:10px'>Retrieval-only RAG service:<br />markdown ingest, hybrid<br />vector + BM25 search with RRF<br />fusion.</div>"]
     style 8 fill:#ffffff,stroke:#444444,color:#444444
 
-    21-. "<div>Pings after each run, or<br />/fail when a sub-step threw</div><div style='font-size: 70%'>[HTTPS GET]</div>" .->34
-    34-. "<div>Alerts when the pings stop</div><div style='font-size: 70%'>[Email or Telegram]</div>" .->1
+    21-. "<div>Publishes immediate wakeups<br />and cancels superseded ones</div><div style='font-size: 70%'>[REST over HTTPS]</div>" .->41
+    1-. "<div>Discovers the chat, inspects<br />webhook ownership, tests, and<br />configures the bot</div><div style='font-size: 70%'>[Terminal]</div>" .->29
+    29-. "<div>Finds the private chat, sends<br />a namespaced test, reads and<br />sets the sole webhook</div><div style='font-size: 70%'>[Bot API over HTTPS]</div>" .->39
+    39-. "<div>Delivers messages and<br />callback queries</div><div style='font-size: 70%'>[HTTPS POST (Telegram secret header)]</div>" .->29
+    29-. "<div>Leases updates, records<br />completed deliveries, and<br />counts retry-safe ingress<br />limits in the hub namespace</div><div style='font-size: 70%'>[Redis REST over HTTPS]</div>" .->38
+    29-. "<div>Forwards validated normalized<br />updates to the configured<br />backup integration</div><div style='font-size: 70%'>[HTTPS POST (integration bearer)]</div>" .->21
+    21-. "<div>Checks the saved session,<br />requests workspace exports in<br />Settings, and downloads an<br />export with the session's<br />cookies</div><div style='font-size: 70%'>[Playwright + Chrome; HTTPS]</div>" .->40
+    41-. "<div>Delivers signed wakeups and<br />the _ping</div><div style='font-size: 70%'>[HTTPS POST (Upstash-Signature JWT)]</div>" .->21
+    21-. "<div>Pings after each run, or<br />/fail when a sub-step threw</div><div style='font-size: 70%'>[HTTPS GET]</div>" .->42
+    42-. "<div>Alerts when the pings stop</div><div style='font-size: 70%'>[Email or Telegram]</div>" .->1
     1-. "<div>Chats and compares models in<br />the browser</div><div style='font-size: 70%'></div>" .->5
     5-. "<div>Sends chat/completions<br />requests</div><div style='font-size: 70%'>[OpenAI-compatible HTTP]</div>" .->2
     1-. "<div>Chats in the terminal</div><div style='font-size: 70%'></div>" .->10
@@ -62,16 +74,15 @@ graph LR
     1-. "<div>Runs individual capability<br />scenarios from the terminal</div><div style='font-size: 70%'></div>" .->19
     19-. "<div>Sends scenario requests<br />(messages, files, code<br />execution)</div><div style='font-size: 70%'>[HTTPS]</div>" .->4
     1-. "<div>Checks that a deployment is<br />live</div><div style='font-size: 70%'>[HTTPS]</div>" .->21
-    1-. "<div>Grants Gmail and Drive<br />access, optionally choosing<br />folders</div><div style='font-size: 70%'>[HTTPS in browser]</div>" .->27
-    1-. "<div>Signs in, including MFA, in<br />the window auth:notion opens</div><div style='font-size: 70%'>[HTTPS in browser]</div>" .->32
-    21-. "<div>Exchanges authorization codes<br />and refreshes access tokens</div><div style='font-size: 70%'>[OAuth 2.0 over HTTPS]</div>" .->27
-    21-. "<div>Reads the mailbox profile and<br />finds and validates export<br />emails</div><div style='font-size: 70%'>[REST over HTTPS (gmail.readonly)]</div>" .->28
-    21-. "<div>Checks folders, manages<br />access probes, finds or<br />creates the app-owned root,<br />and uploads test backups to<br />_dev</div><div style='font-size: 70%'>[REST over HTTPS (drive.file)]</div>" .->29
-    21-. "<div>Pings Redis, stores and reads<br />the encrypted Notion session,<br />and keeps the dev job's<br />state, leases and events</div><div style='font-size: 70%'>[Redis REST over HTTPS]</div>" .->30
-    21-. "<div>Finds your chat, sends the<br />test message and job<br />notifications, and reads who<br />holds the webhook</div><div style='font-size: 70%'>[Bot API over HTTPS]</div>" .->31
-    1-. "<div>Sends /start to the bot and<br />reads backup reports</div><div style='font-size: 70%'>[Telegram app]</div>" .->31
-    21-. "<div>Checks the saved session,<br />requests workspace exports in<br />Settings, and downloads an<br />export with the session's<br />cookies</div><div style='font-size: 70%'>[Playwright + Chrome; HTTPS]</div>" .->32
-    21-. "<div>Publishes the signed _ping<br />smoke test, and a wakeup for<br />a prod job that waited for<br />the Notion login</div><div style='font-size: 70%'>[REST over HTTPS]</div>" .->33
-    33-. "<div>Delivers signed wakeups and<br />the _ping</div><div style='font-size: 70%'>[HTTPS POST (Upstash-Signature JWT)]</div>" .->21
+    1-. "<div>Grants Gmail and Drive<br />access, optionally choosing<br />folders</div><div style='font-size: 70%'>[HTTPS in browser]</div>" .->35
+    1-. "<div>Signs in, including MFA, in<br />the window auth:notion opens</div><div style='font-size: 70%'>[HTTPS in browser]</div>" .->40
+    21-. "<div>Exchanges authorization codes<br />and refreshes access tokens</div><div style='font-size: 70%'>[OAuth 2.0 over HTTPS]</div>" .->35
+    21-. "<div>Reads the mailbox profile and<br />finds and validates export<br />emails</div><div style='font-size: 70%'>[REST over HTTPS (gmail.readonly)]</div>" .->36
+    21-. "<div>Checks folders, manages<br />access probes, finds or<br />creates the app-owned root,<br />and uploads test backups to<br />_dev</div><div style='font-size: 70%'>[REST over HTTPS (drive.file)]</div>" .->37
+    21-. "<div>Pings Redis, stores and reads<br />the encrypted Notion session,<br />and keeps the dev job's<br />state, leases and events</div><div style='font-size: 70%'>[Redis REST over HTTPS]</div>" .->38
+    21-. "<div>Sends test messages and dev<br />backup reports through the<br />hub</div><div style='font-size: 70%'>[HTTPS POST (integration bearer)]</div>" .->29
+    1-. "<div>Sends /start and /status to<br />the bot, taps report buttons,<br />and reads backup reports</div><div style='font-size: 70%'>[Telegram app]</div>" .->39
+    1-. "<div>Starts and follows backups</div><div style='font-size: 70%'></div>" .->43
+    43-. "<div>Lists and calls the backup<br />tools</div><div style='font-size: 70%'>[MCP Streamable HTTP over HTTPS (Bearer)]</div>" .->21
 
   end

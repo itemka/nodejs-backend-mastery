@@ -1,16 +1,22 @@
 import { createHash, timingSafeEqual } from 'node:crypto';
 
 /**
- * Whether `Authorization` is exactly `Bearer <secret>`. Both sides are hashed first, so the
- * comparison takes the same time whatever the header's length or content.
+ * Whether `value` is exactly `secret`. Both sides are hashed first, so the comparison takes the
+ * same time whatever the value's length or content. A missing value is compared as empty, which
+ * never matches: `loadEnv` refuses an empty secret.
  */
-export function isBearer(header: string | null, secret: string): boolean {
-  const expected = createHash('sha256').update(`Bearer ${secret}`).digest();
+export function secretEquals(value: string | null, secret: string): boolean {
+  const expected = createHash('sha256').update(secret).digest();
   const actual = createHash('sha256')
-    .update(header ?? '')
+    .update(value ?? '')
     .digest();
 
   return timingSafeEqual(expected, actual);
+}
+
+/** Whether `Authorization` is exactly `Bearer <secret>`, compared as `secretEquals` does. */
+export function isBearer(header: string | null, secret: string): boolean {
+  return secretEquals(header, `Bearer ${secret}`);
 }
 
 /**
