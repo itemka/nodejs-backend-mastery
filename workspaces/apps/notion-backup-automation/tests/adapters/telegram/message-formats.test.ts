@@ -1,13 +1,20 @@
+import { telegramMessageSchema } from '@workspaces/telegram-contracts';
 import { describe, expect, it } from 'vitest';
 
 import type { MessageFormatOptions } from '../../../src/adapters/telegram/message-formats.js';
 import {
   attentionMessage,
   callbackData,
+  confirmMessage,
   driveFileUrl,
   escapeHtml,
   failureMessage,
+  fixLoginMessage,
+  helpMessage,
   loginWarningMessage,
+  noticeMessage,
+  parseCallbackData,
+  statusMessage,
   successMessage,
   testMessage,
 } from '../../../src/adapters/telegram/message-formats.js';
@@ -21,6 +28,7 @@ import type {
   FailureNotification,
   SuccessNotification,
 } from '../../../src/application/ports.js';
+import type { JobView } from '../../../src/mcp/views.js';
 import { redactString } from '../../../src/shared/redact.js';
 import { fakeBotToken } from '../../support/fake-telegram.js';
 
@@ -322,5 +330,157 @@ describe('helpers', () => {
   it('refuses callback_data over 64 bytes', () => {
     expect(callbackData('status', '2026-10-r99999')).toBe('s:2026-10-r99999');
     expect(() => callbackData('status', 'x'.repeat(63))).toThrow(RangeError);
+  });
+
+  it('parses every button it builds, and nothing else', () => {
+    for (const [action, target] of [
+      ['cancel', '2026-10'],
+      ['confirm', 'AbCdEfGhIjKlMnOpQrSt-_'],
+      ['fixLogin', 'drive'],
+      ['retry', '2026-10-r2'],
+      ['retryFromScratch', '2026-10'],
+      ['status', ''],
+    ] as const) {
+      expect(parseCallbackData(callbackData(action, target))).toEqual({ action, target });
+    }
+
+    for (const data of ['', 's', 'q:2026-10', 'S:2026-10', 's:<b>', `s:${'x'.repeat(63)}`]) {
+      expect(parseCallbackData(data)).toBeUndefined();
+    }
+  });
+});
+
+describe('statusMessage', () => {
+  const view: JobView = {
+    attention: {
+      code: 'NOTION_SESSION_EXPIRED',
+      howToFix: 'Run auth:notion; it resumes the job (or run backup_retry).',
+      reason: 'The saved Notion session <expired>.',
+      stage: 'NOTION_TRIGGER',
+    },
+    createdAt: '2026-10-01T04:00:00.000Z',
+    emailCheckAttempt: 0,
+    exportAttempt: 1,
+    jobId: '2026-10',
+    kind: 'manual',
+    period: '2026-10',
+    recentEvents: [
+      {
+        at: '2026-10-01T04:02:00.000Z',
+        text: 'see https://file.notion.com/f/x?signature=abc',
+        type: 'note',
+      },
+    ],
+    stage: 'NOTION_TRIGGER',
+    status: 'NEEDS_ATTENTION',
+  };
+
+  it('shows the job, what needs attention and the buttons that fit, escaped and chat-safe', () => {
+    const message = statusMessage(view, { ...options, retryFromScratch: true });
+
+    expect(message.html).toContain(
+      '⚠️ <b>Job 2026-10</b> · NEEDS_ATTENTION · stage NOTION_TRIGGER',
+    );
+    expect(message.html).toContain('The saved Notion session &lt;expired&gt;.');
+    expect(message.html).toContain('<code>10-01 06:02</code> see [link]');
+    expect(buttonsOf(message)).toEqual([
+      'Status=s:2026-10',
+      'Retry=r:2026-10',
+      'Retry from scratch=f:2026-10',
+      'Cancel=x:2026-10',
+      'Fix login=l:notion',
+    ]);
+    expectChatSafe(message);
+  });
+
+  it('drops oldest events when escaped HTML exceeds the message limit', () => {
+    const message = statusMessage(
+      {
+        ...view,
+        recentEvents: Array.from({ length: 5 }, (_, index) => ({
+          at: '2026-10-01T04:00:00.000Z',
+          text: `event ${index} ${'"'.repeat(150)}`,
+          type: 'note',
+        })),
+      },
+      { ...options, retryFromScratch: true },
+    );
+
+    expect(telegramMessageSchema.safeParse(message).success).toBe(true);
+    expect(message.html).toContain('<b>NOTION_SESSION_EXPIRED</b>');
+    expect(message.html).toContain('Run auth:notion');
+    expect(message.html).toContain('event 4 ');
+    expect(message.html).not.toContain('event 0 ');
+    expect(buttonsOf(message)).toContain('Retry=r:2026-10');
+    expectChatSafe(message);
+  });
+
+  it('offers Status and Cancel while the job runs, Open in Drive once stored, and nothing once cancelled', () => {
+    const running = statusMessage(
+      {
+        ...view,
+        attention: undefined,
+        nextCheckAt: '2026-10-01T04:20:00.000Z',
+        status: 'WAITING_FOR_EMAIL',
+      },
+      { ...options, retryFromScratch: true },
+    );
+
+    expect(running.html).toContain('Next check: <code>10-01 06:20</code>');
+    expect(buttonsOf(running)).toEqual(['Status=s:2026-10', 'Cancel=x:2026-10']);
+
+    const stored = statusMessage(
+      {
+        ...view,
+        attention: undefined,
+        result: {
+          driveFileId: '1AbC',
+          entryCount: 198,
+          fileName: 'notion-workspace-2026-10-01.zip',
+          sha256: 'a'.repeat(64),
+          sizeBytes: 8_907_221,
+        },
+        stage: undefined,
+        status: 'COMPLETE',
+      },
+      { ...options, retryFromScratch: true },
+    );
+
+    expect(stored.html).toContain('Stored: notion-workspace-2026-10-01.zip · 198 files (8.9 MB)');
+    expect(buttonsOf(stored)).toEqual([`Open in Drive=${driveFileUrl('1AbC')}`]);
+    expectChatSafe(stored);
+
+    expect(
+      statusMessage(
+        { ...view, attention: undefined, status: 'CANCELLED' },
+        { ...options, retryFromScratch: true },
+      ).buttons,
+    ).toBeUndefined();
+  });
+});
+
+describe('fixLoginMessage, confirmMessage, helpMessage and noticeMessage', () => {
+  it('give the command for each login', () => {
+    expect(fixLoginMessage('notion', { appEnv: 'prod' }).html).toContain(
+      '<code>APP_ENV=prod pnpm --filter notion-backup-automation auth:notion</code>',
+    );
+    expect(fixLoginMessage('drive', { appEnv: 'prod' }).html).toContain(
+      'Fix the Google Drive folder access',
+    );
+  });
+
+  it('ask for the second tap with one confirm button', () => {
+    const message = confirmMessage('cancel', '2026-10', 'AbCdEfGhIjKlMnOpQrSt-_');
+
+    expect(message.html).toContain('Tap again to confirm: cancel job 2026-10.');
+    expect(buttonsOf(message)).toEqual(['Confirm cancel=c:AbCdEfGhIjKlMnOpQrSt-_']);
+    expectChatSafe(message);
+  });
+
+  it('escape and redact a notice', () => {
+    expect(noticeMessage(`a <b> ${fakeBotToken} https://x.example/y?z=1`).html).toBe(
+      'a &lt;b&gt; [redacted] [link]',
+    );
+    expectChatSafe(helpMessage());
   });
 });

@@ -23,7 +23,12 @@ export type ParsedCommand =
   | { readonly command: 'drive:init' }
   | { readonly command: 'help' }
   | { readonly command: 'smoke:qstash' }
-  | { readonly command: 'telegram:setup'; readonly mode: 'find-chat' | 'info' | 'test' };
+  | {
+      readonly command: 'telegram:setup';
+      readonly mode: 'find-chat' | 'info' | 'test' | 'webhook';
+      /** `webhook` only: take over a webhook another URL holds. */
+      readonly replace: boolean;
+    };
 
 /** A wrong command line. The message is shown with the usage text. */
 export class UsageError extends Error {
@@ -69,10 +74,10 @@ Commands:
       Publishes a signed _ping through QStash to the deployed worker at APP_BASE_URL and waits
       up to 2 minutes for the worker to record it in Redis for APP_ENV (APP_ENV=prod: the
       production deployment).
-  telegram:setup --find-chat | --test | --info
-      --find-chat: after you send /start to the bot, saves your private chat's ID as
-      TELEGRAM_CHAT_ID in .env.local. --test sends a test message to TELEGRAM_CHAT_ID. --info shows
-      whether a webhook receives the bot's updates; it changes nothing.
+  telegram:setup --test
+      Sends a backup test notification through TELEGRAM_HUB_URL with TELEGRAM_HUB_TOKEN.
+      Bot token, owner chat, webhook inspection and registration belong exclusively to
+      pnpm --filter telegram-webhook-hub cli telegram:setup. Other modes print that command.
 
 The commands read .env.local in the app directory.`;
 
@@ -172,19 +177,21 @@ export function parseCommand(argv: readonly string[]): ParsedCommand {
       const { values } = parse(rest, {
         'find-chat': { type: 'boolean' },
         info: { type: 'boolean' },
+        replace: { type: 'boolean' },
         test: { type: 'boolean' },
       });
       const modes = (['find-chat', 'info', 'test'] as const).filter(
         (mode) => values[mode] === true,
       );
+      const replace = values.replace === true;
 
-      if (modes.length !== 1 || modes[0] === undefined) {
+      if (modes.length > 1 || (replace && modes.length > 0)) {
         throw new UsageError(
-          'telegram:setup takes one of --find-chat, --test or --info; setting the webhook is not available yet',
+          'telegram:setup takes at most one of --find-chat, --test or --info; --replace only sets the webhook',
         );
       }
 
-      return { command: 'telegram:setup', mode: modes[0] };
+      return { command: 'telegram:setup', mode: modes[0] ?? 'webhook', replace };
     }
 
     default: {

@@ -1,211 +1,169 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  isPermanentRefusal,
   TelegramApiError,
   TelegramClient,
 } from '../../../src/adapters/telegram/telegram-client.js';
 import { SecretValue } from '../../../src/shared/secret-value.js';
 import {
-  FAKE_CHAT_ID,
-  fakeBotToken,
+  FAKE_HUB_URL,
+  fakeHubToken,
   FakeTelegram,
   hangingReply,
   telegramError,
-  telegramOk,
 } from '../../support/fake-telegram.js';
 
-function clientFor(telegram: FakeTelegram, timeoutMs?: number): TelegramClient {
+function clientFor(hub: FakeTelegram, timeoutMs = 10_000, integrationId = 'nb-prod') {
   return new TelegramClient({
-    fetch: telegram.fetch,
-    token: new SecretValue(fakeBotToken),
-    ...(timeoutMs === undefined ? {} : { timeoutMs }),
+    fetch: hub.fetch,
+    hubUrl: FAKE_HUB_URL,
+    integrationId,
+    timeoutMs,
+    token: new SecretValue(fakeHubToken),
   });
 }
 
-async function failureOf(promise: Promise<unknown>): Promise<TelegramApiError> {
-  try {
-    await promise;
-  } catch (error) {
-    if (error instanceof TelegramApiError) {
-      return error;
-    }
-
-    throw error;
-  }
-
-  throw new Error('Expected a TelegramApiError');
-}
-
-function expectNoToken(error: TelegramApiError): void {
-  const secret = fakeBotToken.split(':')[1] ?? fakeBotToken;
-
-  expect(error.message).not.toContain(secret);
-  expect(JSON.stringify(error)).not.toContain(secret);
-  expect(error.message).not.toContain('api.telegram.org');
-}
-
-describe('TelegramClient', () => {
-  it('sends HTML without link previews, with inline buttons in Telegram’s shape', async () => {
-    const telegram = new FakeTelegram();
-
-    const { messageId } = await clientFor(telegram).sendMessage(FAKE_CHAT_ID, {
-      buttons: [
-        [
-          { callbackData: 's:2026-10', text: 'Status' },
-          { text: 'Open in Drive', url: 'https://drive.google.com/file/d/abc/view' },
+describe('the Telegram hub client', () => {
+  it('sends only an authenticated allowlisted operation, namespacing every callback', async () => {
+    const hub = new FakeTelegram();
+    await expect(
+      clientFor(hub).sendMessage({
+        buttons: [
+          [
+            { callbackData: 's:2026-10', text: 'Status' },
+            { text: 'Drive', url: 'https://drive.google.com/file/d/f/view' },
+          ],
         ],
-      ],
-      html: '<b>Hello</b>',
-    });
-
-    expect(messageId).toBeGreaterThan(0);
-    expect(telegram.calls).toEqual([
+        html: '<b>Ready</b>',
+      }),
+    ).resolves.toEqual({ messageId: 1 });
+    expect(hub.calls).toEqual([
       {
         body: {
-          chat_id: FAKE_CHAT_ID,
-          link_preview_options: { is_disabled: true },
-          parse_mode: 'HTML',
-          reply_markup: {
-            inline_keyboard: [
-              [
-                { callback_data: 's:2026-10', text: 'Status' },
-                { text: 'Open in Drive', url: 'https://drive.google.com/file/d/abc/view' },
-              ],
+          buttons: [
+            [
+              { callbackData: 'nb-prod:s:2026-10', text: 'Status' },
+              { text: 'Drive', url: 'https://drive.google.com/file/d/f/view' },
             ],
-          },
-          text: '<b>Hello</b>',
+          ],
+          html: '<b>Ready</b>',
         },
         method: 'sendMessage',
-        token: fakeBotToken,
+        token: fakeHubToken,
       },
     ]);
   });
 
-  it('sends no reply_markup for a message without buttons', async () => {
-    const telegram = new FakeTelegram();
-
-    await clientFor(telegram).sendMessage(FAKE_CHAT_ID, { buttons: [], html: 'plain' });
-
-    expect(telegram.sentMessages()[0]).not.toHaveProperty('reply_markup');
-  });
-
-  it('turns ok:false into telegram_<error_code>, with the description but never the token', async () => {
-    const telegram = new FakeTelegram().on('sendMessage', () =>
-      telegramError(400, 'Bad Request: chat not found'),
-    );
-
-    const error = await failureOf(clientFor(telegram).sendMessage(FAKE_CHAT_ID, { html: 'x' }));
-
-    expect(error).toMatchObject({ code: 'telegram_400', errorCode: 400, failure: 'api' });
-    expect(error.message).toBe('Telegram sendMessage failed: 400 Bad Request: chat not found');
-    expectNoToken(error);
-  });
-
-  it('carries Telegram’s retry_after on a 429', async () => {
-    const telegram = new FakeTelegram().on('sendMessage', () =>
-      telegramError(429, 'Too Many Requests: retry after 7', 7),
-    );
-
-    const error = await failureOf(clientFor(telegram).sendMessage(FAKE_CHAT_ID, { html: 'x' }));
-
-    expect(error).toMatchObject({ code: 'telegram_429', retryAfterSec: 7 });
-  });
-
-  it('reports a non-JSON reply by its HTTP status', async () => {
-    const telegram = new FakeTelegram().on(
-      'getMe',
-      () => new Response('<html>Bad Gateway</html>', { status: 502 }),
-    );
-
-    const error = await failureOf(clientFor(telegram).getMe());
-
-    expect(error).toMatchObject({ code: 'http', errorCode: 502, failure: 'http' });
-  });
-
-  it('drops the fetch error, which may name the URL and so the token', async () => {
-    const client = new TelegramClient({
-      fetch: () =>
-        Promise.reject(
-          new TypeError(`fetch failed: https://api.telegram.org/bot${fakeBotToken}/getMe`),
-        ),
-      token: new SecretValue(fakeBotToken),
+  it('isolates development callbacks from production and checks the full byte limit before sending', async () => {
+    const hub = new FakeTelegram();
+    await clientFor(hub, 10_000, 'nb-dev').sendMessage({
+      buttons: [[{ callbackData: 'x:2026-10', text: 'Cancel' }]],
+      html: 'x',
     });
-
-    const error = await failureOf(client.getMe());
-
-    expect(error).toMatchObject({ code: 'network', failure: 'network' });
-    expect(error.cause).toBeUndefined();
-    expectNoToken(error);
-  });
-
-  it('times out a request that never answers', async () => {
-    const telegram = new FakeTelegram().on('sendMessage', hangingReply);
-
-    const error = await failureOf(clientFor(telegram, 20).sendMessage(FAKE_CHAT_ID, { html: 'x' }));
-
-    expect(error).toMatchObject({ code: 'timeout', failure: 'timeout' });
-  });
-
-  it('rejects with the caller’s abort reason', async () => {
-    const telegram = new FakeTelegram().on('sendMessage', hangingReply);
-    const controller = new AbortController();
-    const sending = clientFor(telegram).sendMessage(FAKE_CHAT_ID, { html: 'x' }, controller.signal);
-    const reason = new Error('tick budget');
-
-    controller.abort(reason);
-
-    await expect(sending).rejects.toBe(reason);
-  });
-
-  it('reads private chats from pending messages without confirming them', async () => {
-    const telegram = new FakeTelegram().on('getUpdates', () =>
-      telegramOk([
-        {
-          message: {
-            chat: { first_name: 'Artsem', id: 424_242, type: 'private', username: 'artsem' },
-            date: 0,
-            message_id: 1,
-            text: '/start',
-          },
-          update_id: 10,
-        },
-        { callback_query: { id: 'x' }, update_id: 11 },
-      ]),
-    );
-
-    await expect(clientFor(telegram).getUpdates()).resolves.toEqual([
-      {
-        chat: { firstName: 'Artsem', id: 424_242, type: 'private', username: 'artsem' },
-        updateId: 10,
-      },
-      { updateId: 11 },
-    ]);
-    expect(telegram.calls[0]?.body).not.toHaveProperty('offset');
-  });
-
-  it('reads the webhook info, with the last error redacted', async () => {
-    const telegram = new FakeTelegram().on('getWebhookInfo', () =>
-      telegramOk({
-        last_error_date: 1_790_000_000,
-        last_error_message: 'Wrong response: https://other.example.com/hook?key=abc',
-        pending_update_count: 3,
-        url: 'https://other.example.com/hook',
+    expect(JSON.stringify(hub.sentMessages())).toContain('nb-dev:x:2026-10');
+    await expect(
+      clientFor(hub).sendMessage({
+        buttons: [[{ callbackData: 's:' + 'a'.repeat(58), text: 'x' }]],
+        html: 'x',
       }),
-    );
+    ).rejects.toThrow('64 bytes');
+    expect(hub.calls).toHaveLength(1);
+  });
 
-    await expect(clientFor(telegram).getWebhookInfo()).resolves.toEqual({
-      lastErrorAt: new Date(1_790_000_000_000),
-      lastErrorMessage: 'Wrong response: https://other.example.com/hook[redacted]',
-      pendingUpdateCount: 3,
-      url: 'https://other.example.com/hook',
+  it('can answer callbacks and remove buttons without selecting any chat', async () => {
+    const hub = new FakeTelegram();
+    await clientFor(hub).answerCallbackQuery('cb-1', 'done');
+    await clientFor(hub).removeButtons(10);
+    expect(hub.bodiesOf('answerCallbackQuery')).toEqual([{ callbackId: 'cb-1', text: 'done' }]);
+    expect(hub.bodiesOf('removeButtons')).toEqual([{ messageId: 10 }]);
+  });
+
+  it('reports status and retry timing but never remote response details', async () => {
+    const hub = new FakeTelegram().on('sendMessage', () =>
+      telegramError(429, `private ${fakeHubToken}`, 7),
+    );
+    const error = await clientFor(hub)
+      .sendMessage({ html: 'x' })
+      .catch((error_: unknown) => error_);
+    expect(error).toBeInstanceOf(TelegramApiError);
+    expect(error).toMatchObject({ code: 'hub_429', failure: 'api', retryAfterSec: 7 });
+    expect(JSON.stringify(error)).not.toContain(fakeHubToken);
+  });
+
+  it('refuses a malformed success reply', async () => {
+    const hub = new FakeTelegram().on('sendMessage', () => Response.json({ ok: true }));
+    await expect(clientFor(hub).sendMessage({ html: 'x' })).rejects.toMatchObject({
+      failure: 'http',
     });
   });
 
-  it('fails on a reply that does not match the method’s result', async () => {
-    const telegram = new FakeTelegram().on('sendMessage', () => telegramOk({ unexpected: true }));
+  it('hides URLs and credentials from network errors', async () => {
+    const client = new TelegramClient({
+      fetch: () => Promise.reject(new Error(`private ${fakeHubToken}`)),
+      hubUrl: FAKE_HUB_URL,
+      integrationId: 'nb-prod',
+      token: new SecretValue(fakeHubToken),
+    });
+    await expect(client.sendMessage({ html: 'x' })).rejects.toMatchObject({
+      failure: 'network',
+      message: 'Telegram hub request failed: network error',
+    });
+  });
 
-    const error = await failureOf(clientFor(telegram).sendMessage(FAKE_CHAT_ID, { html: 'x' }));
+  it('checks the token with an authenticated GET that sends nothing', async () => {
+    const requests: Request[] = [];
+    const hub = new FakeTelegram();
 
-    expect(error.code).toBe('http');
+    const recording: typeof fetch = (input, init) => {
+      requests.push(new Request(input, init));
+
+      return hub.fetch(input, init);
+    };
+
+    const client = new TelegramClient({
+      fetch: recording,
+      hubUrl: FAKE_HUB_URL,
+      integrationId: 'nb-prod',
+      token: new SecretValue(fakeHubToken),
+    });
+
+    await expect(client.checkAccess()).resolves.toBeUndefined();
+    expect(requests.map((request) => `${request.method} ${request.url}`)).toEqual([
+      `GET ${FAKE_HUB_URL}/api/messages`,
+    ]);
+    expect(hub.calls).toEqual([]);
+
+    await expect(
+      clientFor(new FakeTelegram('another-token-'.padEnd(40, 'x'))).checkAccess(),
+    ).rejects.toMatchObject({ code: 'hub_401', failure: 'api' });
+  });
+
+  it.each([
+    { error: new TelegramApiError('api', 'refused', { errorCode: 400 }), permanent: true },
+    { error: new TelegramApiError('api', 'refused', { errorCode: 403 }), permanent: true },
+    { error: new TelegramApiError('api', 'refused', { errorCode: 422 }), permanent: true },
+    { error: new TelegramApiError('api', 'timeout', { errorCode: 408 }), permanent: false },
+    { error: new TelegramApiError('api', 'limited', { errorCode: 429 }), permanent: false },
+    { error: new TelegramApiError('api', 'down', { errorCode: 503 }), permanent: false },
+    { error: new TelegramApiError('http', 'odd reply', { errorCode: 404 }), permanent: false },
+    { error: new TelegramApiError('network', 'offline'), permanent: false },
+    { error: new Error('not a hub error'), permanent: false },
+  ])(
+    'tells a final hub refusal from a retryable failure: $error.message',
+    ({ error, permanent }) => {
+      expect(isPermanentRefusal(error)).toBe(permanent);
+    },
+  );
+
+  it('times out a stalled response and respects the caller abort', async () => {
+    const hub = new FakeTelegram().on('sendMessage', hangingReply);
+    await expect(clientFor(hub, 20).sendMessage({ html: 'x' })).rejects.toMatchObject({
+      failure: 'timeout',
+    });
+    const controller = new AbortController();
+    const pending = clientFor(hub).sendMessage({ html: 'x' }, controller.signal);
+    controller.abort();
+    await expect(pending).rejects.toMatchObject({ name: 'AbortError' });
   });
 });

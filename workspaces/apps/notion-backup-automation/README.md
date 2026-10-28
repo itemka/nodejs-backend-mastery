@@ -7,35 +7,38 @@ the ZIP in Google Drive. It runs as Vercel Functions.
 the Drive backup storage with its resumable uploader (Phase 3), the ZIP transfer from the
 export link to Drive (Phase 4), the Notion session bootstrap and export trigger with
 Playwright (Phase 5), the backup job itself, run one idempotent tick at a time, with console
-and Telegram notifications (Phase 6), and the QStash worker and the daily cron (Phase 7), with
-a local CLI. The functions are `GET /api/health`, `POST /api/jobs/process/[jobId]` and
-`GET /api/cron/daily`; the MCP server and the Telegram buttons come next.
+and Telegram notifications (Phase 6), the QStash worker and the daily cron (Phase 7), and the
+remote MCP server and the Telegram buttons (Phase 8), with a local CLI. The functions are
+`GET /api/health`, `POST /api/jobs/process/[jobId]`, `GET /api/cron/daily`, `POST /mcp` and
+`POST /api/integrations/telegram`; the Gemini supervisor comes next.
 
 ## Layout
 
-| Path                          | Purpose                                                                                                                           |
-| ----------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
-| `api/`                        | Vercel function entry points (Web `Request` → `Response`). No business logic.                                                     |
-| `src/config/env.ts`           | Zod env schemas, one subset per function. Errors name the variables, never their values.                                          |
-| `src/domain/`                 | The job schema, statuses, transitions and lifecycle rules, schedule and retry policies, periods, naming, the error catalog. Pure. |
-| `src/application/`            | The ports (`ports.ts`), the tick (`process-job.ts`), the application methods (`backup-service.ts`), and the job notifications.    |
-| `src/adapters/persistence/`   | Upstash Redis adapters with Lua scripts (`lua/*.lua`), and the in-memory job repository.                                          |
-| `src/adapters/google/`        | OAuth: loopback consent with PKCE, the Picker grant, the token provider, and the REST client shared by Gmail and Drive.           |
-| `src/adapters/gmail/`         | The export-email finder and its parser: the trust checks and the download-link extraction.                                        |
-| `src/adapters/drive/`         | The backup storage (year folders, verified uploads, the sidecar), the resumable uploader, and the S6 access check (C1–C4).        |
-| `src/adapters/transfer/`      | The export transfer: the link hop, the cookie download to `/tmp/nba`, the ZIP verifier, and the upload through the storage.       |
-| `src/adapters/notion/`        | Playwright: the browser launcher, the saved session, the session gate, the Settings page object, and the export trigger.          |
-| `src/adapters/notifications/` | The console and Telegram notifiers, and `CompositeNotifier`, which fans out and never throws.                                     |
-| `src/adapters/telegram/`      | The Bot API client over `fetch`, and the message formats (HTML-escaped, allowlisted fields, inline buttons).                      |
-| `src/adapters/qstash/`        | The QStash scheduler (EU, deduplicated, flow-controlled wakeups) and the signature verifier (`Receiver`, `devMode: false`).       |
-| `src/adapters/heartbeat/`     | The healthchecks.io ping after each cron run, or a no-op without `HEARTBEAT_PING_URL`.                                            |
-| `src/http/`                   | The functions' HTTP layer: QStash and cron authentication, the worker and cron handlers, content-free responses.                  |
-| `src/config/containers.ts`    | The composition root: the notifiers, the backup services for one `APP_ENV`, and the worker's and the cron's wiring.               |
-| `src/cli/`                    | The local CLI: `auth:*`, `drive:*`, `doctor`, `smoke:qstash`, `telegram:setup`, and the `dev:*` helpers, `dev:tick` among them.   |
-| `src/shared/`                 | The redacting JSON-line logger, envelope crypto (AES-256-GCM), the `.env.local` writer, masking, `SecretValue`, clock, IDs.       |
-| `tests/`                      | Vitest. `tests/contract/` holds the repository contract; `tests/live/` and `tests/browser/` the opt-in suites; `tests/fixtures/`. |
-| `vercel.json`                 | Region, per-function limits, the Chromium files the worker and the cron need, and the daily cron.                                 |
-| `.env.example`                | Template for the untracked `.env.local`.                                                                                          |
+| Path                          | Purpose                                                                                                                               |
+| ----------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
+| `api/`                        | Vercel function entry points (Web `Request` → `Response`). No business logic.                                                         |
+| `src/config/env.ts`           | Zod env schemas, one subset per function. Errors name the variables, never their values.                                              |
+| `src/domain/`                 | The job schema, statuses, transitions and lifecycle rules, schedule and retry policies, periods, naming, the error catalog. Pure.     |
+| `src/application/`            | The ports (`ports.ts`), the tick (`process-job.ts`), the application methods (`backup-service.ts`), and the job notifications.        |
+| `src/adapters/persistence/`   | Upstash Redis adapters with Lua scripts (`lua/*.lua`), and the in-memory job repository.                                              |
+| `src/adapters/google/`        | OAuth: loopback consent with PKCE, the Picker grant, the token provider, and the REST client shared by Gmail and Drive.               |
+| `src/adapters/gmail/`         | The export-email finder and its parser: the trust checks and the download-link extraction.                                            |
+| `src/adapters/drive/`         | The backup storage (year folders, verified uploads, the sidecar), the resumable uploader, and the S6 access check (C1–C4).            |
+| `src/adapters/transfer/`      | The export transfer: the link hop, the cookie download to `/tmp/nba`, the ZIP verifier, and the upload through the storage.           |
+| `src/adapters/notion/`        | Playwright: the browser launcher, the saved session, the session gate, the Settings page object, and the export trigger.              |
+| `src/adapters/notifications/` | The console and Telegram notifiers, and `CompositeNotifier`, which fans out and never throws.                                         |
+| `src/adapters/telegram/`      | The authenticated hub HTTP client, and the message formats (HTML-escaped, allowlisted fields, inline buttons).                        |
+| `src/adapters/qstash/`        | The QStash scheduler (EU, deduplicated, flow-controlled wakeups) and the signature verifier (`Receiver`, `devMode: false`).           |
+| `src/adapters/heartbeat/`     | The healthchecks.io ping after each cron run, or a no-op without `HEARTBEAT_PING_URL`.                                                |
+| `src/http/`                   | The functions' HTTP layer: QStash, cron, MCP bearer and Telegram authentication, rate limits, the handlers, content-free bodies.      |
+| `src/mcp/`                    | The MCP server factory, the 7 tools (Zod schemas, annotations), and the allowlisted views they and Telegram's `/status` return.       |
+| `src/telegram/`               | The authenticated integration: normalized update schema, leased receipts, buttons mapped to job methods and second-tap confirmations. |
+| `src/config/containers.ts`    | The composition root: the notifiers, the backup services, the control services of `/mcp` and the webhook, and each function.          |
+| `src/cli/`                    | The local CLI: `auth:*`, `drive:*`, `doctor`, `smoke:qstash`, `telegram:setup`, and the `dev:*` helpers, `dev:tick` among them.       |
+| `src/shared/`                 | The redacting JSON-line logger, envelope crypto (AES-256-GCM), the `.env.local` writer, masking, `SecretValue`, clock, IDs.           |
+| `tests/`                      | Vitest. `tests/contract/` holds the repository contract; `tests/live/` and `tests/browser/` the opt-in suites; `tests/fixtures/`.     |
+| `vercel.json`                 | Region, per-function limits, the Chromium files the worker and the cron need, the `/mcp` rewrite, and the daily cron.                 |
+| `.env.example`                | Template for the untracked `.env.local`.                                                                                              |
 
 ## Commands
 
@@ -86,7 +89,8 @@ APP_ENV=dev pnpm --filter notion-backup-automation cli dev:trigger [--dry-run] [
 APP_ENV=dev pnpm --filter notion-backup-automation cli dev:download [--email-since YYYY-MM-DD]
 APP_ENV=dev pnpm --filter notion-backup-automation cli dev:tick --start [--force]
 APP_ENV=dev pnpm --filter notion-backup-automation cli dev:tick <jobId> [--retry | --cancel]
-pnpm --filter notion-backup-automation cli telegram:setup --find-chat | --test | --info
+pnpm --filter notion-backup-automation cli telegram:setup --test
+pnpm --filter telegram-webhook-hub cli telegram:setup --info
 APP_ENV=prod pnpm --filter notion-backup-automation cli smoke:qstash
 ```
 
@@ -102,7 +106,7 @@ APP_ENV=prod pnpm --filter notion-backup-automation cli smoke:qstash
 | `dev:trigger`                | Only with `APP_ENV=dev`. Requests one real workspace export in Notion's Settings with the saved session, so Notion sends its export email. `--dry-run` goes up to the dialog's Export button, sets the dialog values, and cancels. `--headed` shows the window. Exits 1 when the click was sent but no confirmation appeared.                                                     |
 | `dev:download`               | Only with `APP_ENV=dev`. Finds the newest trusted export email since `--email-since` (default: the last 7 days), downloads its ZIP with the saved session's cookies into a temporary directory, checks the signature and the archive, prints the size, SHA-256 and file count, and deletes the copy. Nothing is uploaded.                                                         |
 | `dev:tick`                   | Only with `APP_ENV=dev`. The whole backup, one tick per call, with the worker's code (see [Backup Jobs](#backup-jobs)). `--start` creates this month's job (`--force`: `<period>-r<N>`); `<jobId>` runs its next step and prints the job and when the next step is due; `--retry` and `--cancel` stand in for `backup_retry` and `backup_cancel`. Exits 1 when the job needs you. |
-| `telegram:setup`             | `--find-chat`: after you send `/start` to the bot, reads its pending messages (without confirming them) and saves the one private chat as `TELEGRAM_CHAT_ID`. `--test`: sends a test message with a Status button. `--info`: shows who receives the bot's updates (the webhook's host and path, never a query); read-only. Setting the webhook comes later.                       |
+| `telegram:setup --test`      | Sends a test notification through the hub with a Status button. All other modes print the matching `telegram-webhook-hub` CLI command without changing the bot.                                                                                                                                                                                                                   |
 | `smoke:qstash`               | Publishes a signed `_ping` through QStash (EU) to the worker at `APP_BASE_URL` and waits up to 2 minutes for the worker to record its nonce in Redis for `APP_ENV`. Only a delivery whose signature the deployed worker verified can write it. Needs `QSTASH_TOKEN` and `APP_BASE_URL`.                                                                                           |
 
 While the Google OAuth app is in **Testing**, refresh tokens expire after 7 days. When `doctor`
@@ -429,8 +433,8 @@ all at once and logs a failing one as `notify.failed` with its name and error co
 
 - **`console`**: one log line each, `notify.success`, `notify.failure`, `notify.attention` or
   `notify.login`, with a one-line `text`.
-- **`telegram`**: your private chat with the bot, in HTML. It needs `TELEGRAM_BOT_TOKEN` and
-  `TELEGRAM_CHAT_ID`; without them it is left out with a `notify.telegram.unconfigured`
+- **`telegram`**: your private chat with the bot, in HTML. It needs `TELEGRAM_HUB_URL` and
+  `TELEGRAM_HUB_TOKEN`; without them it is left out with a `notify.telegram.unconfigured`
   warning, and `doctor` names what is missing.
 
 | Event                     | Message                                                         | Buttons                                                                                 |
@@ -456,10 +460,108 @@ all at once and logs a failing one as `notify.failed` with its name and error co
 - **Other environments** are marked: a dev message starts with "🧪 dev".
 - The buttons answer once the webhook exists; until then, tapping one does nothing.
 
-**Setup, once:** create the bot with @BotFather and put `TELEGRAM_BOT_TOKEN` into `.env.local`
-(and 1Password). Send `/start` to the bot, run `telegram:setup --find-chat` (it saves
-`TELEGRAM_CHAT_ID`), then `telegram:setup --test`. `--find-chat` works only while no webhook
-receives the bot's updates; `--info` shows whether one does.
+**Setup:** the universal bot **Artsem Automation Hub** (`@artsem_automation_bot`) is owned by
+the independent [telegram-webhook-hub](../telegram-webhook-hub/README.md) application and Vercel
+project. Configure this backup app's `TELEGRAM_HUB_URL` and a dedicated `TELEGRAM_HUB_TOKEN`
+(at least 32 characters). The same token authenticates this integration in the hub registry.
+Register the backup endpoint `https://<backup-app>.vercel.app/api/integrations/telegram` with
+ID `nb-prod` and commands `status` and `backup_status`. Add `telegram` to `NOTIFIERS`, then run
+`pnpm --filter notion-backup-automation cli telegram:setup --test` to prove authenticated
+outbound delivery. The backup app never receives the bot token, chat ID or webhook secret.
+
+### Telegram Integration
+
+`POST /api/integrations/telegram` receives only authenticated hub requests:
+
+1. `Authorization: Bearer <TELEGRAM_HUB_TOKEN>` is compared in constant time before any
+   services or payload are read. Invalid credentials receive 401.
+2. Parse the strict shared `{ updateId, input }` protocol. Raw Telegram updates, extra fields,
+   invalid input and oversized bodies are refused. The hub already checked Telegram's
+   webhook secret, owner chat and sender; the backup application does not trust raw updates.
+3. Claim a 60-second processing lease atomically. An unfinished concurrent delivery gets a
+   retryable 503; a completed receipt gets 200 without applying an action twice. Successful
+   processing stores a completed receipt for two days. Expired leases can be retried; release
+   and completion compare the owner token so an old invocation cannot alter a newer lease.
+4. Mutations save an allowlisted reply receipt before contacting the hub. Redelivery replays
+   that receipt instead of running the mutation again. An immutable intent binds the action
+   to the job version read before mutation, preventing a later incident from being retried
+   when receipt storage itself failed. Confirmation leases preserve pending second taps
+   through temporary failures and consume them only after completion or a domain refusal.
+5. Domain refusals are replied with their safe code/message. Transport or scheduling failures
+   release the lease and return 503 so the hub can retry. The hub owns the ingress hourly
+   limit, so redeliveries do not consume a second backend quota.
+6. A reply the hub refuses for good (any 4xx but 408 and 429, such as `422 TELEGRAM_REJECTED`)
+   finishes the update as `rejected` and logs `telegram.rejected`: a resend would only fail the
+   same way. A tap is answered only once handling ends for good, so after a temporary failure
+   the resent update shows the real notice; Telegram accepts one answer per tap.
+
+All sends, callback answers and button edits use authenticated `POST /api/messages` on the
+hub. The hub chooses the owner chat. The HTTP client adds `nb-<APP_ENV>:` (or the configured
+`TELEGRAM_INTEGRATION_ID`) to every outgoing callback and validates the full 64-byte budget;
+this namespace must equal the route's `id` in the hub's `HUB_INTEGRATIONS`, or the hub refuses
+buttons with 403. `doctor` checks the token with an authenticated `GET /api/messages`, which the
+hub answers with 405 and a wrong token with 401; it never calls the hub's public health route.
+The hub removes that routing prefix before forwarding a callback. An unconfigured development
+route is refused instead of falling through to production. The hub's legacy integration entry
+continues routing old unprefixed report/confirmation buttons to production; existing messages
+do not require replacement.
+
+| You send or tap                     | The bot                                                                                                                             |
+| ----------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
+| `/status`, `/backup_status`, Status | Replies with the job (the given one, else the active or latest) as `backup_status` shows it, with the buttons its state allows.     |
+| Retry                               | `backup_retry` from the failed stage, then removes the report's buttons.                                                            |
+| Retry from scratch                  | Asks "Tap again to confirm" with one button (`telegram:confirm:<nonce>`, 10 min, single use); that tap retries from NOTION_TRIGGER. |
+| Cancel                              | The same second tap, then `backup_cancel` with "Cancelled from Telegram".                                                           |
+| Fix login                           | Replies with the command: `auth:notion`, `auth:google` (then Vercel and a redeploy), or `drive:check` for the folder access.        |
+| Anything else                       | A short help text. The bot cannot start a backup or talk to a model.                                                                |
+
+A button acts on the job's state now: one whose job moved on answers "Job 2026-10 is already
+COMPLETE" (or that there is nothing to retry) and changes nothing.
+
+**Webhook ownership:** only `pnpm --filter telegram-webhook-hub cli telegram:setup` can
+register `https://telegram-webhook-hub.vercel.app/api/webhook`. Inspect it with that command's
+`--info` mode first. The hub refuses another registered URL without explicit `--replace` and
+preserves pending updates. This application's `telegram:setup --test` sends through the hub; configuration modes
+print the hub command. It cannot register a competing webhook. The old backup `/api/telegram/webhook`
+entrypoint has been migrated to the integration endpoint.
+
+## MCP Server
+
+`POST /mcp` is a remote MCP server over Streamable HTTP, stateless: a new server answers each
+request, for 2026-07-28 clients and, through the SDK's stateless fallback, 2025 clients. In
+order: `Authorization: Bearer $MCP_AUTH_TOKEN` (constant time; 401 with `WWW-Authenticate:
+Bearer`), the `Origin` rule (a request with an `Origin` not in `MCP_ALLOWED_ORIGINS`, empty by
+default, gets 403), `POST` only (405), and at most 60 requests an hour (429 with `Retry-After`).
+There is no unauthenticated path to any tool.
+
+| Tool             | Does                                                                                                   |
+| ---------------- | ------------------------------------------------------------------------------------------------------ |
+| `backup_start`   | This month's job, returned at once in `CREATED`; idempotent per month. `force` starts `<period>-r<N>`. |
+| `backup_status`  | One job (default: the active, else the latest) with its result or what needs attention, and 10 events. |
+| `backup_list`    | The newest jobs first (`limit` 1–24, default 12).                                                      |
+| `backup_process` | Wakes a job now (a new token, an immediate wakeup); at most 10 calls per job per hour.                 |
+| `backup_retry`   | Resumes a job that needs attention or waits to retry, from its stage or `fromStage`.                   |
+| `backup_cancel`  | Cancels a job that has not ended, with a reason.                                                       |
+| `backup_health`  | The stored probe results, the last QStash ping and cron run, and the agent and notification settings.  |
+
+Each result carries `structuredContent` and a text block with a one-line summary and the same
+JSON. A refusal is `isError: true` with `{ code, message }`: `ACTIVE_JOB_EXISTS`, `JOB_NOT_FOUND`,
+`INVALID_STATE`, `RATE_LIMITED`, `SCHEDULER_UNAVAILABLE`, or `INTERNAL_ERROR` (details only in
+the logs). The views are built field by field from an allowlist: no URL, token, cookie, email
+content, schedule token or Drive folder ID can reach a client.
+
+### MCP Client Setup
+
+`NOTION_BACKUP_MCP_TOKEN` is your shell's copy of `MCP_AUTH_TOKEN` (`openssl rand -base64 32`,
+from 1Password). Claude Code, user scope:
+
+```sh
+claude mcp add --transport http --scope user notion-backup https://<app>.vercel.app/mcp --header "Authorization: Bearer $NOTION_BACKUP_MCP_TOKEN"
+```
+
+Cursor and Codex take the same URL with an `Authorization` header (Codex:
+`bearer_token_env_var = "NOTION_BACKUP_MCP_TOKEN"`). To remove it:
+`claude mcp remove notion-backup --scope user`.
 
 ## State In Redis
 
@@ -503,10 +605,14 @@ The project imports this repository from GitHub:
 | Environment variables                                                | Production only (see [Deployment](#deployment)) |
 
 Vercel compiles each `api/*.ts` file and resolves imports with plain Node.js rules; it does
-not bundle. So the functions must not import the repo's `@workspaces/packages/*` packages:
-Node.js cannot resolve a package name with three segments (`ERR_UNSUPPORTED_DIR_IMPORT`), and
-the sibling apps only use them through esbuild bundles or `tsx`. Import npm packages, or code
-inside this app, instead.
+not bundle. The app's `vercel-build` script first builds `@workspaces/telegram-contracts`, whose
+runtime exports point to JavaScript in `dist/`. `pnpm install` also builds that package for local
+CLI and test use; after schema changes or an install with `--ignore-scripts`, run
+`pnpm --filter @workspaces/telegram-contracts build` before using either app.
+
+The functions must not import the repo's `@workspaces/packages/*` packages: Node.js cannot resolve
+a package name with three segments (`ERR_UNSUPPORTED_DIR_IMPORT`), and the sibling apps only use
+those packages through esbuild bundles or `tsx`.
 
 `vercel.json` gives the worker and the cron 300 s, and includes Chromium's archives in both,
 since the package finds them at runtime, next to its own code (S2). The pattern names pnpm's
@@ -525,10 +631,11 @@ a variable, which applies to new deployments only):
    - secrets: `UPSTASH_REDIS_REST_URL`, `UPSTASH_REDIS_REST_TOKEN`, `APP_ENCRYPTION_KEY`,
      `QSTASH_TOKEN`, `QSTASH_CURRENT_SIGNING_KEY`, `QSTASH_NEXT_SIGNING_KEY`, `GOOGLE_CLIENT_ID`,
      `GOOGLE_CLIENT_SECRET`, `GOOGLE_REFRESH_TOKEN`, `GEMINI_API_KEY`, `CRON_SECRET`,
-     `TELEGRAM_BOT_TOKEN`, `HEARTBEAT_PING_URL`;
+     `TELEGRAM_HUB_TOKEN`, `HEARTBEAT_PING_URL`, and from Phase 8 `MCP_AUTH_TOKEN`;
    - plain: `APP_ENV=prod`, `QSTASH_URL=https://qstash-eu-central-1.upstash.io`,
      `GOOGLE_DRIVE_BACKUP_ROOT_FOLDER_ID`, `NOTION_WORKSPACE_URL`, `NOTION_WORKSPACE_NAME`,
-     `TELEGRAM_CHAT_ID`, `NOTIFIERS=console,telegram`, `AUTO_START_ENABLED=false`.
+     `TELEGRAM_HUB_URL=https://telegram-webhook-hub.vercel.app`, `TELEGRAM_INTEGRATION_ID=nb-prod`,
+     `NOTIFIERS=console,telegram`, `AUTO_START_ENABLED=false`.
 
    `CRON_SECRET` is `openssl rand -base64 32`; `HEARTBEAT_PING_URL` is the ping URL of a
    healthchecks.io check with period 1 day and grace 1 day. `GEMINI_API_KEY` is required while
@@ -558,6 +665,36 @@ a variable, which applies to new deployments only):
 
 5. **Heartbeat:** after the first scheduled cron run, the healthchecks.io check shows a ping
    and is "up".
+6. **MCP and the complete Telegram migration (Phase 8):** generate separate `MCP_AUTH_TOKEN`
+   and `TELEGRAM_HUB_TOKEN` values (`openssl rand -base64 32` each), store in 1Password and
+   Production as Sensitive, then deploy both applications. Follow the hub's [deployment
+   runbook](../telegram-webhook-hub/README.md) for its bot token, owner chat, webhook secret,
+   integration registry and separate Redis namespace. These bot credentials belong only to
+   the hub. Configure this app's hub URL/integration ID and match the dedicated token in the
+   hub registry before enabling notifications.
 
-Real backups start only through an explicit start (the MCP server, next), or through the cron
-once `AUTO_START_ENABLED=true`.
+   ```sh
+   curl -si -X POST https://<app>.vercel.app/mcp
+   curl -si -X POST https://<app>.vercel.app/api/integrations/telegram
+   curl -si -X POST https://telegram-webhook-hub.vercel.app/api/webhook
+   curl -si -X POST https://telegram-webhook-hub.vercel.app/api/messages
+   pnpm --filter telegram-webhook-hub cli telegram:setup --info
+   pnpm --filter telegram-webhook-hub cli telegram:setup
+   pnpm --filter notion-backup-automation cli telegram:setup --test
+   ```
+
+   Unauthenticated calls receive 401 once configuration is present; previews without secrets
+   fail closed. Only the hub registers the webhook; when intentionally replacing another URL,
+   use its explicit `--replace` mode. Send `/status` and `/backup_status`, tap both old and new
+   Status buttons, exercise Retry, Fix login (Notion/Google/Drive), Cancel and Retry from
+   scratch with their second taps. Verify success/failure/attention/login-warning delivery,
+   duplicate updates, temporary backend unavailability and environment isolation. All these
+   checks are Phase 8 acceptance; no existing Telegram migration is deferred.
+
+   Add the MCP client ([MCP Client Setup](#mcp-client-setup)): `tools/list` shows 7 tools,
+   `backup_list` returns persisted jobs, and `backup_health` reports hub configuration and
+   fresh probe results. Inspect deployed function bundles: the hub has no backup/Google/
+   Playwright dependencies.
+
+Real backups start only through an explicit start (`backup_start` from an MCP client), or
+through the cron once `AUTO_START_ENABLED=true`.

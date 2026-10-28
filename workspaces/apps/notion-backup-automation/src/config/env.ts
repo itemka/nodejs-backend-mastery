@@ -34,7 +34,9 @@ export type AppEnv = (typeof appEnvs)[number];
 const secret = z.string();
 const httpsUrl = z.url({ protocol: /^https$/ });
 /** An origin such as `https://notion-backup-automation.vercel.app`: no path, query or trailing slash. */
-const httpsOrigin = httpsUrl.refine((value) => new URL(value).origin === value);
+const httpsOrigin = httpsUrl.refine(
+  (value) => URL.canParse(value) && new URL(value).origin === value,
+);
 
 const flag = (defaultValue: boolean) =>
   z
@@ -150,19 +152,33 @@ const transferShape = {
   WRITE_SHA256_SIDECAR: flag(true),
 };
 
-/** `<bot id>:<secret>`, as @BotFather issues it. */
-const telegramBotToken = secret.regex(/^\d{5,20}:[\w-]{30,64}$/);
-/** A private chat's ID is your Telegram user ID. */
-const telegramChatId = z.string().regex(/^-?\d{1,20}$/);
+/** The hub has the bot token and owner chat; this app has only its integration credential. */
+const telegramHubShape = {
+  TELEGRAM_HUB_TOKEN: secret.min(32).max(256),
+  TELEGRAM_HUB_URL: httpsOrigin,
+  TELEGRAM_INTEGRATION_ID: z
+    .string()
+    .regex(/^[a-z][a-z0-9-]{1,31}$/)
+    .optional(),
+};
 
 /**
- * Telegram is optional at runtime: without its two variables, notifications go to the console
- * only, and `doctor` names what is missing.
+ * This deployment's callback namespace at the hub: `TELEGRAM_INTEGRATION_ID`, else `nb-<APP_ENV>`.
+ * It must match the route's `id` in the hub's `HUB_INTEGRATIONS`, or the hub refuses buttons.
  */
+export function telegramIntegrationId(env: {
+  readonly APP_ENV: AppEnv;
+  readonly TELEGRAM_INTEGRATION_ID?: string | undefined;
+}): string {
+  return env.TELEGRAM_INTEGRATION_ID ?? `nb-${env.APP_ENV}`;
+}
+
+/** Notifications remain optional; a partial configuration is visible in doctor and health. */
 const notifyShape = {
   NOTIFIERS: commaList(z.enum(['console', 'telegram']), ['console']),
-  TELEGRAM_BOT_TOKEN: telegramBotToken.optional(),
-  TELEGRAM_CHAT_ID: telegramChatId.optional(),
+  TELEGRAM_HUB_TOKEN: telegramHubShape.TELEGRAM_HUB_TOKEN.optional(),
+  TELEGRAM_HUB_URL: telegramHubShape.TELEGRAM_HUB_URL.optional(),
+  TELEGRAM_INTEGRATION_ID: telegramHubShape.TELEGRAM_INTEGRATION_ID,
 };
 
 const requireGeminiKey = (
@@ -252,26 +268,57 @@ export const backupEnvSchema = z.object({
   ...notifyShape,
 });
 
-/** `telegram:setup --find-chat` and `--info`: the bot only. */
-export const telegramBotEnvSchema = z.object({ TELEGRAM_BOT_TOKEN: telegramBotToken });
-
-/** `telegram:setup --test`: the bot and your chat. The environment is named in the message. */
+/** A backup test notification, sent through the hub. */
 export const telegramChatEnvSchema = z.object({
   APP_ENV: coreShape.APP_ENV,
-  TELEGRAM_BOT_TOKEN: telegramBotToken,
-  TELEGRAM_CHAT_ID: telegramChatId,
+  ...telegramHubShape,
 });
 
-/** `/mcp`: starts and inspects jobs. It never needs Gemini, the QStash signing keys or Google. */
+/**
+ * Whether a variable is set, never its value: `backup_health` names what another function
+ * misses (Vercel's variables are shared by every function).
+ */
+const present = z
+  .string()
+  .optional()
+  .transform((value) => value !== undefined);
+
+/** `openssl rand -base64 32`: 44 characters. A short token is refused, not used. */
+const mcpAuthShape = {
+  MCP_ALLOWED_ORIGINS: commaList(httpsOrigin, []),
+  MCP_AUTH_TOKEN: secret.min(32),
+};
+
+/** `/mcp`'s own authentication, checked before anything else is configured or run. */
+export const mcpAuthEnvSchema = z.object(mcpAuthShape);
+
+/** `/mcp`: starts and inspects jobs. It never needs the QStash signing keys, Google or Notion. */
 export const mcpEnvSchema = z.object({
   ...coreShape,
   ...redisShape,
   ...policyShape,
   ...qstashPublishShape,
   ...agentShape,
+  ...mcpAuthShape,
   AUTO_START_ENABLED: flag(false),
-  MCP_ALLOWED_ORIGINS: commaList(httpsOrigin, []),
-  MCP_AUTH_TOKEN: secret,
+  HEARTBEAT_PING_URL: present,
+  NOTIFIERS: notifyShape.NOTIFIERS,
+  TELEGRAM_HUB_TOKEN: present,
+  TELEGRAM_HUB_URL: present,
+});
+
+/** Only the integration credential is read before authenticating a hub request. */
+export const telegramWebhookAuthEnvSchema = z.object({
+  TELEGRAM_HUB_TOKEN: telegramHubShape.TELEGRAM_HUB_TOKEN,
+});
+
+/** `/api/integrations/telegram`: authenticated normalized commands from the hub. */
+export const telegramWebhookEnvSchema = z.object({
+  ...coreShape,
+  ...redisShape,
+  ...policyShape,
+  ...qstashPublishShape,
+  ...telegramHubShape,
 });
 
 const workerShape = {
@@ -344,7 +391,9 @@ export const cronEnvSchema = z
 
 export type BackupEnv = z.output<typeof backupEnvSchema>;
 export type PersistenceEnv = z.output<typeof persistenceEnvSchema>;
+export type McpAuthEnv = z.output<typeof mcpAuthEnvSchema>;
 export type McpEnv = z.output<typeof mcpEnvSchema>;
+export type TelegramWebhookEnv = z.output<typeof telegramWebhookEnvSchema>;
 export type WorkerAuthEnv = z.output<typeof workerAuthEnvSchema>;
 export type WorkerEnv = z.output<typeof workerEnvSchema>;
 export type CronEnv = z.output<typeof cronEnvSchema>;

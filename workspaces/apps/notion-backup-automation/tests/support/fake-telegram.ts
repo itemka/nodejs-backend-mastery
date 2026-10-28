@@ -1,7 +1,9 @@
-/** A bot token built at run time, so no token-shaped literal is committed. */
-export const fakeBotToken = ['8123456789', `AAH${'f'.repeat(32)}`].join(':');
+import { hubOperationSchema } from '@workspaces/telegram-contracts';
 
-export const FAKE_CHAT_ID = '424242';
+/** A bot-shaped value remains solely as a redaction fixture for message formatting. */
+export const fakeBotToken = ['8123456789', `AAH${'f'.repeat(32)}`].join(':');
+export const fakeHubToken = ['integration', 'f'.repeat(40)].join('-');
+export const FAKE_HUB_URL = 'https://hub.example';
 
 export interface TelegramCall {
   readonly body: Record<string, unknown>;
@@ -12,7 +14,7 @@ export interface TelegramCall {
 type Reply = (call: TelegramCall, signal: AbortSignal | undefined) => Promise<Response> | Response;
 
 export function telegramOk(result: unknown): Response {
-  return Response.json({ ok: true, result });
+  return Response.json(result === true ? { ok: true } : result);
 }
 
 export function telegramError(
@@ -21,17 +23,14 @@ export function telegramError(
   retryAfterSec?: number,
 ): Response {
   return Response.json(
+    { error: { code: 'HUB_ERROR', message: description } },
     {
-      description,
-      error_code: errorCode,
-      ok: false,
-      ...(retryAfterSec === undefined ? {} : { parameters: { retry_after: retryAfterSec } }),
+      status: errorCode,
+      ...(retryAfterSec === undefined ? {} : { headers: { 'retry-after': String(retryAfterSec) } }),
     },
-    { status: errorCode },
   );
 }
 
-/** A reply that never comes; it ends only with the request's abort. */
 export const hangingReply: Reply = (_call, signal) =>
   new Promise<Response>((_resolve, reject) => {
     if (signal?.aborted === true) {
@@ -45,11 +44,7 @@ export const hangingReply: Reply = (_call, signal) =>
     });
   });
 
-/**
- * An in-process stand-in for the Telegram Bot API, passed as `fetch`. It answers `getMe`,
- * `getUpdates`, `getWebhookInfo` and `sendMessage` like Telegram does, records every call, and
- * refuses another token with 401. Unknown hosts and paths get a 599 so they are easy to spot.
- */
+/** Fake authenticated hub transport, with no Telegram Bot API implementation. */
 export class FakeTelegram {
   readonly calls: TelegramCall[] = [];
   private readonly replies = new Map<string, Reply>();
@@ -58,75 +53,59 @@ export class FakeTelegram {
   readonly fetch: typeof fetch = async (input, init) => {
     const request = new Request(input, init);
     const url = new URL(request.url);
-    const match = /^\/bot([^/]+)\/(\w+)$/.exec(url.pathname);
 
-    if (url.host !== 'api.telegram.org' || match?.[1] === undefined || match[2] === undefined) {
-      return Response.json({ error: `no fake route for ${url.host}` }, { status: 599 });
+    if (url.origin !== FAKE_HUB_URL || url.pathname !== '/api/messages') {
+      return Response.json({ error: 'No fake hub route' }, { status: 599 });
     }
 
-    const call: TelegramCall = {
-      body: JSON.parse(await request.text()) as Record<string, unknown>,
-      method: match[2],
-      token: match[1],
-    };
+    const token = request.headers.get('authorization')?.replace(/^Bearer /, '') ?? '';
 
-    this.calls.push(call);
-
-    if (call.token !== this.token) {
+    if (token !== this.token) {
       return telegramError(401, 'Unauthorized');
     }
 
-    const reply = this.replies.get(call.method);
+    // Like the hub: an authenticated GET is the integration's token check.
+    if (request.method !== 'POST') {
+      return new Response(undefined, { headers: { allow: 'POST' }, status: 405 });
+    }
 
-    return reply === undefined ? this.defaultReply(call) : reply(call, init?.signal ?? undefined);
+    const operation = hubOperationSchema.safeParse(await request.json());
+
+    if (!operation.success) {
+      return telegramError(400, 'Invalid operation');
+    }
+
+    const { action, ...payload } = operation.data;
+    const call: TelegramCall = {
+      body: action === 'sendMessage' && 'message' in payload ? payload.message : payload,
+      method: action,
+      token,
+    };
+
+    this.calls.push(call);
+    const reply = this.replies.get(action);
+
+    if (reply !== undefined) {
+      return reply(call, request.signal);
+    }
+
+    return action === 'sendMessage'
+      ? Response.json({ messageId: this.calls.length })
+      : Response.json({ ok: true });
   };
 
-  constructor(token = fakeBotToken) {
+  constructor(token = fakeHubToken) {
     this.token = token;
   }
-
-  /** Replaces the reply of `method`. */
   on(method: string, reply: Reply): this {
     this.replies.set(method, reply);
 
     return this;
   }
-
-  /** The `sendMessage` bodies, in order. */
   sentMessages(): Record<string, unknown>[] {
-    return this.calls.filter((call) => call.method === 'sendMessage').map((call) => call.body);
+    return this.bodiesOf('sendMessage');
   }
-
-  private defaultReply(call: TelegramCall): Response {
-    switch (call.method) {
-      case 'getMe': {
-        return telegramOk({
-          first_name: 'Backup',
-          id: 8_123_456_789,
-          is_bot: true,
-          username: 'test_backup_bot',
-        });
-      }
-
-      case 'getUpdates': {
-        return telegramOk([]);
-      }
-
-      case 'getWebhookInfo': {
-        return telegramOk({ has_custom_certificate: false, pending_update_count: 0, url: '' });
-      }
-
-      case 'sendMessage': {
-        return telegramOk({
-          chat: { id: Number(call.body.chat_id), type: 'private' },
-          date: 0,
-          message_id: this.calls.length,
-        });
-      }
-
-      default: {
-        return telegramError(404, 'Not Found');
-      }
-    }
+  bodiesOf(method: string): Record<string, unknown>[] {
+    return this.calls.filter((call) => call.method === method).map((call) => call.body);
   }
 }

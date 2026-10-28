@@ -2,7 +2,12 @@
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "regions": ["fra1"],
   "functions": {
-    "api/health.ts": { "maxDuration": 10 },
+    "api/health.ts": {
+      "maxDuration": 10
+    },
+    "api/mcp.ts": {
+      "maxDuration": 30
+    },
     "api/jobs/process/[jobId].ts": {
       "maxDuration": 300,
       "includeFiles": "../../../node_modules/.pnpm/@sparticuz+chromium@*/node_modules/@sparticuz/chromium/bin/**"
@@ -10,7 +15,21 @@
     "api/cron/daily.ts": {
       "maxDuration": 300,
       "includeFiles": "../../../node_modules/.pnpm/@sparticuz+chromium@*/node_modules/@sparticuz/chromium/bin/**"
+    },
+    "api/integrations/telegram.ts": {
+      "maxDuration": 30
     }
   },
-  "crons": [{ "path": "/api/cron/daily", "schedule": "0 4 * * *" }]
+  "rewrites": [
+    {
+      "source": "/mcp",
+      "destination": "/api/mcp"
+    }
+  ],
+  "crons": [
+    {
+      "path": "/api/cron/daily",
+      "schedule": "0 4 * * *"
+    }
+  ]
 }

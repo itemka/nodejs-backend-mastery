@@ -24,7 +24,17 @@ export function persistenceKeys(prefix: string) {
     lease: (jobId: string) => `${prefix}lease:${jobId}`,
     /** A sent notification that must not repeat for a while: `attention:<jobId>:<code>`, `lost:<service>`. */
     notify: (key: string) => `${prefix}notify:${key}`,
+    /** One MCP fixed window's counter; Telegram admission is stored by the hub. */
+    rateLimit: (name: string, windowStartSec: number) =>
+      `${prefix}ratelimit:${name}:${windowStartSec}`,
     secret: (name: SecretName) => `${prefix}secret:${name}`,
+    telegramAction: (updateId: number) => `${prefix}telegram:action:${updateId}`,
+    telegramActionIntent: (actionKey: string) => `${prefix}telegram:intent:${actionKey}`,
+    /** A Cancel or Retry from scratch waiting for its second tap, for 10 minutes. */
+    telegramConfirm: (nonce: string) => `${prefix}telegram:confirm:${nonce}`,
+    telegramConfirmLease: (nonce: string) => `${prefix}telegram:confirm-lease:${nonce}`,
+    /** A processing lease or a completed marker for one authenticated integration update. */
+    telegramUpdate: (updateId: number) => `${prefix}telegram:update:${updateId}`,
   };
 }
 

@@ -6,6 +6,7 @@
     "node": "24.x"
   },
   "scripts": {
+    "vercel-build": "pnpm --filter @workspaces/telegram-contracts build",
     "lint": "eslint api src tests",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run",
@@ -18,20 +19,24 @@
     "drive:check": "tsx src/cli/main.ts drive:check"
   },
   "dependencies": {
+    "@modelcontextprotocol/server": "2.3.1",
     "@sparticuz/chromium": "153.0.0",
     "@upstash/qstash": "^2.12.1",
     "@upstash/redis": "^1.39.0",
     "google-auth-library": "^11.3.1",
     "playwright-core": "1.63.0",
     "yauzl": "^3.4.0",
-    "zod": "^4.1.12"
+    "zod": "^4.6.7",
+    "@workspaces/telegram-contracts": "workspace:*"
   },
   "devDependencies": {
+    "@modelcontextprotocol/client": "2.3.1",
     "@types/node": "^25.6.0",
     "@types/yauzl": "^3.4.0",
     "@workspaces/cli-output": "workspace:*",
     "tsx": "^4.20.6",
     "typescript": "^5.9.3",
-    "vitest": "^4.1.5"
+    "vitest": "^4.1.5",
+    "telegram-webhook-hub": "workspace:*"
   }
 }

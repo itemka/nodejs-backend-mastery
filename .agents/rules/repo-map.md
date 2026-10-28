@@ -45,6 +45,8 @@ and path-scoped because raw output stays in the conversation transcript.
 
 - `workspaces/apps/shop-mvc-express`: Express backend app.
 - `workspaces/apps/local-llm-playground`: Express backend with a Vite/React client and shared schemas.
+- `workspaces/apps/notion-backup-automation`: independent Notion export/Drive backup worker, cron, MCP server, and authenticated Telegram hub integration.
+- `workspaces/apps/telegram-webhook-hub`: independently deployed universal bot webhook, integration routing, messaging, and bot setup; owns all Telegram Bot API access.
 - README-only app scaffolds are not production-ready and are not expected to build unless their package config says otherwise.
 - Anything under `_todo`, scratch, or placeholder areas should not be treated as production-ready.
 
@@ -67,6 +69,7 @@ and path-scoped because raw output stays in the conversation transcript.
   for JSON loggers or machine-consumed streams.
 - `workspaces/packages/config`: shared env/schema config helpers.
 - `workspaces/packages/errors`: shared error types.
+- `workspaces/packages/telegram-contracts`: validated HTTP message and update contracts shared by the Telegram hub and its integrations.
 - `workspaces/packages/llm-client`: provider-neutral LLM client with an Anthropic adapter (source-only, no build step; consumed via `tsconfig` `paths` plus a `workspace:*` dep).
 - Prefer importing shared packages by package name when the package exposes one.
 

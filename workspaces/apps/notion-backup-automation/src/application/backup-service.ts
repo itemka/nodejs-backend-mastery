@@ -61,6 +61,8 @@ export interface ProcessResult {
 }
 
 export interface JobStatusResult {
+  /** Internal compare-and-set version, used to bind a retried control request to one job episode. */
+  readonly version: number;
   /** The newest events, oldest first. */
   readonly events: readonly JobEvent[];
   readonly job: BackupJob;
@@ -275,7 +277,7 @@ export class BackupApplicationService {
 
     const events = await this.jobs.listEvents(stored.job.id, { limit: STATUS_EVENT_COUNT });
 
-    return { events, job: stored.job };
+    return { events, job: stored.job, version: stored.version };
   }
 
   private async activeOrLatest(): Promise<StoredJob | undefined> {

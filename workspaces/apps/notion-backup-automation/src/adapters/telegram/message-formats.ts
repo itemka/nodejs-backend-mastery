@@ -1,3 +1,4 @@
+import { loginFixes } from '../../application/login-watch.js';
 import {
   describeShrink,
   describeSize,
@@ -14,6 +15,9 @@ import type {
 } from '../../application/ports.js';
 import type { AppEnv } from '../../config/env.js';
 import type { ErrorCode } from '../../domain/error-catalog.js';
+import type { JobStatus } from '../../domain/statuses.js';
+import { isTerminal } from '../../domain/statuses.js';
+import type { JobView } from '../../mcp/views.js';
 import { redactString } from '../../shared/redact.js';
 import type { TelegramButton, TelegramMessage } from './telegram-client.js';
 import { MAX_CALLBACK_DATA_BYTES, MAX_MESSAGE_LENGTH } from './telegram-client.js';
@@ -26,6 +30,8 @@ import { MAX_CALLBACK_DATA_BYTES, MAX_MESSAGE_LENGTH } from './telegram-client.j
 /** The first letter of a button's `callback_data`; the webhook maps each to an application method. */
 export const buttonActions = {
   cancel: 'x',
+  /** The second tap of Cancel or Retry from scratch: `c:<nonce>`. */
+  confirm: 'c',
   fixLogin: 'l',
   retry: 'r',
   retryFromScratch: 'f',
@@ -33,6 +39,16 @@ export const buttonActions = {
 } as const;
 
 export type ButtonAction = keyof typeof buttonActions;
+
+/** The two actions that need a second tap. */
+export type ConfirmedAction = Extract<ButtonAction, 'cancel' | 'retryFromScratch'>;
+
+const actionOfLetter: ReadonlyMap<string, ButtonAction> = new Map(
+  (Object.entries(buttonActions) as [ButtonAction, string][]).map(([action, letter]) => [
+    letter,
+    action,
+  ]),
+);
 
 export interface MessageFormatOptions {
   /** Messages from another environment than `prod` carry its name, so a dev run never reads as a real backup. */
@@ -74,6 +90,18 @@ export function callbackData(action: ButtonAction, target = ''): string {
   }
 
   return data;
+}
+
+/** `callbackData`'s inverse; undefined for anything this app did not send. */
+export function parseCallbackData(
+  data: string,
+): { readonly action: ButtonAction; readonly target: string } | undefined {
+  const match = /^([a-z]):([\w:-]{0,62})$/.exec(data);
+  const action = match?.[1] === undefined ? undefined : actionOfLetter.get(match[1]);
+
+  return action === undefined || match?.[2] === undefined
+    ? undefined
+    : { action, target: match[2] };
 }
 
 /** The one URL a message may hold. */
@@ -158,22 +186,13 @@ export function attentionMessage(
     html = withEvents(head, events);
   }
 
-  const login = loginServiceOf[notification.code];
-  const buttons: TelegramButton[][] = [
-    [statusButton(notification.jobId), button('Retry', 'retry', notification.jobId)],
-    [
-      ...(notification.retryFromScratch
-        ? [button('Retry from scratch', 'retryFromScratch', notification.jobId)]
-        : []),
-      button('Cancel', 'cancel', notification.jobId),
+  return {
+    buttons: [
+      [statusButton(notification.jobId), button('Retry', 'retry', notification.jobId)],
+      ...retryButtons(notification.jobId, notification.code, notification.retryFromScratch),
     ],
-  ];
-
-  if (login !== undefined) {
-    buttons.push([button('Fix login', 'fixLogin', login)]);
-  }
-
-  return { buttons, html };
+    html,
+  };
 }
 
 export function loginWarningMessage(
@@ -217,6 +236,124 @@ export function loginWarningMessage(
   }
 }
 
+export interface StatusFormatOptions extends MessageFormatOptions {
+  /** Whether a new export attempt is still allowed, as for an `attention` message. */
+  readonly retryFromScratch: boolean;
+}
+
+const MAX_STATUS_EVENTS = 5;
+
+const statusIcons: Readonly<Partial<Record<JobStatus, string>>> = {
+  CANCELLED: '🚫',
+  COMPLETE: '✅',
+  FAILED: '❌',
+  NEEDS_ATTENTION: '⚠️',
+  RETRYABLE_FAILURE: '🔁',
+};
+
+/**
+ * `/status` and the Status button: the job as `backup_status` shows it, with the buttons that fit
+ * its current state.
+ */
+export function statusMessage(view: JobView, options: StatusFormatOptions): TelegramMessage {
+  const stage = view.stage === undefined ? '' : ` · stage ${view.stage}`;
+  const parts = [
+    `${envTag(options)}${statusIcons[view.status] ?? '⏳'} <b>Job ${safe(view.jobId)}</b> · ${view.status}${stage}`,
+    `Export attempt ${view.exportAttempt} · email checks ${view.emailCheckAttempt}`,
+  ];
+
+  if (view.nextCheckAt !== undefined) {
+    parts.push(`Next check: <code>${localTime(view.nextCheckAt, options.timeZone)}</code>`);
+  }
+
+  if (view.cancelRequestedAt !== undefined) {
+    parts.push('Cancel requested: the job ends at its next step boundary.');
+  }
+
+  if (view.result !== undefined) {
+    parts.push(`Stored: ${safe(view.result.fileName)} · ${safe(describeSize(view.result))}`);
+  }
+
+  if (view.attention !== undefined) {
+    const { attention } = view;
+
+    parts.push(
+      `<b>${attention.code}</b> (stage ${attention.stage}): ${safe(attention.reason)}`,
+      `<b>Fix:</b> ${safe(attention.howToFix)}`,
+    );
+  }
+
+  let events = view.recentEvents
+    .slice(-MAX_STATUS_EVENTS)
+    .map((event) => eventLine(event, options.timeZone));
+  let html = withEvents(parts, events);
+
+  // Escaping expands event text, so bound the rendered HTML as the client contract does.
+  while (html.length > MAX_MESSAGE_LENGTH && events.length > 0) {
+    events = events.slice(1);
+    html = withEvents(parts, events);
+  }
+
+  return { html, ...statusButtons(view, options.retryFromScratch) };
+}
+
+const loginCommands: Readonly<Record<LoginService, string>> = {
+  drive: 'drive:check',
+  google: 'auth:google',
+  notion: 'auth:notion',
+};
+
+/** The reply to the Fix login button: the command to run on your Mac. */
+export function fixLoginMessage(
+  service: LoginService,
+  options: Pick<MessageFormatOptions, 'appEnv'>,
+): TelegramMessage {
+  const prefix = service === 'notion' ? `APP_ENV=${options.appEnv} ` : '';
+  const command = `${prefix}pnpm --filter notion-backup-automation ${loginCommands[service]}`;
+
+  return {
+    html: lines(
+      `🔑 <b>Fix the ${serviceNames[service]} ${service === 'drive' ? 'access' : 'login'}</b>`,
+      safe(loginFixes[service]),
+      `<code>${escapeHtml(command)}</code>`,
+    ),
+  };
+}
+
+/** The first tap of Cancel or Retry from scratch: one button that does it, for 10 minutes. */
+export function confirmMessage(
+  action: ConfirmedAction,
+  jobId: string,
+  nonce: string,
+): TelegramMessage {
+  const what =
+    action === 'cancel'
+      ? `cancel job ${safe(jobId)}`
+      : `retry job ${safe(jobId)} from scratch, with a new Notion export`;
+  const label = action === 'cancel' ? 'Confirm cancel' : 'Confirm retry from scratch';
+
+  return {
+    buttons: [[button(label, 'confirm', nonce)]],
+    html: lines(`❓ Tap again to confirm: ${what}.`, 'The button works once, for 10 minutes.'),
+  };
+}
+
+/** Any message but `/status`. */
+export function helpMessage(): TelegramMessage {
+  return {
+    html: lines(
+      'This bot reports the Notion backups.',
+      '/status shows the active or latest job. The buttons on a report show, retry or cancel its job.',
+      'Backups start from an MCP client or the monthly schedule, not from here.',
+    ),
+  };
+}
+
+/** A short reply, such as a result or a refusal; redacted and escaped. */
+export function noticeMessage(text: string): TelegramMessage {
+  return { html: safe(text) };
+}
+
 /** `telegram:setup --test`: proves delivery, with a Status button for the webhook to answer. */
 export function testMessage(options: Pick<MessageFormatOptions, 'appEnv'>): TelegramMessage {
   return {
@@ -231,6 +368,53 @@ export function testMessage(options: Pick<MessageFormatOptions, 'appEnv'>): Tele
 /** The day of an ISO timestamp, `2027-10-22`. */
 function dateOf(iso: string | undefined): string {
   return safe(iso?.slice(0, 10) ?? 'soon');
+}
+
+/** Retry from scratch (when allowed) and Cancel, then Fix login for a login code. */
+function retryButtons(
+  jobId: string,
+  code: ErrorCode,
+  retryFromScratch: boolean,
+): TelegramButton[][] {
+  const login = loginServiceOf[code];
+  const rows: TelegramButton[][] = [
+    [
+      ...(retryFromScratch ? [button('Retry from scratch', 'retryFromScratch', jobId)] : []),
+      button('Cancel', 'cancel', jobId),
+    ],
+  ];
+
+  if (login !== undefined) {
+    rows.push([button('Fix login', 'fixLogin', login)]);
+  }
+
+  return rows;
+}
+
+/** Open in Drive once stored; Retry and Cancel while it waits; Status and Cancel while it runs. */
+function statusButtons(view: JobView, retryFromScratch: boolean): Pick<TelegramMessage, 'buttons'> {
+  const { attention, jobId, result, status } = view;
+
+  if (status === 'COMPLETE' && result !== undefined) {
+    return { buttons: [[{ text: 'Open in Drive', url: driveFileUrl(result.driveFileId) }]] };
+  }
+
+  if (isTerminal(status)) {
+    return {};
+  }
+
+  if (status === 'NEEDS_ATTENTION' || status === 'RETRYABLE_FAILURE') {
+    return {
+      buttons: [
+        [statusButton(jobId), button('Retry', 'retry', jobId)],
+        ...(attention === undefined
+          ? [[button('Cancel', 'cancel', jobId)]]
+          : retryButtons(jobId, attention.code, retryFromScratch)),
+      ],
+    };
+  }
+
+  return { buttons: [[statusButton(jobId), button('Cancel', 'cancel', jobId)]] };
 }
 
 function statusButton(jobId?: string): TelegramButton {
