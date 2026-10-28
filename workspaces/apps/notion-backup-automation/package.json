@@ -36,6 +36,7 @@
     "@workspaces/cli-output": "workspace:*",
     "tsx": "^4.20.6",
     "typescript": "^5.9.3",
+    "undici-types": "~7.19.2",
     "vitest": "^4.1.5",
     "telegram-webhook-hub": "workspace:*"
   }
