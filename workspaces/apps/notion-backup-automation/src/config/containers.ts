@@ -7,6 +7,7 @@ import { GoogleApiClient } from '../adapters/google/google-api-client.js';
 import { GoogleHealthProbe } from '../adapters/google/google-health-probe.js';
 import { OAuthTokenProvider } from '../adapters/google/token-provider.js';
 import { HttpHeartbeat, NoopHeartbeat } from '../adapters/heartbeat/http-heartbeat.js';
+import { NoopAgentModel } from '../adapters/llm/noop-agent-model.js';
 import type { NamedNotifier } from '../adapters/notifications/composite-notifier.js';
 import { CompositeNotifier } from '../adapters/notifications/composite-notifier.js';
 import { ConsoleNotifier } from '../adapters/notifications/console-notifier.js';
@@ -22,12 +23,18 @@ import { RedisHealthStore } from '../adapters/persistence/redis-health-store.js'
 import { RedisJobRepository } from '../adapters/persistence/redis-job-repository.js';
 import type { SetIfAbsentCommands } from '../adapters/persistence/redis-notification-gate.js';
 import { RedisNotificationGate } from '../adapters/persistence/redis-notification-gate.js';
+import type { CounterCommands } from '../adapters/persistence/redis-rate-limiter.js';
+import { RedisRateLimiter } from '../adapters/persistence/redis-rate-limiter.js';
 import type { StringCommands } from '../adapters/persistence/redis-secret-store.js';
 import { RedisSecretStore } from '../adapters/persistence/redis-secret-store.js';
 import { QStashSignatureVerifier } from '../adapters/qstash/qstash-signature-verifier.js';
 import { TelegramClient } from '../adapters/telegram/telegram-client.js';
 import { TmpExportTransfer } from '../adapters/transfer/export-transfer.js';
 import { HttpDownloader } from '../adapters/transfer/http-downloader.js';
+import type { AgentModel } from '../agent/agent-model.js';
+import type { AgentLimits } from '../agent/limits.js';
+import { defaultAgentLimits } from '../agent/limits.js';
+import { Supervisor } from '../agent/supervisor.js';
 import { BackupApplicationService } from '../application/backup-service.js';
 import { DailyMaintenance } from '../application/daily-maintenance.js';
 import { JobNotifications } from '../application/job-notifications.js';
@@ -53,7 +60,13 @@ import { randomIds } from '../shared/ids.js';
 import type { Logger } from '../shared/logger.js';
 import { SecretValue } from '../shared/secret-value.js';
 import type { ControlDeps } from './control-containers.js';
-import { createQStashScheduler, policyFrom, runtimeLogger } from './control-containers.js';
+import {
+  agentLimitsFrom,
+  createAgentModel,
+  createQStashScheduler,
+  policyFrom,
+  runtimeLogger,
+} from './control-containers.js';
 import type { BackupEnv, CronEnv, WorkerAuthEnv, WorkerEnv } from './env.js';
 import {
   ConfigError,
@@ -65,8 +78,10 @@ import {
   workerEnvSchema,
 } from './env.js';
 
-export type { ControlDeps, ControlEnv, ControlServices } from './control-containers.js';
+export type { AgentEnv, ControlDeps, ControlEnv, ControlServices } from './control-containers.js';
 export {
+  agentLimitsFrom,
+  createAgentModel,
   createControlServices,
   createQStashScheduler,
   policyFrom,
@@ -137,9 +152,16 @@ export function createNotifier(
 }
 
 /** The Redis commands the stores use besides the job repository's scripts. */
-export type StoreRedis = HashCommands & SetIfAbsentCommands & StringCommands;
+export type StoreRedis = CounterCommands & HashCommands & SetIfAbsentCommands & StringCommands;
+
+/** The supervisor's model and budgets; without them, `NoopAgentModel` with the default budgets. */
+export interface AgentDeps {
+  readonly limits: AgentLimits;
+  readonly model: AgentModel;
+}
 
 export interface BackupServicesDeps {
+  readonly agent?: AgentDeps;
   readonly browserLauncher: BrowserLauncher;
   readonly clock?: Clock;
   /** Replaces `fetch` for Google, the download and Telegram (tests). */
@@ -225,10 +247,20 @@ export function createBackupServices(env: BackupEnv, deps: BackupServicesDeps): 
     notifier: createNotifier(env, { logger, ...fetchOption }),
     policy,
   });
+  const supervisor = new Supervisor({
+    clock,
+    limiter: new RedisRateLimiter(redis, keyPrefix, clock),
+    limits: deps.agent?.limits ?? defaultAgentLimits,
+    logger,
+    model: deps.agent?.model ?? new NoopAgentModel(),
+    policy,
+    workspaceName: env.NOTION_WORKSPACE_NAME,
+  });
   const processJob = new ProcessJobUseCase({
     clock,
     emails,
     exportShrinkRatio: env.EXPORT_SHRINK_RATIO,
+    health,
     ids,
     jobs,
     logger,
@@ -236,6 +268,7 @@ export function createBackupServices(env: BackupEnv, deps: BackupServicesDeps): 
     policy,
     scheduler,
     storage,
+    supervisor,
     timeZone: env.BACKUP_TIME_ZONE,
     transfer: new TmpExportTransfer({
       clock,
@@ -288,11 +321,16 @@ export interface RuntimeDeps extends ControlDeps {
 }
 
 /**
- * The deployed backup services: Redis with its Lua scripts, QStash, and the browser that suits
- * the platform (serverless Chromium on Vercel).
+ * The deployed backup services: Redis with its Lua scripts, QStash, the browser that suits the
+ * platform (serverless Chromium on Vercel), and the configured supervisor model. The env schema
+ * requires `GEMINI_API_KEY` for `gemini`, so the model is always built here.
  */
 export function createRuntimeServices(env: WorkerEnv, deps: RuntimeDeps): BackupServices {
+  const fetchOption = deps.fetch === undefined ? {} : { fetch: deps.fetch };
+  const model = createAgentModel(env, { logger: deps.logger, ...fetchOption });
+
   return createBackupServices(env, {
+    ...(model === undefined ? {} : { agent: { limits: agentLimitsFrom(env), model } }),
     browserLauncher: deps.browserLauncher ?? createBrowserLauncher(),
     jobs: new RedisJobRepository(deps.redis, keyPrefixFor(env.APP_ENV)),
     logger: deps.logger,

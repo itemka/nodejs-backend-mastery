@@ -1,5 +1,7 @@
 import type { Redis } from '@upstash/redis';
 
+import { GeminiAgentModel } from '../adapters/llm/gemini-agent-model.js';
+import { NoopAgentModel } from '../adapters/llm/noop-agent-model.js';
 import { keyPrefixFor } from '../adapters/persistence/keys.js';
 import { createRedisClient } from '../adapters/persistence/redis-client.js';
 import { RedisHealthStore } from '../adapters/persistence/redis-health-store.js';
@@ -9,6 +11,10 @@ import { RedisTelegramState } from '../adapters/persistence/redis-telegram-state
 import type { QStashApi } from '../adapters/qstash/qstash-scheduler.js';
 import { createQStashClient, QStashScheduler } from '../adapters/qstash/qstash-scheduler.js';
 import { TelegramClient } from '../adapters/telegram/telegram-client.js';
+import type { AgentCheckResult } from '../agent/agent-check.js';
+import { runAgentCheck } from '../agent/agent-check.js';
+import type { AgentModel } from '../agent/agent-model.js';
+import type { AgentLimits } from '../agent/limits.js';
 import { BackupApplicationService } from '../application/backup-service.js';
 import type { HealthStore, RateLimiter } from '../application/ports.js';
 import type { BackupPolicy } from '../domain/policy.js';
@@ -25,7 +31,7 @@ import type { Logger } from '../shared/logger.js';
 import { createLogger, logLevels } from '../shared/logger.js';
 import { SecretValue } from '../shared/secret-value.js';
 import { TelegramWebhook } from '../telegram/webhook.js';
-import type { BackupEnv, McpAuthEnv, McpEnv, WorkerEnv } from './env.js';
+import type { AgentEnv, BackupEnv, McpAuthEnv, McpEnv, WorkerEnv } from './env.js';
 import {
   ConfigError,
   healthEnvSchema,
@@ -62,6 +68,68 @@ export function policyFrom(
     maxExportAttempts: env.MAX_EXPORT_ATTEMPTS,
     maxStageRetries: env.MAX_STAGE_RETRIES,
   };
+}
+
+export type { AgentEnv } from './env.js';
+
+export function agentLimitsFrom(env: AgentEnv): AgentLimits {
+  return {
+    maxDecisionsPerDay: env.AGENT_MAX_DECISIONS_PER_DAY,
+    maxDecisionsPerIncident: env.AGENT_MAX_DECISIONS_PER_INCIDENT,
+    maxIncidentsPerJob: env.AGENT_MAX_INCIDENTS_PER_JOB,
+    timeoutMs: env.AGENT_TIMEOUT_MS,
+  };
+}
+
+/** The model `AGENT_MODEL_PROVIDER` names; undefined for `gemini` without `GEMINI_API_KEY`. */
+export function createAgentModel(
+  env: AgentEnv,
+  deps: { readonly fetch?: typeof fetch; readonly logger: Logger },
+): AgentModel | undefined {
+  if (env.AGENT_MODEL_PROVIDER === 'none') {
+    return new NoopAgentModel();
+  }
+
+  if (env.GEMINI_API_KEY === undefined) {
+    return undefined;
+  }
+
+  return new GeminiAgentModel({
+    apiKey: new SecretValue(env.GEMINI_API_KEY),
+    logger: deps.logger,
+    model: env.AGENT_MODEL_NAME,
+    ...(deps.fetch === undefined ? {} : { fetch: deps.fetch }),
+  });
+}
+
+/** The id `backup_health` reports for the configured model, whether or not it can be built. */
+export function agentModelId(
+  env: Pick<AgentEnv, 'AGENT_MODEL_NAME' | 'AGENT_MODEL_PROVIDER'>,
+): string {
+  return env.AGENT_MODEL_PROVIDER === 'none' ? 'none' : `gemini:${env.AGENT_MODEL_NAME}`;
+}
+
+/**
+ * `checkAgent`'s own limit: `/mcp` may run 30 s (`vercel.json`), and the check must time out,
+ * and save that, before the function does. `AGENT_TIMEOUT_MS` (up to 60 s) is the worker's.
+ */
+export const MAX_AGENT_CHECK_TIMEOUT_MS = 20_000;
+
+export function agentCheckTimeoutMs(env: Pick<AgentEnv, 'AGENT_TIMEOUT_MS'>): number {
+  return Math.min(env.AGENT_TIMEOUT_MS, MAX_AGENT_CHECK_TIMEOUT_MS);
+}
+
+/** `backup_health({ checkAgent: true })` for the configured model. */
+export function agentCheckFor(
+  env: AgentEnv,
+  deps: { readonly clock: Clock; readonly fetch?: typeof fetch; readonly logger: Logger },
+): () => Promise<AgentCheckResult> {
+  return () =>
+    runAgentCheck(createAgentModel(env, deps), {
+      clock: deps.clock,
+      modelId: agentModelId(env),
+      timeoutMs: agentCheckTimeoutMs(env),
+    });
 }
 
 /** What the deployed functions take from outside; `RuntimeDeps` adds the browser. */
@@ -185,12 +253,18 @@ export async function serveMcp(
       const control = createControlServices(env, { ...overrides, logger, redis });
       const settings = healthSettingsFrom(env);
       const version = deploymentVersion(source);
+      const clock = overrides.clock ?? systemClock;
 
       return {
         limiter: control.limiter,
         server: () =>
           createMcpServer({
-            clock: overrides.clock ?? systemClock,
+            agentCheck: agentCheckFor(env, {
+              clock,
+              logger,
+              ...(overrides.fetch === undefined ? {} : { fetch: overrides.fetch }),
+            }),
+            clock,
             health: control.health,
             limiter: control.limiter,
             logger,

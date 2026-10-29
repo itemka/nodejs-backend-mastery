@@ -1,0 +1,76 @@
+{
+  "acceptable": ["notify_user"],
+  "context": {
+    "allowedActions": ["notify_user"],
+    "incident": {
+      "category": "unknown",
+      "code": "UNKNOWN_ERROR",
+      "decisions": [
+        {
+          "action": "inspect_status",
+          "outcome": "inspected"
+        },
+        {
+          "action": "check_notion_session",
+          "outcome": "session:valid"
+        },
+        {
+          "outcome": "model_timeout"
+        }
+      ],
+      "decisionsRemaining": 1,
+      "description": "An unexpected error occurred.",
+      "occurrences": 1
+    },
+    "job": {
+      "ageHours": 0.1,
+      "emailCheckAttempt": 0,
+      "exportAttempt": 1,
+      "exportClickAt": false,
+      "jobId": "2026-10",
+      "maxExportAttempts": 3,
+      "maxLifetimeHours": 168,
+      "period": "2026-10",
+      "stage": "NOTION_TRIGGER",
+      "stageRetries": {},
+      "status": "NEEDS_ATTENTION"
+    },
+    "limits": {
+      "maxDecisionsPerIncident": 4,
+      "maxStageRetries": 3
+    },
+    "observations": {
+      "health": {
+        "drive": "ok",
+        "google": "ok",
+        "lastCronOk": true,
+        "notionSession": "valid"
+      },
+      "notionSession": "valid",
+      "recentEvents": [
+        {
+          "at": "2026-10-01T04:00:00.000Z",
+          "status": "CREATED",
+          "type": "transition"
+        },
+        {
+          "at": "2026-10-01T04:01:00.000Z",
+          "status": "TRIGGERING_EXPORT",
+          "type": "transition"
+        },
+        {
+          "at": "2026-10-01T04:03:00.000Z",
+          "code": "UNKNOWN_ERROR",
+          "status": "NEEDS_ATTENTION",
+          "type": "transition"
+        },
+        {
+          "at": "2026-10-01T04:04:00.000Z",
+          "code": "UNKNOWN_ERROR",
+          "type": "supervisor"
+        }
+      ]
+    }
+  },
+  "why": "Only notify_user is allowed for the last decision: the model must respect allowedActions."
+}

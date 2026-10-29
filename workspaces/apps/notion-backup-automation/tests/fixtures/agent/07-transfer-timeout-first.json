@@ -1,0 +1,33 @@
+{
+  "acceptable": ["retry_stage", "inspect_status", "notify_user"],
+  "context": {
+    "allowedActions": ["inspect_status", "wait", "retry_stage", "notify_user"],
+    "incident": {
+      "category": "unknown",
+      "code": "TRANSFER_TIMEOUT",
+      "decisions": [],
+      "decisionsRemaining": 4,
+      "description": "The transfer did not finish within one invocation.",
+      "occurrences": 1
+    },
+    "job": {
+      "ageHours": 0.2,
+      "emailCheckAttempt": 0,
+      "exportAttempt": 1,
+      "exportClickAt": true,
+      "jobId": "2026-10",
+      "maxExportAttempts": 3,
+      "maxLifetimeHours": 168,
+      "period": "2026-10",
+      "stage": "TRANSFER",
+      "stageRetries": {},
+      "status": "NEEDS_ATTENTION"
+    },
+    "limits": {
+      "maxDecisionsPerIncident": 4,
+      "maxStageRetries": 3
+    },
+    "observations": {}
+  },
+  "why": "The transfer ran out of time once, early in the job: another run of the stage may finish; a wait changes nothing."
+}

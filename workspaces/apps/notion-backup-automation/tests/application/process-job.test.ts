@@ -405,7 +405,7 @@ describe('ProcessJobUseCase: nothing to poll', () => {
     expect(harness.qstash.published).toHaveLength(2);
   });
 
-  it('wakes a supervised incident once, +1 m, then hands it to you (no supervisor yet)', async () => {
+  it('wakes a supervised incident once, +1 m; the none model then hands it to you', async () => {
     const harness = backupHarness();
 
     harness.trigger.script = [new IntegrationError('NOTION_UI_CHANGED')];

@@ -93,6 +93,16 @@ export class JobStore {
     });
   }
 
+  /** A `supervisor` event: one decision and what it did. Best effort. */
+  async supervisor(jobId: string, text: string, code?: ErrorCode): Promise<void> {
+    await this.append(jobId, {
+      at: this.clock.now().toISOString(),
+      text: clip(text),
+      type: 'supervisor',
+      ...(code === undefined ? {} : { code }),
+    });
+  }
+
   private async recordTransition(
     previous: BackupJob,
     next: BackupJob,

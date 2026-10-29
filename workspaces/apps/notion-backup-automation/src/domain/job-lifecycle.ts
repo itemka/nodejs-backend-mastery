@@ -1,8 +1,15 @@
 import { InvalidJobStateError } from './domain-errors.js';
 import type { ErrorCode } from './error-catalog.js';
 import { errorCatalog } from './error-catalog.js';
-import type { BackupJob, BackupResult, Incident, LastError } from './job.js';
-import { stageOf } from './job.js';
+import type {
+  BackupJob,
+  BackupResult,
+  Incident,
+  IncidentDecision,
+  LastError,
+  SupervisorObservations,
+} from './job.js';
+import { MAX_INCIDENT_DECISIONS, stageOf } from './job.js';
 import type { BackupPolicy } from './policy.js';
 import { MAX_TRANSFER_RUNS } from './policy.js';
 import { canRetry } from './retry-policy.js';
@@ -266,6 +273,11 @@ export function startNewExportAttempt(job: BackupJob, now: Date, policy: BackupP
   );
 }
 
+/** What a failed step saw, for the supervisor: `NOTION_UI_CHANGED`'s redacted ARIA landmarks. */
+export interface FailureObservations {
+  readonly uiLandmarks?: readonly string[];
+}
+
 /**
  * The deterministic classifier for a failed step. A retryable code with budget left goes to
  * RETRYABLE_FAILURE (the caller schedules the backoff); everything else needs attention.
@@ -275,6 +287,7 @@ export function recordFailure(
   now: Date,
   code: ErrorCode,
   policy: BackupPolicy,
+  observed: FailureObservations = {},
 ): BackupJob {
   const stage = isWorkingStatus(job.status) ? stageOf(job) : undefined;
 
@@ -285,7 +298,7 @@ export function recordFailure(
   const retries = job.stageRetries[stage] ?? 0;
 
   if (!canRetry(code, retries, policy)) {
-    return needsAttention(job, now, code);
+    return needsAttention(job, now, code, observed);
   }
 
   return transition(
@@ -302,9 +315,16 @@ export function recordFailure(
 
 /**
  * → NEEDS_ATTENTION with an incident. A supervised code waits for the supervisor; any other
- * waits for a person. The same code in the same stage reopens the incident and keeps its history.
+ * waits for a person. The same code in the same stage reopens the incident and keeps its
+ * history (decisions and observations), so a supervisor retry that fails again is triaged
+ * within the same budget.
  */
-function needsAttention(job: BackupJob, now: Date, code: ErrorCode): BackupJob {
+function needsAttention(
+  job: BackupJob,
+  now: Date,
+  code: ErrorCode,
+  observed: FailureObservations = {},
+): BackupJob {
   const stage = stageOf(job);
 
   if (stage === undefined) {
@@ -313,6 +333,10 @@ function needsAttention(job: BackupJob, now: Date, code: ErrorCode): BackupJob {
 
   const previous =
     job.incident?.code === code && job.incident.stage === stage ? job.incident : undefined;
+  const observations = {
+    ...previous?.observations,
+    ...(observed.uiLandmarks === undefined ? {} : { uiLandmarks: [...observed.uiLandmarks] }),
+  };
   const incident: Incident = {
     code,
     decisions: previous?.decisions ?? [],
@@ -320,6 +344,7 @@ function needsAttention(job: BackupJob, now: Date, code: ErrorCode): BackupJob {
     openedAt: previous?.openedAt ?? now.toISOString(),
     stage,
     state: errorCatalog[code].supervised ? 'awaiting_supervisor' : 'awaiting_user',
+    ...(Object.keys(observations).length === 0 ? {} : { observations }),
   };
 
   return transition(
@@ -409,16 +434,142 @@ export function retryIncident(
 
 /**
  * Supervision ends without a fix (the supervisor's `notify_user`, or no supervisor at all): the
- * job stays NEEDS_ATTENTION, and its incident now waits for a person, with no wakeup.
+ * job stays NEEDS_ATTENTION, and its incident now waits for a person, with no wakeup. The
+ * supervisor's summary, already cleaned, goes with the incident to the notification and views.
  */
-export function handOverToUser(job: BackupJob, now: Date): BackupJob {
+export function handOverToUser(job: BackupJob, now: Date, supervisorSummary?: string): BackupJob {
+  const incident = requireIncident(job);
+
+  return update(
+    job,
+    {
+      incident: {
+        ...incident,
+        state: 'awaiting_user',
+        ...(supervisorSummary === undefined ? {} : { supervisorSummary }),
+      },
+    },
+    now,
+  );
+}
+
+function requireIncident(job: BackupJob): Incident {
   requireStatus(job, 'NEEDS_ATTENTION');
 
   if (job.incident === undefined) {
     throw new InvalidJobStateError('UNEXPECTED_STATUS', job.status);
   }
 
-  return update(job, { incident: { ...job.incident, state: 'awaiting_user' } }, now);
+  return job.incident;
+}
+
+/**
+ * Appends one supervisor decision to the incident, with what its action observed. The first
+ * decision on an incident counts it against `AGENT_MAX_INCIDENTS_PER_JOB`.
+ */
+export function recordSupervisorDecision(
+  job: BackupJob,
+  now: Date,
+  decision: Omit<IncidentDecision, 'at'>,
+  observations: SupervisorObservations = {},
+): BackupJob {
+  const incident = requireIncident(job);
+  const merged = { ...incident.observations, ...observations };
+
+  return update(
+    job,
+    {
+      incident: {
+        ...incident,
+        decisions: [...incident.decisions, { ...decision, at: now.toISOString() }].slice(
+          -MAX_INCIDENT_DECISIONS,
+        ),
+        ...(Object.keys(merged).length === 0 ? {} : { observations: merged }),
+      },
+      ...(incident.decisions.length === 0
+        ? { supervisedIncidents: (job.supervisedIncidents ?? 0) + 1 }
+        : {}),
+    },
+    now,
+  );
+}
+
+/**
+ * The supervisor's `retry_stage`: back to the incident stage's entry status with one more stage
+ * retry. Unlike `backup_retry`, the incident stays open: a repeat of the same failure reopens it
+ * with its decisions, and it closes once the job moves past the stage. The NOTION_TRIGGER stage
+ * is never retried after this attempt's click.
+ */
+export function supervisorRetryStage(job: BackupJob, now: Date, policy: BackupPolicy): BackupJob {
+  const { stage } = requireIncident(job);
+  const retries = job.stageRetries[stage] ?? 0;
+
+  if (retries >= policy.maxStageRetries) {
+    throw new InvalidJobStateError('STAGE_RETRIES_EXHAUSTED', job.status);
+  }
+
+  if (stage === 'NOTION_TRIGGER' && job.exportClickAt !== undefined) {
+    throw new InvalidJobStateError('EXPORT_ALREADY_CLICKED', job.status);
+  }
+
+  return transition(
+    job,
+    stageEntryStatus[stage],
+    { stageRetries: { ...job.stageRetries, [stage]: retries + 1 } },
+    now,
+  );
+}
+
+/**
+ * The supervisor's `retry`: a new export attempt, as "Retry from scratch" starts one. An
+ * incident of another stage closes; one of NOTION_TRIGGER stays open with its decisions. The
+ * action policy checked the attempt's export request and its age when it planned; they are
+ * checked again here, on the job being written, as the attempt limit is.
+ */
+export function supervisorNewAttempt(
+  job: BackupJob,
+  now: Date,
+  policy: BackupPolicy,
+  minSinceRequestMs: number,
+): BackupJob {
+  requireIncident(job);
+
+  const requestedAt = job.exportClickAt ?? job.requestedAt;
+
+  if (requestedAt === undefined) {
+    throw new InvalidJobStateError('EXPORT_NOT_REQUESTED', job.status);
+  }
+
+  if (now.getTime() - Date.parse(requestedAt) < minSinceRequestMs) {
+    throw new InvalidJobStateError('NEW_ATTEMPT_TOO_SOON', job.status);
+  }
+
+  return startNewExportAttempt(job, now, policy);
+}
+
+/**
+ * A supervisor action found a cause the deterministic classifier knows, such as an expired
+ * Notion session: the incident becomes that code's, with a fresh history. A code that is never
+ * supervised now waits for you, so its usual fix (and the login resume) applies.
+ */
+export function replaceIncident(job: BackupJob, now: Date, code: ErrorCode): BackupJob {
+  const { stage } = requireIncident(job);
+
+  return update(
+    job,
+    {
+      incident: {
+        code,
+        decisions: [],
+        occurrences: 1,
+        openedAt: now.toISOString(),
+        stage,
+        state: errorCatalog[code].supervised ? 'awaiting_supervisor' : 'awaiting_user',
+      },
+      lastError: errorRecord(code, stage, now),
+    },
+    now,
+  );
 }
 
 /**

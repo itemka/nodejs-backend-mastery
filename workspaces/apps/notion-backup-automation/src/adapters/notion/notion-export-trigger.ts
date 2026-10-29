@@ -18,7 +18,11 @@ import { closeBrowser, newSessionContext } from './browser-launcher.js';
 import type { NotionSession, NotionSessionStore } from './notion-session.js';
 import { captureSession, sessionCookiesChanged } from './notion-session.js';
 import type { ExportDialog } from './notion-settings-page.js';
-import { NotionSettingsPage, waitForExportProgress } from './notion-settings-page.js';
+import {
+  collectUiLandmarks,
+  NotionSettingsPage,
+  waitForExportProgress,
+} from './notion-settings-page.js';
 import { passSessionGate } from './session-gate.js';
 
 /** S2: 15 s per step was too tight on Vercel, 30 s always sufficed. */
@@ -231,7 +235,9 @@ export class PlaywrightNotionExportTrigger implements NotionExportTrigger {
     page: Page,
     signal: AbortSignal | undefined,
   ): Promise<'in_progress' | ReadyDialog> {
-    for (let attempt = 1; ; attempt += 1) {
+    let failure: IntegrationError | undefined;
+
+    for (let attempt = 1; attempt <= UI_ATTEMPTS; attempt += 1) {
       const started = performance.now();
       // The gate loads the workspace page, so the second attempt starts from a fresh page.
       const workspaceSwitcher = await this.gate(page, signal);
@@ -253,16 +259,24 @@ export class PlaywrightNotionExportTrigger implements NotionExportTrigger {
 
         return ready;
       } catch (error) {
-        const uiChanged = error instanceof IntegrationError && error.code === 'NOTION_UI_CHANGED';
-
-        if (!uiChanged || attempt >= UI_ATTEMPTS) {
+        if (!(error instanceof IntegrationError) || error.code !== 'NOTION_UI_CHANGED') {
           throw error;
         }
 
-        signal?.throwIfAborted();
-        this.logger.warn('notion.ui.retry', { attempt, message: error.message });
+        failure = error;
+
+        if (attempt < UI_ATTEMPTS) {
+          signal?.throwIfAborted();
+          this.logger.warn('notion.ui.retry', { attempt, message: error.message });
+        }
       }
     }
+
+    // Every attempt failed with NOTION_UI_CHANGED. The supervisor gets the dialog's landmarks,
+    // never its text or a screenshot.
+    throw new IntegrationError('NOTION_UI_CHANGED', failure?.message ?? 'Notion Settings changed', {
+      uiLandmarks: await collectUiLandmarks(page, this.workspace.name),
+    });
   }
 
   private async walkToDialog(

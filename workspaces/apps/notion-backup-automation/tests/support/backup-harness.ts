@@ -1,9 +1,15 @@
 import { createHash } from 'node:crypto';
 
+import { NoopAgentModel } from '../../src/adapters/llm/noop-agent-model.js';
 import { InMemoryJobRepository } from '../../src/adapters/persistence/in-memory-job-repository.js';
 import { keyPrefixFor } from '../../src/adapters/persistence/keys.js';
 import { RedisHealthStore } from '../../src/adapters/persistence/redis-health-store.js';
 import { InMemoryNotificationGate } from '../../src/adapters/persistence/redis-notification-gate.js';
+import { RedisRateLimiter } from '../../src/adapters/persistence/redis-rate-limiter.js';
+import type { AgentModel } from '../../src/agent/agent-model.js';
+import type { AgentLimits } from '../../src/agent/limits.js';
+import { defaultAgentLimits } from '../../src/agent/limits.js';
+import { Supervisor } from '../../src/agent/supervisor.js';
 import { BackupApplicationService } from '../../src/application/backup-service.js';
 import type { IntegrationError } from '../../src/application/integration-error.js';
 import { JobNotifications } from '../../src/application/job-notifications.js';
@@ -21,6 +27,7 @@ import type {
   NotionExportTrigger,
   Notifier,
   Scheduler,
+  SessionProbe,
   StoredBackup,
   StoredJob,
   TransferRequest,
@@ -410,10 +417,13 @@ export class FakeEmails implements ExportEmailFinder {
 type TriggerScript = ExportTriggerOutcome | IntegrationError;
 
 /** Notion's Settings: scripted outcomes, and every final click recorded with its time. */
-export class FakeTrigger implements Pick<NotionExportTrigger, 'requestExport'> {
+export class FakeTrigger implements Pick<NotionExportTrigger, 'probeSession' | 'requestExport'> {
   /** Runs before the write-ahead marker, so a test can act while the worker is "in the browser". */
   beforeClick: (() => Promise<void>) | undefined;
   readonly clicks: string[] = [];
+  /** The next session probes fail with these; then the session is valid. */
+  probeFailures: IntegrationError[] = [];
+  probes = 0;
   /** The next outcomes; `confirmed` once they run out. */
   script: TriggerScript[] = [];
   private readonly clock: ManualClock;
@@ -424,6 +434,15 @@ export class FakeTrigger implements Pick<NotionExportTrigger, 'requestExport'> {
     this.clock = clock;
     this.emails = emails;
     this.world = world;
+  }
+
+  probeSession(): Promise<SessionProbe> {
+    this.world.assertAlive();
+    this.probes += 1;
+
+    const failure = this.probeFailures.shift();
+
+    return failure === undefined ? Promise.resolve({ state: 'valid' }) : Promise.reject(failure);
   }
 
   async requestExport({
@@ -564,8 +583,11 @@ export interface NotificationRecord {
 }
 
 export interface HarnessOptions {
+  agentLimits?: AgentLimits;
   budgetsMs?: Readonly<Record<LeaseKind, number>>;
   exportShrinkRatio?: number;
+  /** The supervisor's model; `NoopAgentModel` (provider `none`) by default. */
+  model?: AgentModel;
   policy?: BackupPolicy;
   start?: string;
 }
@@ -607,7 +629,18 @@ export function backupHarness(options: HarnessOptions = {}) {
     success: deliver('success'),
   };
   const gate = new InMemoryNotificationGate(clock);
-  const health = new RedisHealthStore(new FakeRedis(), keyPrefixFor('test'));
+  const redis = new FakeRedis();
+  const health = new RedisHealthStore(redis, keyPrefixFor('test'));
+  const limiter = new RedisRateLimiter(redis, keyPrefixFor('test'), clock);
+  const supervisor = new Supervisor({
+    clock,
+    limiter,
+    limits: options.agentLimits ?? defaultAgentLimits,
+    logger,
+    model: options.model ?? new NoopAgentModel(),
+    policy,
+    workspaceName: 'Acme Workspace',
+  });
   const notifications = new JobNotifications({
     clock,
     devFolder: false,
@@ -622,6 +655,7 @@ export function backupHarness(options: HarnessOptions = {}) {
     clock,
     emails,
     exportShrinkRatio: options.exportShrinkRatio ?? 0.5,
+    health,
     ids,
     jobs,
     logger,
@@ -629,6 +663,7 @@ export function backupHarness(options: HarnessOptions = {}) {
     policy,
     scheduler: qstash,
     storage: drive,
+    supervisor,
     timeZone: 'Europe/Warsaw',
     transfer,
     trigger,
@@ -653,6 +688,7 @@ export function backupHarness(options: HarnessOptions = {}) {
     health,
     ids,
     jobs,
+    limiter,
     logger,
     logs,
     memory,

@@ -12,6 +12,7 @@
     "test": "vitest run",
     "test:live": "vitest run --config vitest.live.config.ts",
     "test:live:drive": "NBA_LIVE_DRIVE=1 vitest run --config vitest.live.config.ts tests/live/drive-access.live.ts",
+    "test:agent-live": "NBA_LIVE_AGENT=1 vitest run --config vitest.live.config.ts tests/live/agent.live.ts",
     "test:browser": "vitest run --config vitest.browser.config.ts",
     "cli": "tsx src/cli/main.ts",
     "auth:google": "tsx src/cli/main.ts auth:google",
@@ -19,25 +20,26 @@
     "drive:check": "tsx src/cli/main.ts drive:check"
   },
   "dependencies": {
+    "@google/genai": "2.29.1",
     "@modelcontextprotocol/server": "2.3.1",
     "@sparticuz/chromium": "153.0.0",
     "@upstash/qstash": "^2.12.1",
     "@upstash/redis": "^1.39.0",
+    "@workspaces/telegram-contracts": "workspace:*",
     "google-auth-library": "^11.3.1",
     "playwright-core": "1.63.0",
     "yauzl": "^3.4.0",
-    "zod": "^4.6.7",
-    "@workspaces/telegram-contracts": "workspace:*"
+    "zod": "^4.6.7"
   },
   "devDependencies": {
     "@modelcontextprotocol/client": "2.3.1",
     "@types/node": "^25.6.0",
     "@types/yauzl": "^3.4.0",
     "@workspaces/cli-output": "workspace:*",
+    "telegram-webhook-hub": "workspace:*",
     "tsx": "^4.20.6",
     "typescript": "^5.9.3",
     "undici-types": "~7.19.2",
-    "vitest": "^4.1.5",
-    "telegram-webhook-hub": "workspace:*"
+    "vitest": "^4.1.5"
   }
 }
