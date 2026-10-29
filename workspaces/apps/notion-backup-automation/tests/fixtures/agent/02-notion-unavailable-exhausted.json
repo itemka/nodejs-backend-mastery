@@ -1,0 +1,35 @@
+{
+  "acceptable": ["wait", "check_notion_session", "inspect_status"],
+  "context": {
+    "allowedActions": ["inspect_status", "check_notion_session", "wait", "notify_user"],
+    "incident": {
+      "category": "transient",
+      "code": "NOTION_UNAVAILABLE",
+      "decisions": [],
+      "decisionsRemaining": 4,
+      "description": "Notion did not load in time or returned a server error.",
+      "occurrences": 1
+    },
+    "job": {
+      "ageHours": 1.2,
+      "emailCheckAttempt": 0,
+      "exportAttempt": 1,
+      "exportClickAt": false,
+      "jobId": "2026-10",
+      "maxExportAttempts": 3,
+      "maxLifetimeHours": 168,
+      "period": "2026-10",
+      "stage": "NOTION_TRIGGER",
+      "stageRetries": {
+        "NOTION_TRIGGER": 3
+      },
+      "status": "NEEDS_ATTENTION"
+    },
+    "limits": {
+      "maxDecisionsPerIncident": 4,
+      "maxStageRetries": 3
+    },
+    "observations": {}
+  },
+  "why": "Notion failed to load four times in a row: an outage that usually passes, so waiting or a session check fits."
+}

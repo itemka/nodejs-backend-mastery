@@ -60,6 +60,30 @@ describe('the view mappers', () => {
     }
   });
 
+  it('show the supervisor’s summary with the incident, and an incident only while it waits', () => {
+    const waiting = attentionJob('NOTION_UI_CHANGED');
+    const handedOver: BackupJob = {
+      ...waiting,
+      incident: {
+        ...waiting.incident!,
+        state: 'awaiting_user',
+        supervisorSummary: 'The Settings page changed. See https://evil.example/?token=1',
+      },
+    };
+    // A supervisor retry_stage keeps the incident on the working job until it moves on.
+    const retrying: BackupJob = { ...waitingJob(), incident: waiting.incident! };
+
+    expect(jobView(handedOver, []).attention).toEqual({
+      code: 'NOTION_UI_CHANGED',
+      howToFix: 'Update the Notion Settings page object, then run backup_retry.',
+      reason: 'The Notion Settings page did not match the expected layout.',
+      stage: 'NOTION_TRIGGER',
+      supervisorSummary: 'The Settings page changed. See [link]',
+    });
+    expect(jobView(retrying, []).attention).toBeUndefined();
+    expect(jobSummary(retrying).attentionCode).toBeUndefined();
+  });
+
   it('never emit a URL or token-shaped text, even from a poisoned event', () => {
     const json = JSON.stringify([
       jobView({ ...completeJob(), schedule: loadedJob().schedule }, poisonedEvents),
@@ -135,7 +159,7 @@ describe('the view mappers', () => {
 
 describe('healthSettingsFrom', () => {
   const env: Parameters<typeof healthSettingsFrom>[0] = {
-    AGENT_MODEL_NAME: 'gemini-2.5-flash',
+    AGENT_MODEL_NAME: 'gemini-3.6-flash',
     AGENT_MODEL_PROVIDER: 'gemini',
     AUTO_START_ENABLED: true,
     GEMINI_API_KEY: undefined,
@@ -147,7 +171,7 @@ describe('healthSettingsFrom', () => {
 
   it('names a listed channel’s missing variables, and leaves the channel out', () => {
     expect(healthSettingsFrom(env)).toEqual({
-      agent: { configured: false, model: 'gemini-2.5-flash', provider: 'gemini' },
+      agent: { configured: false, model: 'gemini-3.6-flash', provider: 'gemini' },
       autoStartEnabled: true,
       heartbeatConfigured: false,
       notifications: { channels: ['console'], missing: ['TELEGRAM_HUB_URL'] },

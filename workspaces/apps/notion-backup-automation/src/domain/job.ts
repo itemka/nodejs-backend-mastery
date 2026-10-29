@@ -29,25 +29,101 @@ export const agentActionNames = [
   'notify_user',
 ] as const;
 
+export type AgentActionName = (typeof agentActionNames)[number];
+
+/** Why a supervisor model gave no usable decision. Each one counts against the budget. */
+export const agentModelFailures = [
+  'timeout',
+  'rate_limited',
+  'invalid_output',
+  'unavailable',
+] as const;
+
+export type AgentModelFailure = (typeof agentModelFailures)[number];
+
+/** Why a search hit is not the export email. None of these reveal the email's content. */
+export const exportEmailRejections = [
+  'authentication',
+  'consumed',
+  'recipient',
+  'sender',
+  'stale',
+  'subject',
+  'type',
+] as const;
+
+/** At most this many ARIA landmarks are kept, each at most this long (`role:name`). */
+export const MAX_UI_LANDMARKS = 30;
+export const MAX_UI_LANDMARK_LENGTH = 40;
+
+/** The longest supervisor summary for you. */
+export const MAX_SUPERVISOR_SUMMARY = 400;
+
+/** The newest decisions an incident keeps; the events keep every one. */
+export const MAX_INCIDENT_DECISIONS = 20;
+
+/**
+ * One supervisor decision on an incident. `action` is absent when the model gave no usable
+ * decision (`modelFailure`); `outcome` is the app's own word for what the action found or did.
+ * `waitUntil` is when a `wait` ends: saved with the decision, so a wakeup that comes early (a
+ * redelivery after a failed publish) decides nothing before it.
+ */
+export const incidentDecisionSchema = z.object({
+  action: z.enum(agentActionNames).optional(),
+  at: timestamp,
+  modelFailure: z.enum(agentModelFailures).optional(),
+  outcome: z
+    .string()
+    .regex(/^[\w:-]{1,40}$/)
+    .optional(),
+  waitUntil: timestamp.optional(),
+});
+
+export type IncidentDecision = z.infer<typeof incidentDecisionSchema>;
+
+/**
+ * What the supervisor's actions found for this incident: facts and counts, never content. The
+ * landmarks come from the failure itself (`NOTION_UI_CHANGED`), already redacted.
+ */
+export const supervisorObservationsSchema = z.object({
+  emailSearch: z
+    .object({
+      at: timestamp,
+      /** 1 when a trusted export email matched the wider window. */
+      candidates: z.number().int().min(0).max(1),
+      /** The search failed with this code instead. */
+      code: errorCodeSchema.optional(),
+      rejected: z.partialRecord(z.enum(exportEmailRejections), z.number().int().min(0)),
+      widenMinutes: z.union([z.literal(60), z.literal(180)]),
+    })
+    .optional(),
+  /** `inspect_status` ran: the context then holds the recent events and the health results. */
+  inspectedAt: timestamp.optional(),
+  notionSession: z
+    .object({
+      checkedAt: timestamp,
+      state: z.enum(['valid', 'expired', 'challenge', 'wrong_workspace', 'error']),
+    })
+    .optional(),
+  uiLandmarks: z.array(z.string().max(MAX_UI_LANDMARK_LENGTH)).max(MAX_UI_LANDMARKS).optional(),
+});
+
+export type SupervisorObservations = z.infer<typeof supervisorObservationsSchema>;
+
 /**
  * Why the job needs attention. `awaiting_supervisor` while the supervisor may still decide;
  * `awaiting_user` once a person has to act. It closes when the job moves past its stage.
  */
 export const incidentSchema = z.object({
   code: errorCodeSchema,
-  decisions: z
-    .array(
-      z.object({
-        action: z.enum(agentActionNames),
-        at: timestamp,
-        outcome: z.string().max(40).optional(),
-      }),
-    )
-    .max(20),
+  decisions: z.array(incidentDecisionSchema).max(MAX_INCIDENT_DECISIONS),
+  observations: supervisorObservationsSchema.optional(),
   occurrences: z.number().int().min(1),
   openedAt: timestamp,
   stage: stageSchema,
   state: z.enum(['awaiting_supervisor', 'awaiting_user']),
+  /** The supervisor's diagnosis when it handed the incident to you; already cleaned. */
+  supervisorSummary: z.string().max(MAX_SUPERVISOR_SUMMARY).optional(),
 });
 
 export type Incident = z.infer<typeof incidentSchema>;
@@ -112,6 +188,8 @@ export const backupJobSchema = z
     /** Consecutive retries per stage; cleared when a step of the stage succeeds. */
     stageRetries: z.partialRecord(stageSchema, z.number().int().min(0)),
     status: jobStatusSchema,
+    /** Incidents the supervisor decided on (`AGENT_MAX_INCIDENTS_PER_JOB`); absent means none. */
+    supervisedIncidents: z.number().int().min(0).optional(),
     /** Transfer runs of the current email that were rolled back. */
     transferAttempt: z.number().int().min(0),
     updatedAt: timestamp,

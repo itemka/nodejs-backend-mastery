@@ -20,6 +20,7 @@ export type InvalidJobStateReason =
   | 'INCIDENT_CHANGED'
   | 'JOB_TERMINAL'
   | 'STAGE_NOT_REACHED'
+  | 'STAGE_RETRIES_EXHAUSTED'
   | 'UNEXPECTED_STATUS';
 
 /** An operation whose preconditions do not hold for the job's current state (`INVALID_STATE`). */

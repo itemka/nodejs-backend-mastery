@@ -2,9 +2,12 @@ import { randomBytes } from 'node:crypto';
 import { describe, expect, it } from 'vitest';
 
 import { main } from '../../src/cli/main.js';
+import { seedJob, supervisedJob } from '../support/agent.js';
 import { testCli } from '../support/cli-context.js';
 import { FakeDrive, ROOT_ID } from '../support/fake-drive.js';
 import { fakeCredentials } from '../support/fake-google.js';
+import { minutesAfter } from '../support/jobs.js';
+import { ManualClock } from '../support/manual-clock.js';
 import { tempFile } from '../support/temp-file.js';
 
 const env = {
@@ -98,6 +101,23 @@ describe('dev:tick', () => {
 
     await expect(main(['dev:tick', '--start', '--force'], cli.context)).resolves.toBe(0);
     expect(cli.text()).toContain('✓ Created job 2026-10-r2 (forced)');
+  });
+
+  it('shows the supervisor’s decision and its summary', async () => {
+    // The seeded incident opened 3 minutes after T0.
+    const cli = await testCli({
+      clock: new ManualClock(minutesAfter(5)),
+      env: { ...env, AGENT_MODEL_PROVIDER: 'none' },
+    });
+
+    await seedJob({ memory: cli.jobs }, supervisedJob('NOTION_UNAVAILABLE'));
+
+    await expect(main(['dev:tick', '2026-10'], cli.context)).resolves.toBe(1);
+    expect(cli.text()).toContain('Supervisor: none');
+    expect(cli.text()).toContain('  supervisor      decision 1: notify_user → handed_over');
+    expect(cli.text()).toContain(
+      '  summary         No supervisor model is configured (AGENT_MODEL_PROVIDER=none), so this incident was not triaged.',
+    );
   });
 
   it('refuses a forced job while one is active, naming it', async () => {

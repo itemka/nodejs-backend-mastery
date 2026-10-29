@@ -18,6 +18,8 @@ import type { Sleep } from '../shared/sleep.js';
 /** The Redis commands the CLI uses; `@upstash/redis` and test fakes both provide them. */
 export interface CliRedis extends HashCommands {
   get(key: string): Promise<null | string>;
+  /** The supervisor's daily decision counter (`dev:tick`). */
+  incr(key: string): Promise<number>;
   ping(): Promise<unknown>;
   /** With `nx`, `OK` when the key was set and null when it existed. */
   set(key: string, value: string, options?: { ex: number; nx: true }): Promise<unknown>;

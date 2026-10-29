@@ -8,9 +8,10 @@ the Drive backup storage with its resumable uploader (Phase 3), the ZIP transfer
 export link to Drive (Phase 4), the Notion session bootstrap and export trigger with
 Playwright (Phase 5), the backup job itself, run one idempotent tick at a time, with console
 and Telegram notifications (Phase 6), the QStash worker and the daily cron (Phase 7), and the
-remote MCP server and the Telegram buttons (Phase 8), with a local CLI. The functions are
-`GET /api/health`, `POST /api/jobs/process/[jobId]`, `GET /api/cron/daily`, `POST /mcp` and
-`POST /api/integrations/telegram`; the Gemini supervisor comes next.
+remote MCP server and the Telegram buttons (Phase 8), and the Gemini supervisor for incidents
+the rules do not resolve (Phase 9), with a local CLI. The functions are `GET /api/health`,
+`POST /api/jobs/process/[jobId]`, `GET /api/cron/daily`, `POST /mcp` and
+`POST /api/integrations/telegram`.
 
 ## Layout
 
@@ -20,6 +21,8 @@ remote MCP server and the Telegram buttons (Phase 8), with a local CLI. The func
 | `src/config/env.ts`           | Zod env schemas, one subset per function. Errors name the variables, never their values.                                              |
 | `src/domain/`                 | The job schema, statuses, transitions and lifecycle rules, schedule and retry policies, periods, naming, the error catalog. Pure.     |
 | `src/application/`            | The ports (`ports.ts`), the tick (`process-job.ts`), the application methods (`backup-service.ts`), and the job notifications.        |
+| `src/agent/`                  | The supervisor: the model port, the content-free context builder, the actions and their policy, the budgets, the `checkAgent` run.    |
+| `src/adapters/llm/`           | `GeminiAgentModel` (`@google/genai`, structured JSON output) and `NoopAgentModel` (`AGENT_MODEL_PROVIDER=none`).                      |
 | `src/adapters/persistence/`   | Upstash Redis adapters with Lua scripts (`lua/*.lua`), and the in-memory job repository.                                              |
 | `src/adapters/google/`        | OAuth: loopback consent with PKCE, the Picker grant, the token provider, and the REST client shared by Gmail and Drive.               |
 | `src/adapters/gmail/`         | The export-email finder and its parser: the trust checks and the download-link extraction.                                            |
@@ -49,6 +52,7 @@ pnpm --filter notion-backup-automation lint
 NBA_LIVE_REDIS=1 pnpm --filter notion-backup-automation test:live
 pnpm --filter notion-backup-automation test:live:drive
 pnpm --filter notion-backup-automation test:browser
+pnpm --filter notion-backup-automation test:agent-live
 ```
 
 `test` never touches the network, a browser or real credentials. `test:live` runs the repository
@@ -61,6 +65,9 @@ It also runs against a local Redis behind
 
 `test:live:drive` runs the S6 Drive checks against the real backup root (see below). It creates
 two empty probe files and deletes them again.
+
+`test:agent-live` sends the 8 supervisor fixtures to Gemini with `GEMINI_API_KEY` from
+`.env.local` ([Supervisor](#supervisor)). It sends nothing else.
 
 `test:browser` runs the Notion trigger with your installed Chrome, headless, against a local
 stand-in for Notion's app (`tests/fixtures/notion/workspace.html`, served on `127.0.0.1`). The
@@ -328,8 +335,9 @@ The guards, in the order the steps meet them:
   `EMAIL_FOUND` once, an invalid ZIP is downloaded once more and then a new attempt starts.
 - **Cancel** is honoured at the next boundary: before the click, at a transfer marker, or at
   the next tick.
-- **Supervised incidents** (`NOTION_UI_CHANGED`, `UNKNOWN_ERROR` and the like) wake once after
-  1 minute; with no supervisor yet, they then go to you like any other incident.
+- **Supervised incidents** (`NOTION_UI_CHANGED`, `UNKNOWN_ERROR` and the like) wake after
+  1 minute for the [supervisor](#supervisor), which decides once per wakeup; once it hands the
+  incident to you, nothing more is scheduled.
 
 **Export size check.** At the transition to `COMPLETE`, the backup is compared with the newest
 earlier `COMPLETE` job. Below `EXPORT_SHRINK_RATIO` (default `0.5`) of its file count or size
@@ -353,6 +361,88 @@ delete it in Drive first, or use `--start --force`, to see a real export.
 
 Flow diagrams of the tick, the schedule token, the notifications and the daily cron:
 [docs/backup-lifecycle.md](docs/backup-lifecycle.md).
+
+## Supervisor
+
+The deterministic rules handle every known failure. An incident whose code the error catalog
+(`src/domain/error-catalog.ts`) marks `supervised` waits for the supervisor first: 15 codes,
+such as `NOTION_UI_CHANGED`, `UNKNOWN_ERROR`, `EMAIL_UNRECOGNIZED`, `EMAIL_TIMEOUT` once no
+export attempt is left, `ZIP_INVALID` and `TRANSFER_TIMEOUT` after their re-runs, and the
+transient codes once their retries ran out. The login, access and configuration codes go
+straight to you. The supervisor never bypasses the state machine.
+
+Each supervisor wakeup (1 minute after the incident, then after each decision) makes **one
+decision** (`src/agent/`, called from the tick's `supervise` step):
+
+1. **Budgets.** At least a minute since the last decision; at most
+   `AGENT_MAX_DECISIONS_PER_INCIDENT` per incident (the last one may only hand the incident to
+   you), `AGENT_MAX_INCIDENTS_PER_JOB` incidents per job, and `AGENT_MAX_DECISIONS_PER_DAY`
+   across every job. A spent budget hands the incident to you without a model call.
+2. **Context**, built field by field from an allowlist (`context-builder.ts`): the job's
+   counters and stage, the code with the catalog's text, the earlier decisions and their
+   outcomes, what the actions observed, and the allowed actions. For `NOTION_UI_CHANGED`, up
+   to 30 ARIA `role:name` pairs of the open Settings or export dialog (never the page around
+   it, whose titles are private), cut to 40 characters, with email addresses and the workspace
+   name redacted. After `inspect_status`, the recent events' type, status, code and time,
+   never their text (it can hold a caller's `backup_start` reason). No screenshot, page text,
+   URL, email, workspace content, cookie or token; a context that fails its strict schema is
+   never sent.
+3. **One model call** within `AGENT_TIMEOUT_MS`, validated with Zod. A timeout, a 429 or an
+   invalid answer counts as a decision; after two, the incident goes to you.
+4. **The action policy** (`actions.ts`) checks the action's preconditions; a refused action
+   becomes `notify_user`, with the model's reading in the summary.
+5. **Exactly one action** runs, and the decision, its outcome and its observations are saved
+   on the incident with one compare-and-set write, plus a `supervisor` event. The next tick
+   re-evaluates the state first.
+
+| Action                 | Does                                                                          | Only when                                                       |
+| ---------------------- | ----------------------------------------------------------------------------- | --------------------------------------------------------------- |
+| `inspect_status`       | Adds the last 20 events (no text) and the probe results to the next context   | Once per incident                                               |
+| `check_notion_session` | Runs the session gate (no Settings, no click)                                 | Stage `NOTION_TRIGGER`; not in the last 30 min                  |
+| `search_email_again`   | The Gmail match from 60 or 180 min earlier; keeps counts and reasons only     | Stage `EMAIL_WAIT`                                              |
+| `wait`                 | Decides again in 15, 60 or 240 min; saved, so an early wakeup decides nothing | Within the job's lifetime                                       |
+| `retry_stage`          | Runs the incident's stage again, one more stage retry; the incident stays     | Retries left; never `NOTION_TRIGGER` after this attempt's click |
+| `retry`                | Starts a new export attempt                                                   | Attempts left; 2 h after this attempt's export request          |
+| `notify_user`          | Hands the incident to you with the cleaned summary (≤ 400 characters)         | Always                                                          |
+
+A session probe or email search that finds a known, unsupervised cause (an expired Notion
+session, `GOOGLE_AUTH_REQUIRED`) turns the incident into that code's, so its usual fix and the
+automatic resume after a login fix apply. A retried stage that fails the same way reopens the
+same incident with its decisions; one that succeeds closes it.
+
+**Settings** (all optional; the defaults suit production):
+
+| Variable                           | Default            | Meaning                                                                                                |
+| ---------------------------------- | ------------------ | ------------------------------------------------------------------------------------------------------ |
+| `AGENT_MODEL_PROVIDER`             | `gemini`           | `gemini`, or `none`: every incident goes to you after one decision, with no LLM call.                  |
+| `AGENT_MODEL_NAME`                 | `gemini-3.6-flash` | The Gemini model. Changing it needs only the variable and a redeploy; check it with `test:agent-live`. |
+| `GEMINI_API_KEY`                   | —                  | Google AI Studio key (1Password). Required by the worker and the cron while the provider is `gemini`.  |
+| `AGENT_TIMEOUT_MS`                 | `20000`            | One model call in the worker; `checkAgent` uses at most 20 s, inside `/mcp`'s 30 s limit.              |
+| `AGENT_MAX_DECISIONS_PER_INCIDENT` | `4`                | The last one may only be `notify_user`.                                                                |
+| `AGENT_MAX_INCIDENTS_PER_JOB`      | `3`                | Later incidents of the job go straight to you.                                                         |
+| `AGENT_MAX_DECISIONS_PER_DAY`      | `20`               | Across every job, per UTC day (Redis counter).                                                         |
+
+`GeminiAgentModel` calls the Gemini API with the key in a header, at temperature 0 with at most
+2048 output tokens (thinking included), and JSON output constrained to the decision schema. Thinking is off for
+`gemini-2.5-flash*` and low for a `gemini-3*` model, so it does not use up those
+tokens. The SDK retries nothing; the supervisor's budget does.
+
+**Where you see it:** a `supervisor` event per decision in `backup_status`'s `recentEvents`;
+the summary as `attention.supervisorSummary` there and as the **Supervisor:** line of the ⚠️
+Telegram message; `backup_health({ checkAgent: true })` runs one canned, content-free decision
+on the configured model (at most 5 an hour) and reports it as `agent.lastCheck`.
+`dev:tick` uses the model `.env.local` configures, prints which one, and shows the incident's
+last decision (`supervisor  decision N: <action> → <outcome>`) and the summary.
+
+**S5 evaluation:** `pnpm --filter notion-backup-automation test:agent-live` sends the 8 made-up
+incidents in `tests/fixtures/agent/` to the configured model and requires every answer to be
+valid and at least 7 acceptable: an acceptable action, allowed, with parameters the policy would
+take (`retry_stage` on the incident's stage, a `wait` within the lifetime). Each fixture's
+context is the one production builds for an incident reached through the lifecycle rules
+(`tests/support/agent-scenarios.ts`); a unit test keeps them equal. A shell variable wins over
+`.env.local`, so
+`AGENT_MODEL_NAME=<model> pnpm --filter notion-backup-automation test:agent-live` tries another
+model.
 
 ## Worker And Daily Cron
 
@@ -534,15 +624,15 @@ Bearer`), the `Origin` rule (a request with an `Origin` not in `MCP_ALLOWED_ORIG
 default, gets 403), `POST` only (405), and at most 60 requests an hour (429 with `Retry-After`).
 There is no unauthenticated path to any tool.
 
-| Tool             | Does                                                                                                   |
-| ---------------- | ------------------------------------------------------------------------------------------------------ |
-| `backup_start`   | This month's job, returned at once in `CREATED`; idempotent per month. `force` starts `<period>-r<N>`. |
-| `backup_status`  | One job (default: the active, else the latest) with its result or what needs attention, and 10 events. |
-| `backup_list`    | The newest jobs first (`limit` 1–24, default 12).                                                      |
-| `backup_process` | Wakes a job now (a new token, an immediate wakeup); at most 10 calls per job per hour.                 |
-| `backup_retry`   | Resumes a job that needs attention or waits to retry, from its stage or `fromStage`.                   |
-| `backup_cancel`  | Cancels a job that has not ended, with a reason.                                                       |
-| `backup_health`  | The stored probe results, the last QStash ping and cron run, and the agent and notification settings.  |
+| Tool             | Does                                                                                                                                                                           |
+| ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `backup_start`   | This month's job, returned at once in `CREATED`; idempotent per month. `force` starts `<period>-r<N>`.                                                                         |
+| `backup_status`  | One job (default: the active, else the latest) with its result or what needs attention, and 10 events.                                                                         |
+| `backup_list`    | The newest jobs first (`limit` 1–24, default 12).                                                                                                                              |
+| `backup_process` | Wakes a job now (a new token, an immediate wakeup); at most 10 calls per job per hour.                                                                                         |
+| `backup_retry`   | Resumes a job that needs attention or waits to retry, from its stage or `fromStage`.                                                                                           |
+| `backup_cancel`  | Cancels a job that has not ended, with a reason.                                                                                                                               |
+| `backup_health`  | The stored probe results, the last QStash ping and cron run, and the agent and notification settings; `checkAgent: true` also runs one canned supervisor decision (5 an hour). |
 
 Each result carries `structuredContent` and a text block with a one-line summary and the same
 JSON. A refusal is `isError: true` with `{ code, message }`: `ACTIVE_JOB_EXISTS`, `JOB_NOT_FOUND`,
@@ -652,7 +742,7 @@ a variable, which applies to new deployments only):
 
    `CRON_SECRET` is `openssl rand -base64 32`; `HEARTBEAT_PING_URL` is the ping URL of a
    healthchecks.io check with period 1 day and grace 1 day. `GEMINI_API_KEY` is required while
-   `AGENT_MODEL_PROVIDER` is `gemini` (the default), though nothing calls Gemini yet.
+   `AGENT_MODEL_PROVIDER` is `gemini` (the default); see step 7 for the model.
 
 2. **Deploy:** merge to `main`. Take the production URL and set `APP_BASE_URL` to it (an
    origin, no trailing slash), then **Redeploy**: QStash destinations and the worker's
@@ -709,6 +799,11 @@ a variable, which applies to new deployments only):
    fresh probe results. Inspect deployed function bundles: the hub has no backup/Google/
    Playwright dependencies, and this app's `/api/mcp` and `/api/integrations/telegram` have no
    Playwright or Chromium.
+
+7. **Supervisor (Phase 9):** run `test:agent-live` locally (100 % valid, at least 7 of 8
+   acceptable), set `AGENT_MODEL_PROVIDER=gemini` and the chosen `AGENT_MODEL_NAME` in
+   Production, and redeploy. Then call `backup_health` with `checkAgent: true` from the MCP
+   client: `agent.lastCheck.ok` is `true`. The plan's Phase 9 checklist has the exact steps.
 
 Real backups start only through an explicit start (`backup_start` from an MCP client), or
 through the cron once `AUTO_START_ENABLED=true`.

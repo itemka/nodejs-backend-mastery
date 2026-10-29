@@ -7,9 +7,13 @@ import {
   formatDuration,
 } from '../../application/notification-text.js';
 import type { TickResult } from '../../application/process-job.js';
-import type { BackupServices } from '../../config/containers.js';
-import { createBackupServices } from '../../config/containers.js';
-import { backupEnvSchema, loadEnv } from '../../config/env.js';
+import type { AgentDeps, BackupServices } from '../../config/containers.js';
+import {
+  agentLimitsFrom,
+  createAgentModel,
+  createBackupServices,
+} from '../../config/containers.js';
+import { agentEnvSchema, backupEnvSchema, loadEnv } from '../../config/env.js';
 import { errorCatalog } from '../../domain/error-catalog.js';
 import type { BackupJob } from '../../domain/job.js';
 import { DEV_FOLDER_NAME, yearFolderName } from '../../domain/naming.js';
@@ -35,7 +39,9 @@ export async function runDevTick(request: DevTickRequest, context: CliContext): 
   }
 
   const connection = { token: env.UPSTASH_REDIS_REST_TOKEN, url: env.UPSTASH_REDIS_REST_URL };
+  const agent = devAgent(context);
   const services = createBackupServices(env, {
+    ...(agent === undefined ? {} : { agent }),
     browserLauncher: context.browserLauncher,
     clock: context.clock,
     jobs: context.createJobRepository(connection, keyPrefixFor(env.APP_ENV)),
@@ -89,6 +95,25 @@ export async function runDevTick(request: DevTickRequest, context: CliContext): 
       return tick(services, request.jobId, context);
     }
   }
+}
+
+/**
+ * The supervisor `.env.local` configures, so a dev incident is triaged as in production. With
+ * `gemini` but no `GEMINI_API_KEY`, the incident goes to you without a model (`none`).
+ */
+function devAgent(context: CliContext): AgentDeps | undefined {
+  const env = loadEnv(agentEnvSchema, context.env);
+  const model = createAgentModel(env, { logger: context.logger, ...fetchOption(context) });
+
+  if (model === undefined) {
+    context.print(ui.warn('Supervisor: none (GEMINI_API_KEY is not set).'));
+
+    return undefined;
+  }
+
+  context.print(ui.muted(`Supervisor: ${model.id}`));
+
+  return { limits: agentLimitsFrom(env), model };
 }
 
 async function tick(services: BackupServices, jobId: string, context: CliContext): Promise<number> {
@@ -173,6 +198,7 @@ function printJob(job: BackupJob, context: CliContext): void {
 
     context.print(`  error           ${code}: ${errorCatalog[code].description}`);
     context.print(`  fix             ${errorCatalog[code].howToFix}`);
+    printSupervisor(job, context);
     context.print(ui.muted(`  in dev, retry with: ${COMMAND} ${job.id} --retry`));
   }
 
@@ -189,6 +215,24 @@ function printJob(job: BackupJob, context: CliContext): void {
     if (shrink !== undefined) {
       context.print(ui.warn(`  much smaller than the last backup: ${shrink}`));
     }
+  }
+}
+
+/** The incident's last supervisor decision and, once it is handed to you, the summary. */
+function printSupervisor(job: BackupJob, context: CliContext): void {
+  const decisions = job.incident?.decisions ?? [];
+  const last = decisions.at(-1);
+
+  if (last !== undefined) {
+    const action = last.action ?? `no decision (${last.modelFailure ?? 'unknown'})`;
+
+    context.print(
+      `  supervisor      decision ${decisions.length}: ${action} → ${last.outcome ?? 'unknown'}`,
+    );
+  }
+
+  if (job.incident?.supervisorSummary !== undefined) {
+    context.print(`  summary         ${job.incident.supervisorSummary}`);
   }
 }
 

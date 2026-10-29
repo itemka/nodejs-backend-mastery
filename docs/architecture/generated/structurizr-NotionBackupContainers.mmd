@@ -22,19 +22,21 @@ graph LR
     style 41 fill:#8c8c8c,stroke:#626262,color:#ffffff
     42["<div style='font-weight: bold'>healthchecks.io</div><div style='font-size: 70%; margin-top: 0px'>[Software System]</div><div style='font-size: 80%; margin-top:10px'>The outside heartbeat: alerts<br />through its own channel when<br />the daily cron stops pinging<br />for two days.</div>"]
     style 42 fill:#8c8c8c,stroke:#626262,color:#ffffff
-    43["<div style='font-weight: bold'>MCP client</div><div style='font-size: 70%; margin-top: 0px'>[Software System]</div><div style='font-size: 80%; margin-top:10px'>Claude Code (user scope),<br />Cursor or Codex, configured<br />with the backup server's URL<br />and bearer token.</div>"]
+    43["<div style='font-weight: bold'>Gemini API</div><div style='font-size: 70%; margin-top: 0px'>[Software System]</div><div style='font-size: 80%; margin-top:10px'>Google AI Studio key: one<br />structured-JSON supervisor<br />decision per call, at<br />temperature 0, from a<br />content-free context; never a<br />Vertex AI project.</div>"]
     style 43 fill:#8c8c8c,stroke:#626262,color:#ffffff
+    44["<div style='font-weight: bold'>MCP client</div><div style='font-size: 70%; margin-top: 0px'>[Software System]</div><div style='font-size: 80%; margin-top:10px'>Claude Code (user scope),<br />Cursor or Codex, configured<br />with the backup server's URL<br />and bearer token.</div>"]
+    style 44 fill:#8c8c8c,stroke:#626262,color:#ffffff
 
     subgraph 21 ["notion-backup-automation"]
       style 21 fill:#ffffff,stroke:#444444,color:#444444
 
       22["<div style='font-weight: bold'>Health function</div><div style='font-size: 70%; margin-top: 0px'>[Container: Vercel Function (Node.js)]</div><div style='font-size: 80%; margin-top:10px'>Public GET /api/health<br />returning ok and the short<br />commit SHA, with no caching<br />and no other data.</div>"]
       style 22 fill:#ffffff,stroke:#444444,color:#444444
-      23["<div style='font-weight: bold'>Worker function</div><div style='font-size: 70%; margin-top: 0px'>[Container: Vercel Function (Node.js, 300 s)]</div><div style='font-size: 80%; margin-top:10px'>POST<br />/api/jobs/process/[jobId]:<br />verifies the QStash signature<br />against APP_BASE_URL plus the<br />path and the raw body, runs<br />one tick of one job<br />(serverless Chromium for the<br />export trigger), publishes<br />the next wakeup, and records<br />the _ping smoke test's nonce.</div>"]
+      23["<div style='font-weight: bold'>Worker function</div><div style='font-size: 70%; margin-top: 0px'>[Container: Vercel Function (Node.js, 300 s)]</div><div style='font-size: 80%; margin-top:10px'>POST<br />/api/jobs/process/[jobId]:<br />verifies the QStash signature<br />against APP_BASE_URL plus the<br />path and the raw body, runs<br />one tick of one job<br />(serverless Chromium for the<br />export trigger; one<br />supervisor decision on a<br />pending incident, from a<br />closed set of actions with<br />deterministic preconditions),<br />publishes the next wakeup,<br />and records the _ping smoke<br />test's nonce.</div>"]
       style 23 fill:#ffffff,stroke:#444444,color:#444444
       24["<div style='font-weight: bold'>Daily cron function</div><div style='font-size: 70%; margin-top: 0px'>[Container: Vercel Function (Node.js, 300 s, Vercel Cron)]</div><div style='font-size: 80%; margin-top:10px'>GET /api/cron/daily with the<br />cron secret: auto-start when<br />enabled, the watchdog and<br />lifetime check, Google, Drive<br />and Notion probes, login<br />warnings, resuming a job<br />whose login works again, and<br />the heartbeat; ?probe= runs<br />one probe.</div>"]
       style 24 fill:#ffffff,stroke:#444444,color:#444444
-      25["<div style='font-weight: bold'>MCP function</div><div style='font-size: 70%; margin-top: 0px'>[Container: Vercel Function (Node.js, MCP Streamable HTTP)]</div><div style='font-size: 80%; margin-top:10px'>POST /mcp (rewritten to<br />/api/mcp) with the bearer<br />token, an Origin rule and an<br />hourly limit: a new stateless<br />MCP server per request with 7<br />tools (start, status, list,<br />process, retry, cancel,<br />health) whose views come from<br />an allowlist; it publishes<br />wakeups and never runs a<br />step.</div>"]
+      25["<div style='font-weight: bold'>MCP function</div><div style='font-size: 70%; margin-top: 0px'>[Container: Vercel Function (Node.js, MCP Streamable HTTP)]</div><div style='font-size: 80%; margin-top:10px'>POST /mcp (rewritten to<br />/api/mcp) with the bearer<br />token, an Origin rule and an<br />hourly limit: a new stateless<br />MCP server per request with 7<br />tools (start, status, list,<br />process, retry, cancel,<br />health) whose views come from<br />an allowlist; it publishes<br />wakeups and never runs a<br />step. backup_health with<br />checkAgent runs one canned,<br />content-free supervisor<br />decision.</div>"]
       style 25 fill:#ffffff,stroke:#444444,color:#444444
       26["<div style='font-weight: bold'>Telegram integration function</div><div style='font-size: 70%; margin-top: 0px'>[Container: Vercel Function (Node.js)]</div><div style='font-size: 80%; margin-top:10px'>POST<br />/api/integrations/telegram<br />with the integration bearer<br />token: normalized commands<br />and callbacks from the hub,<br />backup action deduplication<br />and single-use confirmations;<br />status, retry, cancel and<br />login guidance use the<br />existing backup application<br />methods.</div>"]
       style 26 fill:#ffffff,stroke:#444444,color:#444444
@@ -44,6 +46,8 @@ graph LR
       style 28 fill:#ffffff,stroke:#444444,color:#444444
     end
 
+    25-. "<div>Publishes immediate wakeups<br />and cancels superseded ones</div><div style='font-size: 70%'>[REST over HTTPS]</div>" .->41
+    25-. "<div>Runs the canned checkAgent<br />decision</div><div style='font-size: 70%'>[REST over HTTPS (API key header)]</div>" .->43
     1-. "<div>Discovers the chat, inspects<br />webhook ownership, tests, and<br />configures the bot</div><div style='font-size: 70%'>[Terminal]</div>" .->29
     29-. "<div>Leases updates, records<br />completed deliveries, and<br />counts retry-safe ingress<br />limits in the hub namespace</div><div style='font-size: 70%'>[Redis REST over HTTPS]</div>" .->38
     29-. "<div>Forwards validated normalized<br />updates to the configured<br />backup integration</div><div style='font-size: 70%'>[HTTPS POST (integration bearer)]</div>" .->26
@@ -60,6 +64,8 @@ graph LR
     23-. "<div>Finds the export email and<br />re-reads its link</div><div style='font-size: 70%'>[REST over HTTPS (gmail.readonly)]</div>" .->36
     23-. "<div>Adopts an existing backup, or<br />uploads the verified ZIP</div><div style='font-size: 70%'>[REST over HTTPS (drive.file)]</div>" .->37
     23-. "<div>Sends backup reports and<br />attention alerts</div><div style='font-size: 70%'>[HTTPS POST (integration bearer)]</div>" .->29
+    23-. "<div>Asks for one supervisor<br />decision on a pending<br />incident</div><div style='font-size: 70%'>[REST over HTTPS (API key header)]</div>" .->43
+    27-. "<div>Runs dev:tick's supervisor<br />decisions and the<br />test:agent-live evaluation</div><div style='font-size: 70%'>[REST over HTTPS (API key header)]</div>" .->43
     24-. "<div>Records the run and the probe<br />results, finds the active<br />job, and marks warnings as<br />sent</div><div style='font-size: 70%'>[Redis REST over HTTPS]</div>" .->38
     24-. "<div>Starts, re-arms or resumes<br />the active job with a wakeup</div><div style='font-size: 70%'>[REST over HTTPS]</div>" .->41
     24-. "<div>Probes the session and the<br />export dialog, without<br />exporting</div><div style='font-size: 70%'>[serverless Chromium; HTTPS]</div>" .->40
@@ -79,9 +85,8 @@ graph LR
     27-. "<div>Checks folders, manages<br />access probes, finds or<br />creates the app-owned root,<br />and uploads test backups to<br />_dev</div><div style='font-size: 70%'>[REST over HTTPS (drive.file)]</div>" .->37
     27-. "<div>Pings Redis, stores and reads<br />the encrypted Notion session,<br />and keeps the dev job's<br />state, leases and events</div><div style='font-size: 70%'>[Redis REST over HTTPS]</div>" .->38
     27-. "<div>Sends test messages and dev<br />backup reports through the<br />hub</div><div style='font-size: 70%'>[HTTPS POST (integration bearer)]</div>" .->29
-    1-. "<div>Starts and follows backups</div><div style='font-size: 70%'></div>" .->43
-    43-. "<div>Lists and calls the backup<br />tools</div><div style='font-size: 70%'>[MCP Streamable HTTP over HTTPS (Bearer)]</div>" .->25
+    1-. "<div>Starts and follows backups</div><div style='font-size: 70%'></div>" .->44
+    44-. "<div>Lists and calls the backup<br />tools</div><div style='font-size: 70%'>[MCP Streamable HTTP over HTTPS (Bearer)]</div>" .->25
     25-. "<div>Creates, reads and updates<br />jobs, reads the health<br />results, and counts the rate<br />limits</div><div style='font-size: 70%'>[Redis REST over HTTPS]</div>" .->38
-    25-. "<div>Publishes immediate wakeups<br />and cancels superseded ones</div><div style='font-size: 70%'>[REST over HTTPS]</div>" .->41
 
   end

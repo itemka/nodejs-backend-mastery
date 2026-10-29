@@ -1,0 +1,55 @@
+{
+  "acceptable": ["notify_user", "inspect_status"],
+  "context": {
+    "allowedActions": ["inspect_status", "wait", "retry_stage", "notify_user"],
+    "incident": {
+      "category": "unknown",
+      "code": "NOTION_UI_CHANGED",
+      "decisions": [
+        {
+          "action": "check_notion_session",
+          "outcome": "session:valid"
+        },
+        {
+          "action": "retry_stage",
+          "outcome": "retrying"
+        }
+      ],
+      "decisionsRemaining": 2,
+      "description": "The Notion Settings page did not match the expected layout.",
+      "occurrences": 2
+    },
+    "job": {
+      "ageHours": 0.1,
+      "emailCheckAttempt": 0,
+      "exportAttempt": 1,
+      "exportClickAt": false,
+      "jobId": "2026-10",
+      "maxExportAttempts": 3,
+      "maxLifetimeHours": 168,
+      "period": "2026-10",
+      "stage": "NOTION_TRIGGER",
+      "stageRetries": {
+        "NOTION_TRIGGER": 1
+      },
+      "status": "NEEDS_ATTENTION"
+    },
+    "limits": {
+      "maxDecisionsPerIncident": 4,
+      "maxStageRetries": 3
+    },
+    "observations": {
+      "notionSession": "valid",
+      "uiLandmarks": [
+        "dialog:Settings",
+        "tab:Preferences",
+        "tab:People",
+        "tab:General",
+        "heading:Workspace",
+        "button:Download workspace data",
+        "button:Cancel"
+      ]
+    }
+  },
+  "why": "The Settings page changed and a supervisor retry already failed the same way: only a code change helps."
+}

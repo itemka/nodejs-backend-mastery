@@ -305,6 +305,55 @@ describe('the MCP tools', () => {
     expect(harness.trigger.clicks).toEqual([]);
   });
 
+  it('backup_health with checkAgent runs one canned decision and stores it as agent.lastCheck', async () => {
+    const { client, harness } = await connected();
+
+    const health = await call(client, 'backup_health', { checkAgent: true });
+
+    expect(health.output.agent).toEqual({
+      ...defaultSettings.agent,
+      lastCheck: { checkedAt: '2026-10-01T04:00:00.000Z', durationMs: 0, model: 'none', ok: true },
+    });
+    expect(health.text).toContain('· agent ok (none)');
+    // A plain call shows the stored check, and runs none.
+    expect(await harness.health.read()).toMatchObject({ agentCheck: { ok: true } });
+    const plain = await call(client, 'backup_health');
+
+    expect(plain.text).not.toContain('· agent');
+  });
+
+  it('backup_health with checkAgent reports a failed or unconfigured model, and is limited to 5 an hour', async () => {
+    const checks: string[] = [];
+    const harness = mcpHarness({
+      overrides: {
+        agentCheck: () => {
+          checks.push('called');
+
+          return Promise.resolve({
+            checkedAt: '2026-10-01T04:00:00.000Z',
+            durationMs: 20_000,
+            failure: 'timeout',
+            model: 'gemini:gemini-3.6-flash',
+            ok: false,
+          });
+        },
+      },
+    });
+    const { client } = await connected(harness);
+
+    for (let count = 0; count < 5; count += 1) {
+      const checked = await call(client, 'backup_health', { checkAgent: true });
+
+      expect(checked.text).toContain('· agent timeout (gemini:gemini-3.6-flash)');
+    }
+
+    expect(await call(client, 'backup_health', { checkAgent: true })).toMatchObject({
+      isError: true,
+      output: { code: 'RATE_LIMITED' },
+    });
+    expect(checks).toHaveLength(5);
+  });
+
   it('reports a failed publish as SCHEDULER_UNAVAILABLE, without QStash’s reply', async () => {
     const { client, harness } = await connected();
 
@@ -319,7 +368,10 @@ describe('the MCP tools', () => {
   it('reports an unexpected failure as INTERNAL_ERROR and logs it, never its message', async () => {
     const harness = mcpHarness({
       overrides: {
-        health: { read: () => Promise.reject(new Error('redis at https://u:p@db.example?x=1')) },
+        health: {
+          read: () => Promise.reject(new Error('redis at https://u:p@db.example?x=1')),
+          write: () => Promise.resolve(),
+        },
       },
     });
     const { client } = await connected(harness);
