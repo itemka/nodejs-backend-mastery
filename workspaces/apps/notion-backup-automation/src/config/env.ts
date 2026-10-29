@@ -138,7 +138,7 @@ const agentShape = {
   AGENT_MAX_DECISIONS_PER_DAY: integer(1, 100, 20),
   AGENT_MAX_DECISIONS_PER_INCIDENT: integer(1, 10, 4),
   AGENT_MAX_INCIDENTS_PER_JOB: integer(1, 10, 3),
-  AGENT_MODEL_NAME: z.string().default('gemini-2.5-flash'),
+  AGENT_MODEL_NAME: z.string().default('gemini-3.6-flash'),
   AGENT_MODEL_PROVIDER: z.enum(['gemini', 'none']).default('gemini'),
   AGENT_TIMEOUT_MS: integer(1000, 60_000, 20_000),
   GEMINI_API_KEY: secret.optional(),
@@ -189,6 +189,12 @@ const requireGeminiKey = (
     context.addIssue({ code: 'custom', message: 'Required', path: ['GEMINI_API_KEY'] });
   }
 };
+
+/**
+ * The supervisor's settings alone: `dev:tick` uses the configured model when it can be built,
+ * and `test:agent-live` calls it.
+ */
+export const agentEnvSchema = z.object(agentShape);
 
 /** Redis access only: `test:live` and local CLI commands. */
 export const persistenceEnvSchema = z.object({ ...coreShape, ...redisShape });
@@ -389,6 +395,7 @@ export const cronEnvSchema = z
   })
   .superRefine(requireGeminiKey);
 
+export type AgentEnv = z.output<typeof agentEnvSchema>;
 export type BackupEnv = z.output<typeof backupEnvSchema>;
 export type PersistenceEnv = z.output<typeof persistenceEnvSchema>;
 export type McpAuthEnv = z.output<typeof mcpAuthEnvSchema>;

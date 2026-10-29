@@ -17,9 +17,12 @@ export type InvalidJobStateReason =
   | 'EXPORT_ALREADY_CLICKED'
   | 'EXPORT_ATTEMPTS_EXHAUSTED'
   | 'EXPORT_NOT_CLICKED'
+  | 'EXPORT_NOT_REQUESTED'
   | 'INCIDENT_CHANGED'
   | 'JOB_TERMINAL'
+  | 'NEW_ATTEMPT_TOO_SOON'
   | 'STAGE_NOT_REACHED'
+  | 'STAGE_RETRIES_EXHAUSTED'
   | 'UNEXPECTED_STATUS';
 
 /** An operation whose preconditions do not hold for the job's current state (`INVALID_STATE`). */

@@ -18,7 +18,7 @@ graph LR
     style 19 fill:#ffffff,stroke:#444444,color:#444444
     2["<div style='font-weight: bold'>Ollama</div><div style='font-size: 70%; margin-top: 0px'>[Software System]</div><div style='font-size: 80%; margin-top:10px'>Local LLM runtime exposing an<br />OpenAI-compatible API on<br />localhost:11434.</div>"]
     style 2 fill:#8c8c8c,stroke:#626262,color:#ffffff
-    21["<div style='font-weight: bold'>notion-backup-automation</div><div style='font-size: 70%; margin-top: 0px'>[Software System]</div><div style='font-size: 80%; margin-top:10px'>Notion backup agent with<br />local Google OAuth setup and<br />Notion sign-in, a Playwright<br />export trigger in Notion's<br />Settings, Gmail export-email<br />discovery, Drive access<br />diagnostics,<br />checksum-verified Drive<br />backup storage, a resumable<br />backup job run one idempotent<br />tick at a time by a<br />QStash-woken worker, a daily<br />cron with health probes,<br />login warnings and a<br />heartbeat, console and<br />Telegram notifications, a<br />bearer-protected remote MCP<br />server, an authenticated<br />Telegram hub integration for<br />status and action buttons,<br />and a deployed health check.</div>"]
+    21["<div style='font-weight: bold'>notion-backup-automation</div><div style='font-size: 70%; margin-top: 0px'>[Software System]</div><div style='font-size: 80%; margin-top:10px'>Notion backup agent with<br />local Google OAuth setup and<br />Notion sign-in, a Playwright<br />export trigger in Notion's<br />Settings, Gmail export-email<br />discovery, Drive access<br />diagnostics,<br />checksum-verified Drive<br />backup storage, a resumable<br />backup job run one idempotent<br />tick at a time by a<br />QStash-woken worker, a daily<br />cron with health probes,<br />login warnings and a<br />heartbeat, console and<br />Telegram notifications, a<br />bounded Gemini supervisor for<br />incidents the rules do not<br />resolve, a bearer-protected<br />remote MCP server, an<br />authenticated Telegram hub<br />integration for status and<br />action buttons, and a<br />deployed health check.</div>"]
     style 21 fill:#ffffff,stroke:#444444,color:#444444
     29["<div style='font-weight: bold'>telegram-webhook-hub</div><div style='font-size: 70%; margin-top: 0px'>[Software System]</div><div style='font-size: 80%; margin-top:10px'>Independent Vercel project<br />for Artsem Automation Hub:<br />the bot's only webhook owner,<br />generic authenticated<br />integration routing,<br />namespaced callbacks, rate<br />limiting, retry-safe delivery<br />receipts, and all Bot API<br />calls. Integrations share<br />validated HTTP schemas, not<br />implementation imports.</div>"]
     style 29 fill:#ffffff,stroke:#444444,color:#444444
@@ -42,14 +42,17 @@ graph LR
     style 41 fill:#8c8c8c,stroke:#626262,color:#ffffff
     42["<div style='font-weight: bold'>healthchecks.io</div><div style='font-size: 70%; margin-top: 0px'>[Software System]</div><div style='font-size: 80%; margin-top:10px'>The outside heartbeat: alerts<br />through its own channel when<br />the daily cron stops pinging<br />for two days.</div>"]
     style 42 fill:#8c8c8c,stroke:#626262,color:#ffffff
-    43["<div style='font-weight: bold'>MCP client</div><div style='font-size: 70%; margin-top: 0px'>[Software System]</div><div style='font-size: 80%; margin-top:10px'>Claude Code (user scope),<br />Cursor or Codex, configured<br />with the backup server's URL<br />and bearer token.</div>"]
+    43["<div style='font-weight: bold'>Gemini API</div><div style='font-size: 70%; margin-top: 0px'>[Software System]</div><div style='font-size: 80%; margin-top:10px'>Google AI Studio key: one<br />structured-JSON supervisor<br />decision per call, at<br />temperature 0, from a<br />content-free context; never a<br />Vertex AI project.</div>"]
     style 43 fill:#8c8c8c,stroke:#626262,color:#ffffff
+    44["<div style='font-weight: bold'>MCP client</div><div style='font-size: 70%; margin-top: 0px'>[Software System]</div><div style='font-size: 80%; margin-top:10px'>Claude Code (user scope),<br />Cursor or Codex, configured<br />with the backup server's URL<br />and bearer token.</div>"]
+    style 44 fill:#8c8c8c,stroke:#626262,color:#ffffff
     5["<div style='font-weight: bold'>local-llm-playground</div><div style='font-size: 70%; margin-top: 0px'>[Software System]</div><div style='font-size: 80%; margin-top:10px'>Local-only LLM lab: chat,<br />streaming chat, multi-model<br />compare, and llm-checker<br />recommendations.</div>"]
     style 5 fill:#ffffff,stroke:#444444,color:#444444
     8["<div style='font-weight: bold'>rag-pipeline</div><div style='font-size: 70%; margin-top: 0px'>[Software System]</div><div style='font-size: 80%; margin-top:10px'>Retrieval-only RAG service:<br />markdown ingest, hybrid<br />vector + BM25 search with RRF<br />fusion.</div>"]
     style 8 fill:#ffffff,stroke:#444444,color:#444444
 
     21-. "<div>Publishes immediate wakeups<br />and cancels superseded ones</div><div style='font-size: 70%'>[REST over HTTPS]</div>" .->41
+    21-. "<div>Runs the canned checkAgent<br />decision</div><div style='font-size: 70%'>[REST over HTTPS (API key header)]</div>" .->43
     1-. "<div>Discovers the chat, inspects<br />webhook ownership, tests, and<br />configures the bot</div><div style='font-size: 70%'>[Terminal]</div>" .->29
     29-. "<div>Finds the private chat, sends<br />a namespaced test, reads and<br />sets the sole webhook</div><div style='font-size: 70%'>[Bot API over HTTPS]</div>" .->39
     39-. "<div>Delivers messages and<br />callback queries</div><div style='font-size: 70%'>[HTTPS POST (Telegram secret header)]</div>" .->29
@@ -82,7 +85,7 @@ graph LR
     21-. "<div>Pings Redis, stores and reads<br />the encrypted Notion session,<br />and keeps the dev job's<br />state, leases and events</div><div style='font-size: 70%'>[Redis REST over HTTPS]</div>" .->38
     21-. "<div>Sends test messages and dev<br />backup reports through the<br />hub</div><div style='font-size: 70%'>[HTTPS POST (integration bearer)]</div>" .->29
     1-. "<div>Sends /start and /status to<br />the bot, taps report buttons,<br />and reads backup reports</div><div style='font-size: 70%'>[Telegram app]</div>" .->39
-    1-. "<div>Starts and follows backups</div><div style='font-size: 70%'></div>" .->43
-    43-. "<div>Lists and calls the backup<br />tools</div><div style='font-size: 70%'>[MCP Streamable HTTP over HTTPS (Bearer)]</div>" .->21
+    1-. "<div>Starts and follows backups</div><div style='font-size: 70%'></div>" .->44
+    44-. "<div>Lists and calls the backup<br />tools</div><div style='font-size: 70%'>[MCP Streamable HTTP over HTTPS (Bearer)]</div>" .->21
 
   end

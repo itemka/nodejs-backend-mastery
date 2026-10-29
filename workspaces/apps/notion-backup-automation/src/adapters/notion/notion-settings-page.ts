@@ -1,5 +1,6 @@
 import type { Locator, Page } from 'playwright-core';
 
+import { sanitizeLandmarks } from '../../agent/sanitize.js';
 import { IntegrationError } from '../../application/integration-error.js';
 import type { NotionExportFormat } from '../../config/env.js';
 
@@ -296,6 +297,76 @@ export async function waitForExportProgress(page: Page, timeoutMs: number): Prom
   } catch {
     return false;
   }
+}
+
+/** The wait for the ARIA snapshot behind `NOTION_UI_CHANGED`. */
+const LANDMARK_TIMEOUT_MS = 5000;
+
+/**
+ * For the supervisor, after `NOTION_UI_CHANGED`: the ARIA `role:name` pairs of the open export
+ * dialog or Settings, without text nodes, redacted and cut by `sanitizeLandmarks`. Never the
+ * workspace page around them, whose titles are private: with neither open, or when the page
+ * cannot be read, it is empty, and the failure itself is what counts.
+ */
+export async function collectUiLandmarks(page: Page, workspaceName: string): Promise<string[]> {
+  try {
+    const root = await settingsDialog(page);
+
+    if (root === undefined) {
+      return [];
+    }
+
+    const snapshot = await root.ariaSnapshot({ timeout: LANDMARK_TIMEOUT_MS });
+
+    return sanitizeLandmarks(landmarksFromAriaSnapshot(snapshot), { workspaceName });
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * The innermost open dialog that is the export dialog (it holds "Export format") or Settings
+ * (it holds both navigation tabs). A dialog without either is not one of them.
+ */
+async function settingsDialog(page: Page): Promise<Locator | undefined> {
+  const dialogs = page.getByRole('dialog');
+  const [first, second] = NOTION_SETTINGS.navigation;
+  const candidates = [
+    dialogs.filter({ has: page.getByText(EXPORT_DIALOG.format, { exact: true }) }),
+    dialogs
+      .filter({ has: page.getByText(first, { exact: true }) })
+      .filter({ has: page.getByText(second, { exact: true }) }),
+  ];
+
+  for (const candidate of candidates) {
+    const innermost = candidate.last();
+
+    if ((await innermost.count()) > 0) {
+      return innermost;
+    }
+  }
+
+  return undefined;
+}
+
+/**
+ * The `role:name` pairs of a Playwright ARIA snapshot (`- button "Export"`). Text nodes
+ * (`- text: …`) and names given as patterns are left out.
+ */
+export function landmarksFromAriaSnapshot(snapshot: string): string[] {
+  const landmarks: string[] = [];
+
+  for (const line of snapshot.split('\n')) {
+    const match = /^\s*-\s+([a-z]+)\s+"((?:[^"\\]|\\.)*)"/.exec(line);
+
+    if (match !== null) {
+      const [, role = '', name = ''] = match;
+
+      landmarks.push(`${role}:${name.replaceAll(/\\(.)/g, '$1')}`);
+    }
+  }
+
+  return landmarks;
 }
 
 /** The exact-name button, or the exact text when Notion renders a plain element (S2). */

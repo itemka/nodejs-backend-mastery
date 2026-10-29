@@ -4,6 +4,8 @@ import { describeError } from '../domain/error-catalog.js';
 export interface IntegrationErrorOptions {
   /** A `Retry-After` from the failed call, in seconds. */
   retryAfterSec?: number;
+  /** `NOTION_UI_CHANGED`: the Settings dialog's ARIA `role:name` pairs, already redacted. */
+  uiLandmarks?: readonly string[];
 }
 
 /**
@@ -13,11 +15,13 @@ export interface IntegrationErrorOptions {
 export class IntegrationError extends Error {
   readonly code: ErrorCode;
   readonly retryAfterSec: number | undefined;
+  readonly uiLandmarks: readonly string[] | undefined;
 
   constructor(code: ErrorCode, detail?: string, options: IntegrationErrorOptions = {}) {
     super(detail ?? describeError(code).description);
     this.name = 'IntegrationError';
     this.code = code;
     this.retryAfterSec = options.retryAfterSec;
+    this.uiLandmarks = options.uiLandmarks;
   }
 }

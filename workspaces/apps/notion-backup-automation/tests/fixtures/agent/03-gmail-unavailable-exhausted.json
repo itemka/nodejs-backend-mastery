@@ -1,0 +1,35 @@
+{
+  "acceptable": ["wait", "search_email_again", "inspect_status"],
+  "context": {
+    "allowedActions": ["inspect_status", "search_email_again", "wait", "retry", "notify_user"],
+    "incident": {
+      "category": "transient",
+      "code": "GMAIL_UNAVAILABLE",
+      "decisions": [],
+      "decisionsRemaining": 4,
+      "description": "The Gmail API failed or rate-limited the request.",
+      "occurrences": 1
+    },
+    "job": {
+      "ageHours": 27.9,
+      "emailCheckAttempt": 2,
+      "exportAttempt": 1,
+      "exportClickAt": true,
+      "jobId": "2026-10",
+      "maxExportAttempts": 3,
+      "maxLifetimeHours": 168,
+      "period": "2026-10",
+      "stage": "EMAIL_WAIT",
+      "stageRetries": {
+        "EMAIL_WAIT": 8
+      },
+      "status": "NEEDS_ATTENTION"
+    },
+    "limits": {
+      "maxDecisionsPerIncident": 4,
+      "maxStageRetries": 3
+    },
+    "observations": {}
+  },
+  "why": "Gmail failed through a day of backoff, so its stage retries are spent (retry_stage is refused), while the export email may already be waiting: a wait or a wider search fits; a new export does not, since its email would need Gmail too."
+}

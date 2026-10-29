@@ -153,11 +153,14 @@ export function eventView(event: JobEvent): EventView {
 
 /**
  * The incident a job waits on, or the error that left it retrying or failed. Reason and fix are
- * the catalog's text for the code, never what an integration said.
+ * the catalog's text for the code, never what an integration said; the supervisor's summary is
+ * cleaned before it is stored. An incident the supervisor is retrying stays on the job while it
+ * works, but only a job that needs attention reports it.
  */
 export function attentionView(job: BackupJob): AttentionView | undefined {
+  const incident = job.status === 'NEEDS_ATTENTION' ? job.incident : undefined;
   const source =
-    job.incident ??
+    incident ??
     (job.status === 'RETRYABLE_FAILURE' || job.status === 'FAILED' ? job.lastError : undefined);
 
   if (source === undefined) {
@@ -165,8 +168,15 @@ export function attentionView(job: BackupJob): AttentionView | undefined {
   }
 
   const { description, howToFix } = describeError(source.code);
+  const summary = incident?.supervisorSummary;
 
-  return { code: source.code, howToFix, reason: description, stage: source.stage };
+  return {
+    code: source.code,
+    howToFix,
+    reason: description,
+    stage: source.stage,
+    ...(summary === undefined ? {} : { supervisorSummary: cleanText(summary) }),
+  };
 }
 
 /** `backup_status`: the job and its newest events, oldest first. */

@@ -10,6 +10,8 @@ const HOUR_SEC = 60 * 60;
 export const rateLimits = {
   /** Every authenticated `/mcp` request; a client session takes about four. */
   mcp: { limit: 60, windowSec: HOUR_SEC },
+  /** `backup_health({ checkAgent: true })`: each check is one model call. */
+  mcpCheckAgent: { limit: 5, windowSec: HOUR_SEC },
   /** `backup_process` per job: each call publishes a QStash message. */
   mcpProcess: { limit: 10, windowSec: HOUR_SEC },
 } as const satisfies Record<string, RateLimit>;

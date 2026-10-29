@@ -1,0 +1,33 @@
+{
+  "acceptable": ["notify_user", "inspect_status"],
+  "context": {
+    "allowedActions": ["inspect_status", "wait", "retry_stage", "notify_user"],
+    "incident": {
+      "category": "unknown",
+      "code": "ZIP_INVALID",
+      "decisions": [],
+      "decisionsRemaining": 4,
+      "description": "The downloaded file is not a valid ZIP archive.",
+      "occurrences": 1
+    },
+    "job": {
+      "ageHours": 8.1,
+      "emailCheckAttempt": 0,
+      "exportAttempt": 3,
+      "exportClickAt": true,
+      "jobId": "2026-10",
+      "maxExportAttempts": 3,
+      "maxLifetimeHours": 168,
+      "period": "2026-10",
+      "stage": "TRANSFER",
+      "stageRetries": {},
+      "status": "NEEDS_ATTENTION"
+    },
+    "limits": {
+      "maxDecisionsPerIncident": 4,
+      "maxStageRetries": 3
+    },
+    "observations": {}
+  },
+  "why": "The last export attempt (two earlier ones lost their download links) produced an invalid ZIP, and no attempt is left: a person must look at the export in Notion."
+}

@@ -1,7 +1,9 @@
 import { Client, StreamableHTTPClientTransport } from '@modelcontextprotocol/client';
 
+import { NoopAgentModel } from '../../src/adapters/llm/noop-agent-model.js';
 import { keyPrefixFor } from '../../src/adapters/persistence/keys.js';
 import { RedisRateLimiter } from '../../src/adapters/persistence/redis-rate-limiter.js';
+import { runAgentCheck } from '../../src/agent/agent-check.js';
 import type { McpHandlerDeps } from '../../src/http/mcp-handler.js';
 import { handleMcpRequest } from '../../src/http/mcp-handler.js';
 import { createMcpServer } from '../../src/mcp/server.js';
@@ -15,7 +17,7 @@ import { TEST_MCP_TOKEN } from './fixture-secrets.js';
 export const MCP_URL = 'https://nba.example.vercel.app/mcp';
 
 export const defaultSettings: HealthSettings = {
-  agent: { configured: true, model: 'gemini-2.5-flash', provider: 'gemini' },
+  agent: { configured: true, model: 'gemini-3.6-flash', provider: 'gemini' },
   autoStartEnabled: false,
   heartbeatConfigured: true,
   notifications: { channels: ['console', 'telegram'], missing: [] },
@@ -42,6 +44,12 @@ export function mcpHarness(
       limiter,
       server: () =>
         createMcpServer({
+          agentCheck: () =>
+            runAgentCheck(new NoopAgentModel(), {
+              clock: harness.clock,
+              modelId: 'none',
+              timeoutMs: 20_000,
+            }),
           clock: harness.clock,
           health: harness.health,
           limiter,

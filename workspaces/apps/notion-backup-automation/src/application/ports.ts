@@ -2,7 +2,7 @@ import type { ErrorCode } from '../domain/error-catalog.js';
 import type { ExportShrink } from '../domain/export-size.js';
 import type { JobEvent } from '../domain/job-event.js';
 import type { FoundEmail } from '../domain/job-lifecycle.js';
-import type { BackupJob } from '../domain/job.js';
+import type { BackupJob, exportEmailRejections } from '../domain/job.js';
 import type { Period } from '../domain/period.js';
 import type { Stage, TransferMarker } from '../domain/statuses.js';
 import type { EnvelopeMeta } from '../shared/envelope-crypto.js';
@@ -95,14 +95,7 @@ export interface GoogleTokenProvider {
 }
 
 /** Why a search hit is not the export email. None of these reveal the email's content. */
-export type ExportEmailRejection =
-  | 'authentication'
-  | 'consumed'
-  | 'recipient'
-  | 'sender'
-  | 'stale'
-  | 'subject'
-  | 'type';
+export type ExportEmailRejection = (typeof exportEmailRejections)[number];
 
 export interface ExportEmailSearch {
   /** Emails already consumed by this or another job. */

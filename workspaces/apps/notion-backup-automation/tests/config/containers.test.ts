@@ -1,8 +1,15 @@
+import { readFileSync } from 'node:fs';
+import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 import type { SuccessNotification } from '../../src/application/ports.js';
 import type { NotifierEnv } from '../../src/config/containers.js';
-import { createNotifier } from '../../src/config/containers.js';
+import { agentLimitsFrom, createAgentModel, createNotifier } from '../../src/config/containers.js';
+import {
+  agentCheckTimeoutMs,
+  MAX_AGENT_CHECK_TIMEOUT_MS,
+} from '../../src/config/control-containers.js';
+import { agentEnvSchema, loadEnv } from '../../src/config/env.js';
 import { createLogger } from '../../src/shared/logger.js';
 import { FAKE_HUB_URL, fakeHubToken, FakeTelegram } from '../support/fake-telegram.js';
 
@@ -34,6 +41,43 @@ function notifierFor(env: NotifierEnv) {
 
   return { logs, notifier: createNotifier(env, { fetch: telegram.fetch, logger }), telegram };
 }
+
+describe('createAgentModel', () => {
+  const agentEnv = loadEnv(agentEnvSchema, {});
+  const logger = createLogger({ level: 'error' });
+
+  it('builds Gemini with the key, none without an LLM, and nothing for gemini without a key', () => {
+    expect(
+      createAgentModel({ ...agentEnv, GEMINI_API_KEY: 'gemini-key-value-1234' }, { logger })?.id,
+    ).toBe('gemini:gemini-3.6-flash');
+    expect(createAgentModel({ ...agentEnv, AGENT_MODEL_PROVIDER: 'none' }, { logger })?.id).toBe(
+      'none',
+    );
+    expect(createAgentModel(agentEnv, { logger })).toBeUndefined();
+  });
+
+  it('reads the budgets from the AGENT_* variables', () => {
+    expect(agentLimitsFrom({ ...agentEnv, AGENT_TIMEOUT_MS: 5000 })).toEqual({
+      maxDecisionsPerDay: 20,
+      maxDecisionsPerIncident: 4,
+      maxIncidentsPerJob: 3,
+      timeoutMs: 5000,
+    });
+  });
+
+  it('caps checkAgent at 20 s, inside the maxDuration of /mcp, whatever AGENT_TIMEOUT_MS is', () => {
+    const vercel = JSON.parse(
+      readFileSync(path.resolve(import.meta.dirname, '../../vercel.json'), 'utf8'),
+    ) as { functions: Record<string, { maxDuration: number }> };
+
+    expect(agentCheckTimeoutMs({ AGENT_TIMEOUT_MS: 60_000 })).toBe(20_000);
+    expect(agentCheckTimeoutMs({ AGENT_TIMEOUT_MS: 5000 })).toBe(5000);
+    // Room left for the model's setup and saving the result before Vercel ends the function.
+    expect(MAX_AGENT_CHECK_TIMEOUT_MS).toBeLessThanOrEqual(
+      vercel.functions['api/mcp.ts']!.maxDuration * 1000 - 10_000,
+    );
+  });
+});
 
 describe('createNotifier', () => {
   it('notifies through the console only by default', async () => {
