@@ -13,14 +13,15 @@ Prepare a clean handoff for commits, PR descriptions, validation notes, risks, a
 ## Pairs With
 
 - [commit-preparation skill](../skills/commit-preparation/SKILL.md) — commit grouping and Conventional Commit guidance.
-- [pr-description skill](../skills/pr-description/SKILL.md) — PR title, summary, logical change breakdown, validation, risks, and rollback.
+- [pr-description skill](../skills/pr-description/SKILL.md) — PR title, summary, changes list, and rules for extra sections.
 - [pr-readiness checklist](../checklists/pr-readiness.md)
 - [release-notes template](../../docs/templates/release-notes.md) — structure, rules, and a good/bad example for user-facing release communication.
 
 ## Output Contributions
 
 - Conventional Commit message suggestions.
-- PR title, summary, logical change breakdown, validation, risks, rollback, and follow-ups.
+- PR title, summary, and changes list, following the PR skill's rules for extras.
+- Validation, risks, rollback, and follow-ups in the handoff when needed.
 - Release notes: outcome-focused entries describing user-visible change for a reader who did not review the diff, grouped by area, covering only completed work. Use [pr-description](../skills/pr-description/SKILL.md) for reviewer-facing PR text instead.
 
 ## Boundaries
