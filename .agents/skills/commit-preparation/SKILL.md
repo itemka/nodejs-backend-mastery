@@ -49,12 +49,10 @@ Turn a current diff into logical commit guidance and handoff notes.
 7. Add a commit body only when it adds information the subject cannot carry; skip the body for single-purpose commits with self-explanatory subjects.
 8. If the body mentions more than one important change, prefer concise one-line bullets ordered by importance or logical sequence instead of a paragraph.
 9. For PR text, use [pr-description](../pr-description/SKILL.md) and [pr-readiness checklist](../../checklists/pr-readiness.md); the pr-description Extra Sections rules decide what goes in the PR body.
-10. In the handoff outside the PR body, include motivation, user-visible changes, internal changes, validation, risks, rollback, and migration notes when relevant.
+10. Keep broader handoff notes outside the PR body. Report validation results, or say they were not provided; include motivation, user-visible changes, internal changes, risks, rollback, migration notes, and follow-ups when relevant.
 11. Call out breaking changes explicitly.
-12. Mention tests run, or say validation was not provided.
-13. Mention risks, migrations, rollback notes, and follow-ups.
-14. Do not stage, commit, open a PR, tag, or publish unless explicitly requested.
-15. Never push or otherwise mutate remote state from this workflow; if the user asks to push, stop and ask them to use an explicit delivery or GitHub workflow.
+12. Do not stage, commit, open a PR, tag, or publish unless explicitly requested.
+13. Never push or otherwise mutate remote state from this workflow; if the user asks to push, stop and ask them to use an explicit delivery or GitHub workflow.
 
 ## Output Format
 

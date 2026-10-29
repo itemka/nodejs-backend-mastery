@@ -2,7 +2,8 @@
 
 Use these three parts for every PR, including small changes. Write in B2-level
 English with short sentences and familiar words. On GitHub, put the title in
-the title field and only the summary and changes in the body.
+the title field. By default, put only the summary and changes in the body. Add
+extras only under the skill's [Extra Sections](SKILL.md#extra-sections) rules.
 
 ## Title
 

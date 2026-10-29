@@ -5,7 +5,7 @@ For PR content and extra sections, follow the
 [pr-description skill](../skills/pr-description/SKILL.md).
 
 - Diff is focused on one coherent change.
-- The diff is small enough to review in one sitting — beyond roughly 400 changed lines, it is split or the PR explains why it must land together.
+- The diff is small enough to review in one sitting — beyond roughly 400 changed lines, it is split or the handoff explains why it must land together.
 - Unrelated refactors, formatting churn, and dependency upgrades are absent or explained.
 - Tests, typecheck, lint, build, or relevant checks were run and reported in CI
   or the handoff.

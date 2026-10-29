@@ -5,7 +5,7 @@ metadata:
   created: '2026-07-03'
   status: 'baseline'
   portability: 'cross-tool'
-  last-reviewed: '2026-10-29'
+  last-reviewed: '2026-10-30'
 ---
 
 # PR Description
@@ -33,7 +33,7 @@ and logical change breakdown.
 ## Supporting Files
 
 - [pr-description-template](pr-description-template.md): concise PR title,
-  summary, logical changes, and optional review sections.
+  summary, and changes, plus guidance on requested extras.
 - [pr-readiness checklist](../../checklists/pr-readiness.md): final readiness
   checks before presenting or opening a PR.
 
