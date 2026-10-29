@@ -303,10 +303,11 @@ export function registerBackupTools(server: McpServer, deps: BackupToolDeps): vo
         }
 
         const view = healthView(await health.read(), settings);
+        const agent = checkAgent ? ` · agent ${agentState(view)}` : '';
 
         return {
           output: view,
-          summary: `Notion ${view.notionSession?.state ?? 'not checked'} · Google ${googleState(view)} · Drive ${driveState(view)} · last cron ${view.lastCron?.ranAt ?? 'never'}${checkAgent ? ` · agent ${agentState(view)}` : ''}`,
+          summary: `Notion ${view.notionSession?.state ?? 'not checked'} · Google ${googleState(view)} · Drive ${driveState(view)} · last cron ${view.lastCron?.ranAt ?? 'never'}${agent}`,
         };
       }),
   );

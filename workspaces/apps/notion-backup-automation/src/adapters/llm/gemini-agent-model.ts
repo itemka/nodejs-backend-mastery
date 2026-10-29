@@ -123,10 +123,19 @@ export class GeminiAgentModel implements AgentModel {
   }
 }
 
+/**
+ * One attempt per call, stated rather than left to the SDK's default: a failed call counts
+ * against the supervisor's budget, and a retry would break the timeout and the daily cap.
+ */
+const NO_RETRIES = { attempts: 1 } as const;
+
 function sdkClient(apiKey: SecretValue<string>, fetchImpl: typeof fetch | undefined): GeminiClient {
   const genai = new GoogleGenAI({
     apiKey: apiKey.reveal(),
-    ...(fetchImpl === undefined ? {} : { httpOptions: { fetch: fetchImpl } }),
+    httpOptions: {
+      retryOptions: NO_RETRIES,
+      ...(fetchImpl === undefined ? {} : { fetch: fetchImpl }),
+    },
   });
 
   return { generateContent: (params) => genai.models.generateContent(params) };

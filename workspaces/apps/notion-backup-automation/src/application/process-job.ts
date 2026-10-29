@@ -1,4 +1,5 @@
 import { INSPECTED_EVENT_COUNT } from '../agent/context-builder.js';
+import { MIN_NEW_ATTEMPT_AFTER_CLICK_MS } from '../agent/limits.js';
 import { sanitizeLandmarks } from '../agent/sanitize.js';
 import type { SupervisorPlan } from '../agent/supervisor.js';
 import { Supervisor } from '../agent/supervisor.js';
@@ -872,7 +873,8 @@ export class ProcessJobUseCase {
 
       case 'retry': {
         return {
-          apply: (latest, now) => supervisorNewAttempt(latest, now, this.policy),
+          apply: (latest, now) =>
+            supervisorNewAttempt(latest, now, this.policy, MIN_NEW_ATTEMPT_AFTER_CLICK_MS),
           detail: 'supervisor retry',
           outcome: 'new_attempt',
         };
@@ -1112,13 +1114,11 @@ export class ProcessJobUseCase {
 
     const supervising =
       job.status === 'NEEDS_ATTENTION' && job.incident?.state === 'awaiting_supervisor';
+    const hints = result.retryAfterSec === undefined ? {} : { retryAfterSec: result.retryAfterSec };
     const delaySec =
       supervising && result.delaySec !== undefined
         ? result.delaySec
-        : nextWakeupDelaySec(
-            job,
-            result.retryAfterSec === undefined ? {} : { retryAfterSec: result.retryAfterSec },
-          );
+        : nextWakeupDelaySec(job, hints);
 
     if (delaySec === undefined) {
       return {

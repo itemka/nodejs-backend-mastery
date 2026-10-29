@@ -522,10 +522,27 @@ export function supervisorRetryStage(job: BackupJob, now: Date, policy: BackupPo
 
 /**
  * The supervisor's `retry`: a new export attempt, as "Retry from scratch" starts one. An
- * incident of another stage closes; one of NOTION_TRIGGER stays open with its decisions.
+ * incident of another stage closes; one of NOTION_TRIGGER stays open with its decisions. The
+ * action policy checked the attempt's export request and its age when it planned; they are
+ * checked again here, on the job being written, as the attempt limit is.
  */
-export function supervisorNewAttempt(job: BackupJob, now: Date, policy: BackupPolicy): BackupJob {
+export function supervisorNewAttempt(
+  job: BackupJob,
+  now: Date,
+  policy: BackupPolicy,
+  minSinceRequestMs: number,
+): BackupJob {
   requireIncident(job);
+
+  const requestedAt = job.exportClickAt ?? job.requestedAt;
+
+  if (requestedAt === undefined) {
+    throw new InvalidJobStateError('EXPORT_NOT_REQUESTED', job.status);
+  }
+
+  if (now.getTime() - Date.parse(requestedAt) < minSinceRequestMs) {
+    throw new InvalidJobStateError('NEW_ATTEMPT_TOO_SOON', job.status);
+  }
 
   return startNewExportAttempt(job, now, policy);
 }

@@ -46,7 +46,7 @@
         "tab:People",
         "tab:General",
         "heading:Workspace",
-        "button:Download workspace data",
+        "button:[other]",
         "button:Cancel"
       ]
     }

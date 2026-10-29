@@ -9,7 +9,8 @@ import { redactString } from '../shared/redact.js';
 
 const urlPattern = /\b(?:https?:\/\/|www\.)[^\s"'<>`]+/gi;
 const urlStart = /\b(?:https?:\/\/|www\.)/i;
-const emailPattern = /[\w.%+-]+@[\w-]+(?:\.[\w-]+)+/g;
+/** Starts only where a run of local-part characters starts, so a failed match is not rescanned. */
+const emailPattern = /(?<![\w.%+-])[\w.%+-]+@[\w-]+(?:\.[\w-]+)+/g;
 /** Control, format (zero-width, bidirectional) and line-separator characters. */
 const controlCharacters = /[\p{Cc}\p{Cf}\p{Zl}\p{Zp}]/gu;
 
@@ -30,6 +31,58 @@ export const LANDMARK_ROLES = [
 ] as const;
 
 const landmarkPattern = new RegExp(`^(${LANDMARK_ROLES.join('|')}):(.*)$`, 's');
+
+/**
+ * The names Notion's Settings and export dialog use (Phase 0, S2, the adapter's own labels). A
+ * landmark keeps its name only when it is one of these or a redaction mark; any other name,
+ * such as the account holder's or a teamspace's, goes as `[other]`, so the model still sees
+ * that something else is there but never what.
+ */
+export const KNOWN_LANDMARK_NAMES = [
+  'Account',
+  'Billing',
+  'Cancel',
+  'Close',
+  'Connections',
+  'Create folders for subpages',
+  'Current view',
+  'Database views',
+  'Default view',
+  'Everything',
+  'Export',
+  'Export format',
+  'General',
+  'HTML',
+  'Identity',
+  'Import',
+  'Language & region',
+  'Markdown & CSV',
+  'Members',
+  'My account',
+  'My connections',
+  'My notifications',
+  'My settings',
+  'No files or images',
+  'Notifications',
+  'Page content',
+  'PDF',
+  'People',
+  'Plans',
+  'Preferences',
+  'Security',
+  'Settings',
+  'Teamspaces',
+  'Upgrade',
+  'Workspace',
+  'Workspace content',
+  'Workspace settings',
+] as const;
+
+const knownNames = new Set<string>([
+  ...KNOWN_LANDMARK_NAMES.map((name) => name.toLowerCase()),
+  '[email]',
+  '[workspace]',
+]);
 
 /** Letters, digits, spaces and plain punctuation: what a Settings label is made of. */
 const landmarkName = /^[\p{L}\p{N} .,&'’()/+:-]*$/u;
@@ -55,7 +108,8 @@ export function cleanFreeText(text: string, max: number): string {
 /**
  * ARIA `role:name` pairs from the Settings dialog, made safe to keep and to send: a role from
  * the allowlist, the workspace name and email addresses redacted, and nothing with a URL, a
- * secret or unusual characters. Each is cut to 40 characters; duplicates go, and at most 30 stay.
+ * secret or unusual characters. A name that is not a known Settings label goes as `[other]`.
+ * Each is cut to 40 characters; duplicates go, and at most 30 stay.
  */
 export function sanitizeLandmarks(
   landmarks: readonly string[],
@@ -108,7 +162,9 @@ function sanitizeLandmark(raw: string, workspaceName: string | undefined): strin
     return undefined;
   }
 
-  return `${role}:${name}`.slice(0, MAX_UI_LANDMARK_LENGTH);
+  const shown = knownNames.has(name.toLowerCase()) ? name : '[other]';
+
+  return `${role}:${shown}`.slice(0, MAX_UI_LANDMARK_LENGTH);
 }
 
 /**

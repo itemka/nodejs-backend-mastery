@@ -235,7 +235,9 @@ export class PlaywrightNotionExportTrigger implements NotionExportTrigger {
     page: Page,
     signal: AbortSignal | undefined,
   ): Promise<'in_progress' | ReadyDialog> {
-    for (let attempt = 1; ; attempt += 1) {
+    let failure: IntegrationError | undefined;
+
+    for (let attempt = 1; attempt <= UI_ATTEMPTS; attempt += 1) {
       const started = performance.now();
       // The gate loads the workspace page, so the second attempt starts from a fresh page.
       const workspaceSwitcher = await this.gate(page, signal);
@@ -257,23 +259,24 @@ export class PlaywrightNotionExportTrigger implements NotionExportTrigger {
 
         return ready;
       } catch (error) {
-        const uiChanged = error instanceof IntegrationError && error.code === 'NOTION_UI_CHANGED';
-
-        if (!uiChanged) {
+        if (!(error instanceof IntegrationError) || error.code !== 'NOTION_UI_CHANGED') {
           throw error;
         }
 
-        if (attempt >= UI_ATTEMPTS) {
-          // The supervisor gets the dialog's landmarks, never its text or a screenshot.
-          throw new IntegrationError('NOTION_UI_CHANGED', error.message, {
-            uiLandmarks: await collectUiLandmarks(page, this.workspace.name),
-          });
-        }
+        failure = error;
 
-        signal?.throwIfAborted();
-        this.logger.warn('notion.ui.retry', { attempt, message: error.message });
+        if (attempt < UI_ATTEMPTS) {
+          signal?.throwIfAborted();
+          this.logger.warn('notion.ui.retry', { attempt, message: error.message });
+        }
       }
     }
+
+    // Every attempt failed with NOTION_UI_CHANGED. The supervisor gets the dialog's landmarks,
+    // never its text or a screenshot.
+    throw new IntegrationError('NOTION_UI_CHANGED', failure?.message ?? 'Notion Settings changed', {
+      uiLandmarks: await collectUiLandmarks(page, this.workspace.name),
+    });
   }
 
   private async walkToDialog(

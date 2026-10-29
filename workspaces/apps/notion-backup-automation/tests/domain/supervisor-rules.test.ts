@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
+import { MIN_NEW_ATTEMPT_AFTER_CLICK_MS } from '../../src/agent/limits.js';
 import { InvalidJobStateError } from '../../src/domain/domain-errors.js';
 import {
   handOverToUser,
@@ -159,7 +160,9 @@ describe('supervisorRetryStage', () => {
 
 describe('supervisorNewAttempt', () => {
   it('starts the next export attempt; an incident of another stage closes', () => {
-    const next = valid(supervisorNewAttempt(emailTimeout(), hoursAfter(3), policy));
+    const next = valid(
+      supervisorNewAttempt(emailTimeout(), hoursAfter(3), policy, MIN_NEW_ATTEMPT_AFTER_CLICK_MS),
+    );
 
     expect(next).toMatchObject({ exportAttempt: 2, status: 'TRIGGERING_EXPORT' });
     expect(next.incident).toBeUndefined();
@@ -169,9 +172,34 @@ describe('supervisorNewAttempt', () => {
   it('refuses once no attempt is left', () => {
     expect(
       invalidState(() =>
-        supervisorNewAttempt({ ...emailTimeout(), exportAttempt: 3 }, hoursAfter(3), policy),
+        supervisorNewAttempt(
+          { ...emailTimeout(), exportAttempt: 3 },
+          hoursAfter(3),
+          policy,
+          MIN_NEW_ATTEMPT_AFTER_CLICK_MS,
+        ),
       ),
     ).toBe('EXPORT_ATTEMPTS_EXHAUSTED');
+  });
+
+  // The action policy checked these when it planned; the rule checks them on the job it writes.
+  it('refuses an attempt that requested no export, or within 2 h of its request', () => {
+    expect(
+      invalidState(() =>
+        supervisorNewAttempt(
+          attentionJob('UNKNOWN_ERROR'),
+          hoursAfter(3),
+          policy,
+          MIN_NEW_ATTEMPT_AFTER_CLICK_MS,
+        ),
+      ),
+    ).toBe('EXPORT_NOT_REQUESTED');
+    // The export was requested at T0 + 2 min.
+    expect(
+      invalidState(() =>
+        supervisorNewAttempt(emailTimeout(), hoursAfter(2), policy, MIN_NEW_ATTEMPT_AFTER_CLICK_MS),
+      ),
+    ).toBe('NEW_ATTEMPT_TOO_SOON');
   });
 });
 

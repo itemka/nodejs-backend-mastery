@@ -377,16 +377,19 @@ decision** (`src/agent/`, called from the tick's `supervise` step):
 1. **Budgets.** At least a minute since the last decision; at most
    `AGENT_MAX_DECISIONS_PER_INCIDENT` per incident (the last one may only hand the incident to
    you), `AGENT_MAX_INCIDENTS_PER_JOB` incidents per job, and `AGENT_MAX_DECISIONS_PER_DAY`
-   across every job. A spent budget hands the incident to you without a model call.
+   across every job. A spent budget hands the incident to you without a model call. The day's
+   counter is taken before the model call, so a delivery QStash retries after a failed save
+   takes another slot; the day's cap still bounds it.
 2. **Context**, built field by field from an allowlist (`context-builder.ts`): the job's
    counters and stage, the code with the catalog's text, the earlier decisions and their
    outcomes, what the actions observed, and the allowed actions. For `NOTION_UI_CHANGED`, up
    to 30 ARIA `role:name` pairs of the open Settings or export dialog (never the page around
    it, whose titles are private), cut to 40 characters, with email addresses and the workspace
-   name redacted. After `inspect_status`, the recent events' type, status, code and time,
-   never their text (it can hold a caller's `backup_start` reason). No screenshot, page text,
-   URL, email, workspace content, cookie or token; a context that fails its strict schema is
-   never sent.
+   name redacted; a name that is not one of Notion's known Settings labels goes as `[other]`,
+   so neither the account holder's name nor a teamspace's reaches the model. After
+   `inspect_status`, the recent events' type, status, code and time, never their text (it can
+   hold a caller's `backup_start` reason). No screenshot, page text, URL, email, workspace
+   content, cookie or token; a context that fails its strict schema is never sent.
 3. **One model call** within `AGENT_TIMEOUT_MS`, validated with Zod. A timeout, a 429 or an
    invalid answer counts as a decision; after two, the incident goes to you.
 4. **The action policy** (`actions.ts`) checks the action's preconditions; a refused action
