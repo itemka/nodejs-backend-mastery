@@ -1,46 +1,86 @@
-# notion-backup-automation — Backup Job Tick, Wakeups, Notifications, and the Daily Cron
+# notion-backup-automation — Job States, Ticks, Notifications and the Daily Cron
 
-Workflow diagrams for the [notion-backup-automation workspace](../). Behavior is described in
-the [README](../README.md#backup-jobs); the Notion steps inside a tick are in
-[notion-export-flow.md](notion-export-flow.md).
+Workflow diagrams for the [notion-backup-automation workspace](../). Behavior, codes and
+limits are in the [README](../README.md#backup-jobs); the Notion steps inside a tick are in
+[notion-export-flow.md](notion-export-flow.md). Structure-level view: the
+[repository C4 workspace](../../../../docs/architecture/workspace.dsl).
 
-Structure-level view: [repository C4 workspace](../../../../docs/architecture/workspace.dsl).
+## Job States
+
+The happy path, one step per tick. `DOWNLOADING`, `VERIFYING` and `UPLOADING` are progress
+markers inside one transfer run, not tick entry points. Source of truth:
+`src/domain/transitions.ts`.
+
+```mermaid
+stateDiagram-v2
+  direction LR
+  [*] --> CREATED
+  CREATED --> TRIGGERING_EXPORT
+  TRIGGERING_EXPORT --> WAITING_FOR_EMAIL: export requested
+  WAITING_FOR_EMAIL --> EMAIL_FOUND: trusted email claimed
+  WAITING_FOR_EMAIL --> TRIGGERING_EXPORT: no email in 48 h
+  EMAIL_FOUND --> DOWNLOADING
+  DOWNLOADING --> VERIFYING
+  VERIFYING --> UPLOADING
+  UPLOADING --> COMPLETE
+  VERIFYING --> TRIGGERING_EXPORT: ZIP invalid twice
+  EMAIL_FOUND --> TRIGGERING_EXPORT: link expired
+  TRIGGERING_EXPORT --> COMPLETE: Drive already has it
+  EMAIL_FOUND --> COMPLETE: Drive already has it
+  COMPLETE --> [*]
+```
+
+Not shown, to keep the diagram readable:
+
+- A dead or over-budget transfer run rolls back to `EMAIL_FOUND` once. A link that expires
+  during the download also starts a new export attempt.
+- A new export attempt (back to `TRIGGERING_EXPORT`) needs attempts left
+  (`MAX_EXPORT_ATTEMPTS`); otherwise the job needs attention.
+- Any working status can fail as below; any non-terminal status can end as `CANCELLED` or
+  `FAILED` (lifetime).
+
+## Failures And Incidents
+
+```mermaid
+flowchart LR
+  Fail[A step fails<br/>with a code] --> Budget{Retryable and<br/>budget left?}
+  Budget -->|yes| Retryable[RETRYABLE_FAILURE]
+  Retryable -->|backoff 5 m … 6 h| Resume[Back to the<br/>stage's entry status]
+  Budget -->|no| Attention[NEEDS_ATTENTION:<br/>notify you]
+  Attention -->|backup_retry, Telegram Retry,<br/>or a fixed login| Resume
+  Attention -->|backup_cancel| Cancelled([CANCELLED])
+  Lifetime[Job older than<br/>168 h] --> Failed([FAILED])
+```
+
+Supervised codes (such as `NOTION_UI_CHANGED`) first wait one minute for the supervisor; with
+no supervisor built yet, the next tick hands them to you.
 
 ## One Tick — `ProcessJobUseCase.execute`
 
-Each wakeup runs exactly one step. Redis failing, or the next wakeup failing to publish,
-throws, so the same delivery is retried with the same token.
+Each wakeup runs exactly one step. A Redis failure or a failed publish of the next wakeup
+throws, so QStash retries the same delivery with the same token.
 
 ```mermaid
 flowchart TD
-  Wakeup([Wakeup: job ID + schedule token]) --> Load{Job stored?}
-  Load -->|no| NotFound([not_found])
-  Load -->|yes| Ended{Terminal?}
-  Ended -->|yes| Recover[Send its success or failure<br/>if no notification event exists]
-  Recover --> Terminal([terminal])
-  Ended -->|no| Idle{Waits for you,<br/>and the token matches?}
-  Idle -->|yes| Noop([done: no step, no lease;<br/>an unsent attention is sent])
+  Wakeup([Wakeup: job ID + token]) --> Load{Job stored<br/>and not ended?}
+  Load -->|no| Gone([not_found, or terminal:<br/>send an unsent final notification])
+  Load -->|yes| Idle{Waiting for you<br/>with this token?}
+  Idle -->|yes| Noop([done: no lease needed])
   Idle -->|no| Lease{Lease free?<br/>60 s light, 330 s heavy}
-  Lease -->|no| Held([lease_held: Retry-After])
-  Lease -->|yes| Reload[Reload under the lease]
-  Reload --> Token{Token still<br/>the job's?}
-  Token -->|no| Stale([stale])
-  Token -->|yes| Step["nextStep: cancel → lifetime → orphan<br/>rollback → the status's step"]
-  Step --> Run["Run one step with compare-and-set writes,<br/>within 270 s (heavy) or 45 s (light)"]
-  Run --> Notify["Notify: COMPLETE → success,<br/>FAILED → failure, waiting for you → attention"]
-  Notify --> Due{Wakeup due?}
-  Due -->|no| Clear[Clear the token]
-  Due -->|yes| Publish[Publish with a new token]
-  Publish --> Save[Save the new token]
-  Clear --> Release([Release the lease: done])
-  Save --> Release
+  Lease -->|no| Held([lease_held: 503 + Retry-After])
+  Lease -->|yes| Token{Token still current<br/>after reload?}
+  Token -->|no| Stale([stale: do nothing])
+  Token -->|yes| Step["nextStep: cancel → lifetime →<br/>orphan rollback → status step"]
+  Step --> Notify[Save with compare-and-set,<br/>then notify]
+  Notify --> Next[Publish the next wakeup with a new token,<br/>then save it; or clear the token]
+  Next --> Done([Release the lease])
 ```
 
 ## Schedule Token — Publish, Then Save
 
-A delivery runs only with the job's current token. The next wakeup is published first and its
-token saved second, so a publish that fails leaves the delivered token valid for QStash's
-retry, and a save that fails leaves only a stale message behind.
+A delivery runs only with the job's current token. Publishing first and saving second means a
+failed publish leaves the delivered token valid for QStash's retry, and a failed save leaves
+only a stale message behind.
 
 ```mermaid
 sequenceDiagram
@@ -65,88 +105,40 @@ sequenceDiagram
   end
 ```
 
-## Steps With Ports — Drive First, Then the Work
-
-The trigger and the transfer adopt a verified backup of the period already in Drive before
-any export or download (a forced job adopts only its own). The write-ahead click marker and
-each transfer marker are saved before their work starts; a cancel request seen at one of them
-stops the step, and the next tick cancels.
-
-```mermaid
-flowchart LR
-  Created[CREATED] --> Trigger[TRIGGERING_EXPORT]
-  Trigger -->|Drive holds the period| Complete([COMPLETE])
-  Trigger -->|marker saved, clicked| Waiting[WAITING_FOR_EMAIL<br/>+5 / +15 / +30 m]
-  Waiting -->|trusted email this job claims| Found[EMAIL_FOUND]
-  Waiting -->|48 h, attempts left| Trigger
-  Found -->|Drive holds the period| Complete
-  Found -->|download, verify, upload| Complete
-  Found -->|invalid ZIP twice, link expired| Trigger
-```
-
-At the transition to COMPLETE, the backup is compared with the newest earlier COMPLETE job:
-below half its file count or size, `result.shrink` is saved, an `export.shrunk` event is
-written, and the success notification becomes a ⚠️. The job completes either way.
-
 ## Notifications — `JobNotifications`
 
+Nothing in this path throws: a failed channel, gate or event write is logged and the tick goes
+on.
+
 ```mermaid
 flowchart LR
-  Event[success · failure ·<br/>attention · login warning] --> Gate{attention: first for this<br/>job and code in 24 h?<br/>lost: first for this service?}
+  Event[success · failure ·<br/>attention · login warning] --> Gate{attention: first for this<br/>job and code in 24 h?<br/>lost login: first for this service?}
   Gate -->|no| Skip([skipped])
   Gate -->|yes| Fan[CompositeNotifier:<br/>console + Telegram]
   Fan -->|a channel fails| Logged[notify.failed:<br/>name and code only]
-  Fan --> Record[Job event in events:jobId,<br/>or health for a login warning]
-```
-
-Nothing in this path throws: a failed channel, gate or event write is logged, and the tick
-goes on.
-
-## Worker Delivery — `POST /api/jobs/process/[jobId]`
-
-The signature is checked before anything is parsed or configured beyond the signing keys, so
-a `_ping` proves the delivery path even while the backup configuration is incomplete.
-
-```mermaid
-flowchart TD
-  Post([QStash POST]) --> Auth{Signing keys,<br/>APP_BASE_URL, Redis set?}
-  Auth -->|no| Config([503 CONFIG_INCOMPLETE])
-  Auth -->|yes| Sig{Genuine for APP_BASE_URL + path<br/>and the raw body?}
-  Sig -->|no| Unauthorized([401])
-  Sig -->|yes| Body{A body the app sends,<br/>naming the path's job?}
-  Body -->|no| Invalid([489 non-retryable])
-  Body -->|_ping| Ping([Record the nonce in health: 200])
-  Body -->|wakeup| Tick[One tick]
-  Tick -->|done · stale · terminal| Ok([200])
-  Tick -->|lease held| Retry([503 + Retry-After])
-  Tick -->|unknown job · invalid record| Dlq([489])
-  Tick -->|Redis or publish failed| Error([500: QStash retries the token])
+  Fan --> Record[Event in events:jobId,<br/>or health for a login warning]
 ```
 
 ## Daily Cron — `DailyMaintenance.run`
 
-Each sub-step that throws is logged and skipped; any one turns the heartbeat into `/fail`. With
-no active job and auto-start off, nothing is published.
-
-Recovery uses the waiting incident captured before its probe and checks it again under the
-lease. An incident raised during the probe stays waiting. The Notion probe also checks the
-persisted download cookie after refresh; reaching the dialog with only an app session does
-not resume a transfer whose file cookie is missing or expired.
+A sub-step that throws is logged and skipped, and turns the heartbeat into `/fail`. With no
+active job and auto-start off, nothing is published. A probe resumes only the incident it read
+before probing, re-checked under the job's lease.
 
 ```mermaid
 flowchart TD
   Cron([Vercel Cron, Bearer CRON_SECRET]) --> Touch[Record the run in health]
-  Touch --> Start{Auto-start enabled, due,<br/>and no job active?}
+  Touch --> Start{Auto-start on, due,<br/>no active job?}
   Start -->|yes| Create[Start this month's job]
   Start -->|no| Watch
-  Create --> Watch{Active job late by over an hour,<br/>or past its lifetime?}
-  Watch -->|yes| Rearm[backup_process path: new token,<br/>wakeup under the control lease]
+  Create --> Watch{Active job's wakeup over an<br/>hour late, or past its lifetime?}
+  Watch -->|yes| Rearm[New token and wakeup<br/>under the control lease]
   Watch -->|no| Probes
-  Rearm --> Probes["Probe at once: Google and Drive; Notion on Mondays,<br/>2 calendar days before the backup day,<br/>or while a job waits for its login"]
+  Rearm --> Probes["Probe in parallel: Google and Drive daily;<br/>Notion on Mondays, 2 days before the backup day,<br/>or while a job waits for its login"]
   Probes -->|a probe passes| Resume[Resume a job waiting<br/>for that login]
   Probes -->|a login newly gone| Lost[🔑 access is gone]
   Resume --> Warn
-  Lost --> Warn["🔑 Notion expiry: 30, 7, 1 days,<br/>each once per expiry"]
+  Lost --> Warn["🔑 Notion session expiry:<br/>30, 7, 1 days, once each"]
   Warn --> Beat{Any sub-step threw?}
   Beat -->|no| Ok([Heartbeat ping])
   Beat -->|yes| Fail([Heartbeat /fail])

@@ -48,12 +48,12 @@ graph LR
     29-. "<div>Leases updates, records<br />completed deliveries, and<br />counts retry-safe ingress<br />limits in the hub namespace</div><div style='font-size: 70%'>[Redis REST over HTTPS]</div>" .->38
     29-. "<div>Forwards validated normalized<br />updates to the configured<br />backup integration</div><div style='font-size: 70%'>[HTTPS POST (integration bearer)]</div>" .->26
     26-. "<div>Reads and updates backup<br />jobs, deduplicates actions,<br />and keeps one-time<br />confirmations</div><div style='font-size: 70%'>[Redis REST over HTTPS]</div>" .->38
-    26-. "<div>Publishes the wakeup of a<br />retried job</div><div style='font-size: 70%'>[REST over HTTPS]</div>" .->41
+    26-. "<div>Publishes the wakeup of a<br />retried job and cancels<br />superseded ones</div><div style='font-size: 70%'>[REST over HTTPS]</div>" .->41
     26-. "<div>Replies, answers taps and<br />removes used buttons</div><div style='font-size: 70%'>[HTTPS POST (integration bearer)]</div>" .->29
     27-. "<div>Checks the saved session,<br />requests workspace exports in<br />Settings, and downloads an<br />export with the session's<br />cookies</div><div style='font-size: 70%'>[Playwright + Chrome; HTTPS]</div>" .->40
     27-. "<div>Publishes the signed _ping<br />smoke test, and a wakeup for<br />a prod job that waited for<br />the Notion login</div><div style='font-size: 70%'>[REST over HTTPS]</div>" .->41
     41-. "<div>Delivers signed wakeups and<br />the _ping</div><div style='font-size: 70%'>[HTTPS POST (Upstash-Signature JWT)]</div>" .->23
-    23-. "<div>Publishes the next wakeup and<br />cancels a superseded one</div><div style='font-size: 70%'>[REST over HTTPS]</div>" .->41
+    23-. "<div>Publishes the next wakeup</div><div style='font-size: 70%'>[REST over HTTPS]</div>" .->41
     23-. "<div>Leases, reads and updates<br />jobs, appends events, claims<br />emails, and reads the<br />encrypted Notion session</div><div style='font-size: 70%'>[Redis REST over HTTPS]</div>" .->38
     23-. "<div>Requests the workspace export<br />in Settings, and downloads<br />the ZIP with the session's<br />cookies</div><div style='font-size: 70%'>[serverless Chromium; HTTPS]</div>" .->40
     23-. "<div>Refreshes access tokens</div><div style='font-size: 70%'>[OAuth 2.0 over HTTPS]</div>" .->35
