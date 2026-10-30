@@ -90,6 +90,7 @@ describe('/api/integrations/telegram', () => {
     );
 
     expect(response.status).toBe(503);
+    await expect(response.json()).resolves.toEqual({ error: 'CONFIG_INCOMPLETE' });
   });
 
   it('answers 401 without the secret header, whatever else is configured', async () => {
