@@ -35,7 +35,7 @@ flowchart TD
   Gate --> Settings[Open Settings: switcher menu, else the shortcut<br/>→ General → Workspace content row]
   Settings --> Running{Export already<br/>running?}
   Running -->|yes| InProgress([already_in_progress, nothing clicked])
-  Running -->|no| Dialog[Open the export dialog, set the four values<br/>where they differ, find its Export button]
+  Running -->|no| Dialog[Open the export dialog, set the five values<br/>where they differ, find its Export button]
   Settings -.->|NOTION_UI_CHANGED| Retry{First attempt?}
   Dialog -.->|NOTION_UI_CHANGED| Retry
   Retry -->|yes: reload through the gate| Gate

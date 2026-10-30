@@ -34,11 +34,12 @@ const SESSION: NotionSession = {
   },
 };
 
-/** The values every export must use (Phase 0). */
+/** The values every export must use. */
 const EXPECTED_EXPORT = {
   content: 'Everything',
   folders: true,
   format: 'Markdown & CSV',
+  privatePages: true,
   views: 'Current view',
 };
 
@@ -207,6 +208,7 @@ describe('requestExport', () => {
       content: 'No files or images',
       folders: false,
       format: 'HTML',
+      privatePages: false,
       views: 'Default view',
     });
 
@@ -215,8 +217,19 @@ describe('requestExport', () => {
     });
     expect(ui.exports).toEqual([EXPECTED_EXPORT]);
     expect(logs.join('\n')).toContain(
-      '"changed":["Export format","Database views","Page content","Create folders for subpages"]',
+      '"changed":["Export format","Database views","Page content","Include private pages","Create folders for subpages"]',
     );
+  });
+
+  it('never exports when the private pages toggle is missing', async () => {
+    const { beforeClick, trigger, ui } = await setup({ broken: ['private-pages'] }, 1500);
+
+    await expect(trigger.requestExport({ onBeforeFinalClick: beforeClick })).rejects.toMatchObject({
+      code: 'NOTION_UI_CHANGED',
+      message: 'The Notion Settings step "set Include private pages" found no matching element',
+    });
+    expect(ui.exports).toEqual([]);
+    expect(ui.events).toEqual([]);
   });
 
   it('never exports when a value cannot be set, after one reload', async () => {

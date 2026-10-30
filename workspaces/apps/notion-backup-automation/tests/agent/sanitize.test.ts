@@ -45,6 +45,7 @@ describe('sanitizeLandmarks', () => {
       ...NOTION_SETTINGS.navigation,
       NOTION_SETTINGS.settings,
       EXPORT_DIALOG.createFolders,
+      EXPORT_DIALOG.includePrivatePages,
       EXPORT_DIALOG.databaseViews.label,
       EXPORT_DIALOG.databaseViews.value,
       EXPORT_DIALOG.format,

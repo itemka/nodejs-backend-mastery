@@ -20,11 +20,15 @@ export const NOTION_SETTINGS = {
   settings: 'Settings',
 } as const;
 
-/** The export dialog's four values (Phase 0). The run never exports with other ones. */
+/**
+ * The export dialog's five values: Phase 0's, plus the private pages toggle, because the
+ * workspace's content is in the Private section. The run never exports with other ones.
+ */
 export const EXPORT_DIALOG = {
   createFolders: 'Create folders for subpages',
   databaseViews: { label: 'Database views', value: 'Current view' },
   format: 'Export format',
+  includePrivatePages: 'Include private pages',
   pageContent: { label: 'Page content', value: 'Everything' },
 } as const;
 
@@ -172,8 +176,8 @@ export class ExportDialog {
   }
 
   /**
-   * Sets each of the four values to Phase 0's where it differs, and returns the labels of the
-   * ones it changed. A value that cannot be set is `NOTION_UI_CHANGED`.
+   * Sets each of the five values where it differs, and returns the labels of the ones it
+   * changed. A value that cannot be set is `NOTION_UI_CHANGED`.
    */
   async applySettings(format: NotionExportFormat): Promise<string[]> {
     const choices = [
@@ -189,8 +193,10 @@ export class ExportDialog {
       }
     }
 
-    if (await uiStep(`set ${EXPORT_DIALOG.createFolders}`, () => this.switchOn())) {
-      changed.push(EXPORT_DIALOG.createFolders);
+    for (const label of [EXPORT_DIALOG.includePrivatePages, EXPORT_DIALOG.createFolders]) {
+      if (await uiStep(`set ${label}`, () => this.switchOn(label))) {
+        changed.push(label);
+      }
     }
 
     return changed;
@@ -270,9 +276,9 @@ export class ExportDialog {
       .last();
   }
 
-  /** Turns "Create folders for subpages" on unless it is on. */
-  private async switchOn(): Promise<boolean> {
-    const row = this.row(EXPORT_DIALOG.createFolders, this.page.locator(TOGGLE));
+  /** Turns the row's toggle on unless it is on. */
+  private async switchOn(label: string): Promise<boolean> {
+    const row = this.row(label, this.page.locator(TOGGLE));
     const toggle = row.locator(TOGGLE).first();
 
     await toggle.waitFor({ timeout: this.stepTimeoutMs });
