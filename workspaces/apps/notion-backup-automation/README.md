@@ -447,6 +447,8 @@ The app never sees the bot token, chat ID or webhook secret. How the hub routes 
 `POST /mcp` is a stateless Streamable HTTP MCP server (a new server per request). Checks, in
 order: `Authorization: Bearer $MCP_AUTH_TOKEN` (401), `Origin` must be absent or listed in
 `MCP_ALLOWED_ORIGINS` (403), `POST` only (405), 60 requests per hour (429 + `Retry-After`).
+A `subscriptions/listen` request is refused at once: no change event is ever sent, and a held
+stream would only run into the function's 30 s limit.
 
 | Tool             | Does                                                                                                                                        |
 | ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -491,6 +493,44 @@ overlap; the hash tag keeps an environment in one slot for the Lua scripts.
 | `notify:<key>`                | A notification that must not repeat yet (`SET NX EX`)                |
 
 A normal job's ID is its period, so `job:<period>` also guards one normal job per month.
+
+## Security
+
+**Every function except `/api/health` checks its caller first**, in constant time where it
+compares a secret, and answers with codes only:
+
+| Function                     | Caller check                                                               |
+| ---------------------------- | -------------------------------------------------------------------------- |
+| `/mcp`                       | Bearer token, `Origin` allowlist, 60 requests per hour                     |
+| `/api/jobs/process/[jobId]`  | QStash signature over `APP_BASE_URL` + path + raw body                     |
+| `/api/cron/daily`, `?probe=` | `Bearer $CRON_SECRET`                                                      |
+| `/api/integrations/telegram` | The hub's own bearer token; the hub already checked Telegram and the owner |
+
+**Fail closed.** A function refuses to run without its variables: a preview, which has none,
+answers 503 `CONFIG_INCOMPLETE` everywhere except `/api/health` (and Vercel Authentication
+stands in front of it). A malformed value is refused too, and errors name the variable, never
+the value. An unknown `APP_ENV` is refused rather than treated as `prod`.
+
+**Least privilege.** The Google scopes are exactly `gmail.readonly` and `drive.file`. MCP has
+no raw Gmail or Drive tool. The supervisor has only its [7 bounded actions](#supervisor).
+
+**Secrets.** 1Password is the source of truth; the app never reads it at run time. Vercel holds
+them as Production-only Sensitive variables, and `.env.local` is gitignored with mode 0600. The
+Notion session is AES-256-GCM encrypted in Redis. The refresh token prints only with `--print`,
+and access tokens stay in memory.
+
+**Data minimisation.** Signed download URLs are never stored, logged or returned. Every log
+line goes through `redactString` and `redact`, which remove URL queries and secret URL paths;
+`tests/shared` covers them. MCP views and Telegram messages use allowlisted fields, and the
+supervisor's context is content-free. Vercel runs keep no Playwright traces or screenshots.
+
+**Isolation and replay.** Redis keys carry an `APP_ENV` prefix, and dev uploads stay in `_dev/`.
+`AUTO_START_ENABLED` defaults to off. A redelivered wakeup carries a replaced schedule token and
+is a no-op; the lease and compare-and-set stop two workers from acting on one job. Telegram
+updates act once per `updateId`, and Cancel and Retry from scratch need a second tap.
+
+**Supply chain.** CI runs Dependency Review and Gitleaks; run `pnpm run check:secrets` before a
+PR.
 
 ## Configuration
 
@@ -613,3 +653,49 @@ Complete these checks after deploying both apps, following the hub's
 
 Real backups start only through `backup_start`, or through the cron once
 `AUTO_START_ENABLED=true`.
+
+## Recovery
+
+Find the code with `backup_status`, or in the ⚠️ Telegram message. Run the commands from the
+repository root. The fixes:
+
+- **Notion login:** `APP_ENV=prod pnpm --filter notion-backup-automation auth:notion`. It saves
+  the session and resumes the waiting job.
+- **Google login:** `pnpm --filter notion-backup-automation auth:google`, copy the new
+  `GOOGLE_REFRESH_TOKEN` to Vercel, and Redeploy. The next daily cron whose probe passes resumes
+  the job, or run `backup_retry`.
+- **Drive access:** `pnpm --filter notion-backup-automation cli drive:check`. If it reports a
+  hidden folder, run `pnpm --filter notion-backup-automation auth:google --pick-folders` and pick
+  it. The next daily cron whose probe passes resumes the job, or run `backup_retry`.
+
+"Supervised" means the supervisor triages the incident first, after any automatic retries, and
+then hands it to you if it cannot clear it.
+
+| Code                           | Supervised | What happened                                            | What to do                                                                                                     |
+| ------------------------------ | ---------- | -------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
+| `NOTION_SESSION_EXPIRED`       | No         | The saved session is signed out, or a 403 on a live link | Notion login                                                                                                   |
+| `NOTION_INTERACTIVE_CHALLENGE` | No         | Notion showed a CAPTCHA or verification page             | Notion login                                                                                                   |
+| `NOTION_WRONG_WORKSPACE`       | No         | The account does not show the configured workspace       | Check `NOTION_WORKSPACE_URL` and `NOTION_WORKSPACE_NAME`, then Notion login                                    |
+| `NOTION_UI_CHANGED`            | Yes        | Settings or the export dialog no longer matches          | Update `src/adapters/notion/`, deploy, `backup_retry`                                                          |
+| `NOTION_UNAVAILABLE`           | Yes        | Notion did not load or answered 5xx, 3 retries           | Wait for Notion, then `backup_retry`                                                                           |
+| `BROWSER_LAUNCH_FAILED`        | Yes        | Chromium did not start, 3 retries                        | Read the job's events and logs, then `backup_retry`                                                            |
+| `EMAIL_TIMEOUT`                | No         | No export email within 48 hours                          | Check Notion's email notifications and Gmail. Retry checks once more; Retry from scratch requests a new export |
+| `EMAIL_UNRECOGNIZED`           | Yes        | An export email or its link has a new shape              | Update `src/adapters/gmail/`, deploy, `backup_retry`                                                           |
+| `EMAIL_SEARCH_LIMIT`           | Yes        | The search hit its scan limit                            | Look for a flood of matching messages in Gmail, then `backup_retry`                                            |
+| `GMAIL_UNAVAILABLE`            | Yes        | Gmail failed or rate-limited for about 24 hours          | Wait for Google, then `backup_retry`                                                                           |
+| `GOOGLE_AUTH_REQUIRED`         | No         | Google refused the token, or a scope is missing          | Google login                                                                                                   |
+| `DRIVE_ROOT_INACCESSIBLE`      | No         | The root or year folder is hidden or read-only           | Drive access                                                                                                   |
+| `DRIVE_UNAVAILABLE`            | Yes        | Drive failed or rate-limited for about 24 hours          | Wait for Google, then `backup_retry`                                                                           |
+| `DRIVE_CHECKSUM_MISMATCH`      | Yes        | Drive's SHA-256 differs; the new file was deleted        | Check the folder in Drive, then `backup_retry`                                                                 |
+| `DOWNLOAD_FAILED`              | Yes        | The download failed for about 24 hours                   | Wait for Notion's file host, then `backup_retry`                                                               |
+| `DOWNLOAD_LINK_EXPIRED`        | Yes        | The link expired and no export attempt is left           | `backup_cancel`, then `backup_start` with `force`                                                              |
+| `ZIP_INVALID`                  | Yes        | The ZIP stayed invalid on every export attempt           | Check the export in Notion, then `backup_retry`                                                                |
+| `TMP_SPACE_INSUFFICIENT`       | No         | The ZIP does not fit in `/tmp`                           | Check the sizes in the logs, then `backup_retry`; over about 250 MB it cannot fit                              |
+| `TRANSFER_TIMEOUT`             | Yes        | The transfer outlasted one invocation, twice             | Check the ZIP size and timings in the logs, then `backup_retry`                                                |
+| `INTEGRATION_UNCLASSIFIED`     | Yes        | A service gave an answer the app cannot classify         | Read the job's events and logs, then `backup_retry`                                                            |
+| `UNKNOWN_ERROR`                | Yes        | An unexpected error                                      | Read the job's events and logs, then `backup_retry`                                                            |
+| `JOB_LIFETIME_EXCEEDED`        | No         | The job passed 168 hours and ended as `FAILED`           | `backup_start` with `force`                                                                                    |
+| `CONFIG_INCOMPLETE`            | No         | A variable is missing or invalid; functions answer 503   | Run `doctor`, fix the variable in Vercel, Redeploy, then `backup_retry` if a job waits                         |
+| `STATE_SCHEMA_INVALID`         | No         | A stored job record fails its schema; nothing is written | Inspect `job:<jobId>` in Redis, then repair or delete it                                                       |
+
+Vercel Hobby keeps logs for an hour, so a job's events (`backup_status`) are the lasting record.

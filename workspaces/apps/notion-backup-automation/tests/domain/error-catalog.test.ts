@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 
 import { errorCatalog, errorCodes } from '../../src/domain/error-catalog.js';
@@ -11,6 +12,14 @@ describe('errorCatalog', () => {
       expect(text.length).toBeLessThanOrEqual(400);
       expect(text).not.toMatch(/https?:\/\/|\$\{|<|>/);
     }
+  });
+
+  it.each(errorCodes)('%s has a README Recovery entry with its supervised flag', (code) => {
+    const readme = readFileSync(new URL('../../README.md', import.meta.url), 'utf8');
+    const recovery = readme.slice(readme.indexOf('## Recovery'));
+    const supervised = errorCatalog[code].supervised ? 'Yes' : 'No';
+
+    expect(recovery).toMatch(new RegExp(String.raw`^\| \`${code}\` +\| ${supervised} +\|`, 'm'));
   });
 
   it('never advises a transfer mode that is not built', () => {

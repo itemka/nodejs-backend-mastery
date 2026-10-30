@@ -9,7 +9,7 @@ import perfectionist from 'eslint-plugin-perfectionist';
 export default [
   // Global ignores - must be first
   {
-    ignores: ['**/dist/**', '**/node_modules/**', '**/coverage/**'],
+    ignores: ['**/dist/**', '**/node_modules/**', '**/coverage/**', '**/.claude/worktrees/**'],
   },
 
   // Base JS recommendations with proper parser settings

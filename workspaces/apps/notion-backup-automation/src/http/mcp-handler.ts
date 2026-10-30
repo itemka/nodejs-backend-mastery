@@ -81,6 +81,9 @@ export async function handleMcpRequest(request: Request, deps: McpHandlerDeps): 
     // before its result; `json` would only add a console warning per request.
     const handler = createMcpHandler(() => endpoint.server(), {
       legacy: 'stateless',
+      // No change event is ever sent, and an open `subscriptions/listen` stream would only run
+      // until the function's time limit, then reconnect. Refused at once instead.
+      maxSubscriptions: 0,
       onerror: (error) => {
         logger.warn('mcp.protocol_error', { error });
       },

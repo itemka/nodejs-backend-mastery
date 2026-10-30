@@ -302,6 +302,24 @@ describe('loadEnv', () => {
   });
 });
 
+describe('a deployment without variables, such as a preview', () => {
+  it.each([
+    ['the cron’s authentication', cronAuthEnvSchema],
+    ['the cron', cronEnvSchema],
+    ['/mcp’s authentication', mcpAuthEnvSchema],
+    ['/mcp', mcpEnvSchema],
+    ['the Telegram integration’s authentication', telegramWebhookAuthEnvSchema],
+    ['the Telegram integration', telegramWebhookEnvSchema],
+    ['the worker’s authentication', workerAuthEnvSchema],
+    ['the worker', workerEnvSchema],
+  ])('%s fails closed', (_name, schema) => {
+    const error = configError(() => loadEnv(schema, {}));
+
+    expect(error.code).toBe('CONFIG_INCOMPLETE');
+    expect(error.missing.length).toBeGreaterThan(0);
+  });
+});
+
 describe('CLI env subsets', () => {
   it('auth:google needs the OAuth client only; the time zone has a default', () => {
     expect(configError(() => loadEnv(googleAuthEnvSchema, {})).missing).toEqual([
