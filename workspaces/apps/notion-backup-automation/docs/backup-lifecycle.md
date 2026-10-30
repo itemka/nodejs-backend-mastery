@@ -48,14 +48,23 @@ flowchart LR
   Fail[A step fails<br/>with a code] --> Budget{Retryable and<br/>budget left?}
   Budget -->|yes| Retryable[RETRYABLE_FAILURE]
   Retryable -->|backoff 5 m … 6 h| Resume[Back to the<br/>stage's entry status]
-  Budget -->|no| Attention[NEEDS_ATTENTION:<br/>notify you]
-  Attention -->|backup_retry, Telegram Retry,<br/>or a fixed login| Resume
-  Attention -->|backup_cancel| Cancelled([CANCELLED])
+  Budget -->|no| Attention[NEEDS_ATTENTION]
+  Attention --> Supervised{Supervised code?}
+  Supervised -->|yes| Supervisor[Supervisor decision<br/>after 1 min]
+  Supervised -->|no| User[Notify you]
+  Supervisor -->|retry stage or new export| Resume
+  Supervisor -->|inspect, check, search, wait| Supervisor
+  Supervisor -->|handover or budget spent| User
+  User -->|backup_retry, Telegram Retry,<br/>or a fixed login| Resume
+  User -->|backup_cancel| Cancelled([CANCELLED])
   Lifetime[Job lifetime exceeded<br/>default 168 h] --> Failed([FAILED])
 ```
 
-Supervised codes (such as `NOTION_UI_CHANGED`) first wait one minute for the supervisor; with
-no supervisor built yet, the next tick hands them to you.
+Supervised codes (such as `NOTION_UI_CHANGED`) first wait one minute for the
+[supervisor](../README.md#supervisor), which makes one bounded decision per wakeup. Inspection
+actions normally wake again after one minute; `wait` defers the next decision for 15, 60 or
+240 minutes. With `AGENT_MODEL_PROVIDER=none`, the next tick hands the incident to you without
+an LLM call. Once an incident waits for you, nothing more is scheduled.
 
 ## One Tick — `ProcessJobUseCase.execute`
 

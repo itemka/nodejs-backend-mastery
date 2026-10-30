@@ -23,13 +23,14 @@ export interface ExportRecord {
  * - `name`: the workspace switcher's text;
  * - `format`, `views`, `content`, `folders`: the dialog's values when it opens;
  * - `broken`: parts left out, so a step finds nothing: `general` (the Settings tab),
- *   `settings-menu` (the menu item; the shortcut still works), `format` (Markdown & CSV);
+ *   `settings-menu` (the menu item; the shortcut still works), `settings` (Settings never
+ *   opens), `format` (Markdown & CSV);
  * - `brokenOnFirstLoad`: `broken` applies to the first page load only;
  * - `state: 'exporting'`: the row's Export shows an export already running;
  * - `confirm: 'none'`: the final Export shows no confirmation.
  */
 export interface WorkspaceOptions {
-  broken?: readonly ('format' | 'general' | 'settings-menu')[];
+  broken?: readonly ('format' | 'general' | 'settings' | 'settings-menu')[];
   brokenOnFirstLoad?: boolean;
   confirm?: 'none' | 'shown';
   content?: string;

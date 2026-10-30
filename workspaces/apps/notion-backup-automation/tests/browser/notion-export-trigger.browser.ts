@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { LocalBrowserLauncher } from '../../src/adapters/notion/browser-launcher.js';
 import { PlaywrightNotionExportTrigger } from '../../src/adapters/notion/notion-export-trigger.js';
 import type { NotionSession } from '../../src/adapters/notion/notion-session.js';
+import type { IntegrationError } from '../../src/application/integration-error.js';
 import { createLogger } from '../../src/shared/logger.js';
 import type { WorkspaceOptions } from '../support/notion-ui.js';
 import { NotionUi } from '../support/notion-ui.js';
@@ -161,7 +162,34 @@ describe('probeExportDialog', () => {
     await expect(trigger.probeExportDialog()).rejects.toMatchObject({ code: 'NOTION_UI_CHANGED' });
     expect(ui.exports).toEqual([]);
   });
+
+  it('attaches the Settings dialog’s ARIA landmarks to NOTION_UI_CHANGED, never the page’s', async () => {
+    const { trigger } = await setup({ broken: ['general'] }, 1500);
+    const failure = await uiFailure(trigger);
+
+    expect(failure.code).toBe('NOTION_UI_CHANGED');
+    expect(failure.uiLandmarks).toEqual(['dialog:Settings', 'tab:Preferences', 'tab:People']);
+  });
+
+  it('attaches no landmarks when Settings never opened: the page is not read', async () => {
+    const { trigger } = await setup({ broken: ['settings'] }, 1500);
+    const failure = await uiFailure(trigger);
+
+    expect(failure.code).toBe('NOTION_UI_CHANGED');
+    expect(failure.uiLandmarks ?? []).toEqual([]);
+    expect(JSON.stringify(failure)).not.toMatch(/Private roadmap|Test User/);
+  });
 });
+
+async function uiFailure(trigger: PlaywrightNotionExportTrigger): Promise<IntegrationError> {
+  try {
+    await trigger.probeExportDialog();
+  } catch (error) {
+    return error as IntegrationError;
+  }
+
+  throw new Error('probeExportDialog did not fail');
+}
 
 describe('requestExport', () => {
   it('exports with the expected values and calls onBeforeFinalClick before the click', async () => {

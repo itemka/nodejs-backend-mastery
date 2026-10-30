@@ -1,0 +1,39 @@
+{
+  "acceptable": ["notify_user", "inspect_status"],
+  "context": {
+    "allowedActions": [
+      "inspect_status",
+      "search_email_again",
+      "wait",
+      "retry_stage",
+      "notify_user"
+    ],
+    "incident": {
+      "category": "unknown",
+      "code": "EMAIL_UNRECOGNIZED",
+      "decisions": [],
+      "decisionsRemaining": 4,
+      "description": "An export email did not match the expected format or download link.",
+      "occurrences": 1
+    },
+    "job": {
+      "ageHours": 0.6,
+      "emailCheckAttempt": 2,
+      "exportAttempt": 1,
+      "exportClickAt": true,
+      "jobId": "2026-10",
+      "maxExportAttempts": 3,
+      "maxLifetimeHours": 168,
+      "period": "2026-10",
+      "stage": "EMAIL_WAIT",
+      "stageRetries": {},
+      "status": "NEEDS_ATTENTION"
+    },
+    "limits": {
+      "maxDecisionsPerIncident": 4,
+      "maxStageRetries": 3
+    },
+    "observations": {}
+  },
+  "why": "A trusted email had no readable download link: the parser needs updating, so retrying cannot help."
+}

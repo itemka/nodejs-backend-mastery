@@ -2,6 +2,7 @@ import type { CallToolResult, McpServer } from '@modelcontextprotocol/server';
 import { z } from 'zod';
 
 import { SchedulerError } from '../adapters/qstash/qstash-scheduler.js';
+import type { AgentCheckResult } from '../agent/agent-check.js';
 import { ApplicationError } from '../application/application-error.js';
 import type { BackupApplicationService } from '../application/backup-service.js';
 import type { HealthStore, RateLimiter } from '../application/ports.js';
@@ -30,8 +31,10 @@ export type ToolErrorCode =
   | 'SCHEDULER_UNAVAILABLE';
 
 export interface BackupToolDeps {
+  /** One canned supervisor decision on the configured model (`checkAgent`). */
+  readonly agentCheck: () => Promise<AgentCheckResult>;
   readonly clock: Clock;
-  readonly health: Pick<HealthStore, 'read'>;
+  readonly health: Pick<HealthStore, 'read' | 'write'>;
   readonly limiter: RateLimiter;
   readonly logger: Logger;
   readonly service: Pick<
@@ -66,7 +69,7 @@ export interface ToolErrorOutput {
  * runs a backup step inline: the worker does, woken by the wakeup a tool publishes.
  */
 export function registerBackupTools(server: McpServer, deps: BackupToolDeps): void {
-  const { clock, health, limiter, service, settings } = deps;
+  const { agentCheck, clock, health, limiter, service, settings } = deps;
 
   server.registerTool(
     'backup_start',
@@ -274,18 +277,37 @@ export function registerBackupTools(server: McpServer, deps: BackupToolDeps): vo
     {
       annotations: { readOnlyHint: true },
       description:
-        'The last results of the daily probes (Notion session and export dialog, Google token and scopes, Drive folder), the last QStash ping and cron run, and the agent, notification, heartbeat and auto-start settings. Reads stored results only; it starts no browser.',
-      inputSchema: z.object({}),
+        'The last results of the daily probes (Notion session and export dialog, Google token and scopes, Drive folder), the last QStash ping and cron run, and the agent, notification, heartbeat and auto-start settings. Reads stored results; it starts no browser. checkAgent: true also runs one canned, content-free supervisor decision on the configured model (at most 20 s, 5 per hour) and reports it as agent.lastCheck.',
+      inputSchema: z.object({
+        checkAgent: z
+          .boolean()
+          .default(false)
+          .describe('Run the supervisor smoke test: one canned decision, nothing executed'),
+      }),
       outputSchema: healthViewSchema,
       title: 'Backup health',
     },
-    () =>
+    ({ checkAgent }) =>
       run('backup_health', deps, async () => {
+        if (checkAgent) {
+          const limit = await limiter.take('mcp:check-agent', rateLimits.mcpCheckAgent);
+
+          if (!limit.allowed) {
+            throw new ToolError(
+              'RATE_LIMITED',
+              `checkAgent allows ${rateLimits.mcpCheckAgent.limit} checks per hour; try again in ${Math.ceil(limit.retryAfterSec / 60)} min`,
+            );
+          }
+
+          await health.write('agentCheck', await agentCheck());
+        }
+
         const view = healthView(await health.read(), settings);
+        const agent = checkAgent ? ` · agent ${agentState(view)}` : '';
 
         return {
           output: view,
-          summary: `Notion ${view.notionSession?.state ?? 'not checked'} · Google ${googleState(view)} · Drive ${driveState(view)} · last cron ${view.lastCron?.ranAt ?? 'never'}`,
+          summary: `Notion ${view.notionSession?.state ?? 'not checked'} · Google ${googleState(view)} · Drive ${driveState(view)} · last cron ${view.lastCron?.ranAt ?? 'never'}${agent}`,
         };
       }),
   );
@@ -343,6 +365,14 @@ function googleState({ google }: z.infer<typeof healthViewSchema>): string {
   if (google === undefined) return 'not checked';
 
   return google.tokenOk ? 'ok' : (google.code ?? 'failed');
+}
+
+function agentState({ agent }: z.infer<typeof healthViewSchema>): string {
+  const check = agent.lastCheck;
+
+  if (check === undefined) return 'not checked';
+
+  return `${check.ok ? 'ok' : (check.failure ?? 'failed')} (${check.model})`;
 }
 
 function driveState({ driveRoot }: z.infer<typeof healthViewSchema>): string {

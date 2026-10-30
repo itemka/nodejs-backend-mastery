@@ -8,9 +8,9 @@ Functions, woken by Upstash QStash, with state in Upstash Redis.
 You control it from an MCP client (Claude Code, Cursor, Codex) and from Telegram buttons, and
 set it up with a local CLI.
 
-**Not built yet:** the AI supervisor. Incidents it would triage wait one minute for another
-wakeup, then that tick hands them to you. The `AGENT_*` variables are validated and shown by
-`backup_health`, but no AI acts on them.
+A bounded [Gemini supervisor](#supervisor) triages selected incidents after the deterministic
+retries run out. It can inspect, wait or retry within the job's limits, then ask you for help.
+`AGENT_MODEL_PROVIDER=none` hands incidents to you without an LLM call.
 
 ## How It Works
 
@@ -63,6 +63,8 @@ integration import `src/config/control-containers.ts` only, so they stay small;
 | `api/`                      | Vercel entry points (Web `Request` → `Response`); no logic.                                               |
 | `src/domain/`               | Pure rules: job schema, statuses and transitions, retry and schedule policy, error catalog.               |
 | `src/application/`          | Ports, the tick (`process-job.ts`), job methods (`backup-service.ts`), the cron, notifications.           |
+| `src/agent/`                | Supervisor context, action policy, budgets and the `checkAgent` diagnostic.                               |
+| `src/adapters/llm/`         | Gemini structured-output model and the `none` provider.                                                   |
 | `src/adapters/`             | Notion (Playwright), Google OAuth, Gmail, Drive, transfer, Redis + Lua, QStash, Telegram, heartbeat.      |
 | `src/http/`                 | Request auth (QStash, cron, bearer), rate limits, handlers, content-free responses.                       |
 | `src/mcp/`, `src/telegram/` | MCP tools and allowlisted views; the Telegram integration receiver.                                       |
@@ -84,6 +86,7 @@ pnpm --filter notion-backup-automation test                 # no network, browse
 NBA_LIVE_REDIS=1 pnpm --filter notion-backup-automation test:live
 pnpm --filter notion-backup-automation test:live:drive
 pnpm --filter notion-backup-automation test:browser
+pnpm --filter notion-backup-automation test:agent-live
 ```
 
 - `test:live` runs the repository contract, secret store and health store against the Redis in
@@ -94,6 +97,8 @@ pnpm --filter notion-backup-automation test:browser
   two empty probe files.
 - `test:browser` runs the export trigger in your installed Chrome, headless, against a local
   copy of Notion's Settings UI (`tests/fixtures/notion/workspace.html`). It never opens Notion.
+- `test:agent-live` sends the 8 made-up supervisor fixtures to Gemini using `GEMINI_API_KEY`
+  from `.env.local`; see [Supervisor](#supervisor) for the acceptance criteria.
 
 ### CLI
 
@@ -133,7 +138,7 @@ A job is `job:<period>` (`2026-10`; a forced one is `2026-10-r2`). It moves thro
 **One tick** (`ProcessJobUseCase`):
 
 1. Load the job. A job waiting for you needs no lease; any other takes one (60 s light step,
-   330 s heavy step: the trigger and the transfer). A held lease answers `lease_held`.
+   330 s heavy step: the trigger, transfer and supervisor). A held lease answers `lease_held`.
 2. Reload and compare the delivery's **schedule token** with the job's. A superseded wakeup is
    `stale` and does nothing.
 3. Pick the step: cancel first, then the lifetime limit, then rolling back a transfer a dead
@@ -159,9 +164,11 @@ A job is `job:<period>` (`2026-10`; a forced one is `2026-10-r2`). It moves thro
 - A retryable code with budget left goes to `RETRYABLE_FAILURE` and wakes after 5 min, 15 min,
   45 min, 2 h 15 min, then every 6 h (a longer `Retry-After` wins). The budget is
   `MAX_STAGE_RETRIES` per stage, or 24 h of backoff for outage codes such as `DRIVE_UNAVAILABLE`.
-- Anything else goes to `NEEDS_ATTENTION` and waits for you: `backup_retry`, a Telegram button,
+- Anything else goes to `NEEDS_ATTENTION`. Supervised codes wake after one minute for the
+  [supervisor](#supervisor); other incidents wait for you: `backup_retry`, a Telegram button,
   or a login fix. `auth:notion` resumes the job itself; after `auth:google` or a Drive grant,
-  the next cron probe that passes resumes it.
+  the next cron probe that passes resumes it. Once an incident is handed to you, no further
+  supervisor wakeup is scheduled.
 - No email after `EMAIL_WAIT_TIMEOUT_HOURS` (48), an expired link, or an invalid ZIP downloaded
   twice starts a new export attempt, up to `MAX_EXPORT_ATTEMPTS` (3).
 - A job older than `JOB_MAX_LIFETIME_HOURS` (168) ends as `FAILED`.
@@ -252,6 +259,91 @@ Full Workspace/                       GOOGLE_DRIVE_BACKUP_ROOT_FOLDER_ID (picked
   (`DRIVE_CHECKSUM_MISMATCH`). A verified ZIP with the same SHA-256 is reused instead of uploaded.
 - **Sidecar:** `<name>.zip.sha256` lets `shasum -a 256 -c` check a downloaded copy
   (`WRITE_SHA256_SIDECAR`, default `true`). A failed sidecar is logged; the ZIP stays.
+
+## Supervisor
+
+The deterministic rules handle every known failure. An incident whose code the error catalog
+(`src/domain/error-catalog.ts`) marks `supervised` waits for the supervisor first: 15 codes,
+such as `NOTION_UI_CHANGED`, `UNKNOWN_ERROR`, `EMAIL_UNRECOGNIZED`, `EMAIL_TIMEOUT` once no
+export attempt is left, `ZIP_INVALID` and `TRANSFER_TIMEOUT` after their re-runs, and the
+transient codes once their retries ran out. The login, access and configuration codes go
+straight to you. The supervisor never bypasses the state machine.
+
+Each supervisor wakeup (1 minute after the incident, then after each decision) makes **one
+decision** (`src/agent/`, called from the tick's `supervise` step):
+
+1. **Budgets.** At least a minute since the last decision; at most
+   `AGENT_MAX_DECISIONS_PER_INCIDENT` per incident (the last one may only hand the incident to
+   you), `AGENT_MAX_INCIDENTS_PER_JOB` incidents per job, and `AGENT_MAX_DECISIONS_PER_DAY`
+   across every job. A spent budget hands the incident to you without a model call. The day's
+   counter is taken before the model call, so a delivery QStash retries after a failed save
+   takes another slot; the day's cap still bounds it.
+2. **Context**, built field by field from an allowlist (`context-builder.ts`): the job's
+   counters and stage, the code with the catalog's text, the earlier decisions and their
+   outcomes, what the actions observed, and the allowed actions. For `NOTION_UI_CHANGED`, up
+   to 30 ARIA `role:name` pairs of the open Settings or export dialog (never the page around
+   it, whose titles are private), cut to 40 characters, with email addresses and the workspace
+   name redacted; a name that is not one of Notion's known Settings labels goes as `[other]`,
+   so neither the account holder's name nor a teamspace's reaches the model. After
+   `inspect_status`, the recent events' type, status, code and time, never their text (it can
+   hold a caller's `backup_start` reason). No screenshot, page text, URL, email, workspace
+   content, cookie or token; a context that fails its strict schema is never sent.
+3. **One model call** within `AGENT_TIMEOUT_MS`, validated with Zod. A timeout, a 429 or an
+   invalid answer counts as a decision; after two, the incident goes to you.
+4. **The action policy** (`actions.ts`) checks the action's preconditions; a refused action
+   becomes `notify_user`, with the model's reading in the summary.
+5. **Exactly one action** runs, and the decision, its outcome and its observations are saved
+   on the incident with one compare-and-set write, plus a `supervisor` event. The next tick
+   re-evaluates the state first.
+
+| Action                 | Does                                                                          | Only when                                                       |
+| ---------------------- | ----------------------------------------------------------------------------- | --------------------------------------------------------------- |
+| `inspect_status`       | Adds the last 20 events (no text) and the probe results to the next context   | Once per incident                                               |
+| `check_notion_session` | Runs the session gate (no Settings, no click)                                 | Stage `NOTION_TRIGGER`; not in the last 30 min                  |
+| `search_email_again`   | The Gmail match from 60 or 180 min earlier; keeps counts and reasons only     | Stage `EMAIL_WAIT`                                              |
+| `wait`                 | Decides again in 15, 60 or 240 min; saved, so an early wakeup decides nothing | Within the job's lifetime                                       |
+| `retry_stage`          | Runs the incident's stage again, one more stage retry; the incident stays     | Retries left; never `NOTION_TRIGGER` after this attempt's click |
+| `retry`                | Starts a new export attempt                                                   | Attempts left; 2 h after this attempt's export request          |
+| `notify_user`          | Hands the incident to you with the cleaned summary (≤ 400 characters)         | Always                                                          |
+
+A session probe or email search that finds a known, unsupervised cause (an expired Notion
+session, `GOOGLE_AUTH_REQUIRED`) turns the incident into that code's, so its usual fix and the
+automatic resume after a login fix apply. A retried stage that fails the same way reopens the
+same incident with its decisions; one that succeeds closes it.
+
+**Settings** (all optional; the defaults suit production):
+
+| Variable                           | Default            | Meaning                                                                                                |
+| ---------------------------------- | ------------------ | ------------------------------------------------------------------------------------------------------ |
+| `AGENT_MODEL_PROVIDER`             | `gemini`           | `gemini`, or `none`: every incident goes to you after one decision, with no LLM call.                  |
+| `AGENT_MODEL_NAME`                 | `gemini-3.6-flash` | The Gemini model. Changing it needs only the variable and a redeploy; check it with `test:agent-live`. |
+| `GEMINI_API_KEY`                   | —                  | Google AI Studio key (1Password). Required by the worker and the cron while the provider is `gemini`.  |
+| `AGENT_TIMEOUT_MS`                 | `20000`            | One model call in the worker; `checkAgent` uses at most 20 s, inside `/mcp`'s 30 s limit.              |
+| `AGENT_MAX_DECISIONS_PER_INCIDENT` | `4`                | The last one may only be `notify_user`.                                                                |
+| `AGENT_MAX_INCIDENTS_PER_JOB`      | `3`                | Later incidents of the job go straight to you.                                                         |
+| `AGENT_MAX_DECISIONS_PER_DAY`      | `20`               | Across every job, per UTC day (Redis counter).                                                         |
+
+`GeminiAgentModel` calls the Gemini API with the key in a header, at temperature 0 with at most
+2048 output tokens (thinking included), and JSON output constrained to the decision schema. Thinking is off for
+`gemini-2.5-flash*` and low for a `gemini-3*` model, so it does not use up those
+tokens. The SDK retries nothing; the supervisor's budget does.
+
+**Where you see it:** a `supervisor` event per decision in `backup_status`'s `recentEvents`;
+the summary as `attention.supervisorSummary` there and as the **Supervisor:** line of the ⚠️
+Telegram message; `backup_health({ checkAgent: true })` runs one canned, content-free decision
+on the configured model (at most 5 an hour) and reports it as `agent.lastCheck`.
+`dev:tick` uses the model `.env.local` configures, prints which one, and shows the incident's
+last decision (`supervisor  decision N: <action> → <outcome>`) and the summary.
+
+**S5 evaluation:** `pnpm --filter notion-backup-automation test:agent-live` sends the 8 made-up
+incidents in `tests/fixtures/agent/` to the configured model and requires every answer to be
+valid and at least 7 acceptable: an acceptable action, allowed, with parameters the policy would
+take (`retry_stage` on the incident's stage, a `wait` within the lifetime). Each fixture's
+context is the one production builds for an incident reached through the lifecycle rules
+(`tests/support/agent-scenarios.ts`); a unit test keeps them equal. A shell variable wins over
+`.env.local`, so
+`AGENT_MODEL_NAME=<model> pnpm --filter notion-backup-automation test:agent-live` tries another
+model.
 
 ## Worker And Daily Cron
 
@@ -349,15 +441,15 @@ The app never sees the bot token, chat ID or webhook secret. How the hub routes 
 order: `Authorization: Bearer $MCP_AUTH_TOKEN` (401), `Origin` must be absent or listed in
 `MCP_ALLOWED_ORIGINS` (403), `POST` only (405), 60 requests per hour (429 + `Retry-After`).
 
-| Tool             | Does                                                                                   |
-| ---------------- | -------------------------------------------------------------------------------------- |
-| `backup_start`   | Creates this month's job, or returns the existing one. `force` starts `<period>-r<N>`. |
-| `backup_status`  | One job (default: active, else latest), its result or incident, and 10 events.         |
-| `backup_list`    | Newest jobs first (`limit` 1–24, default 12).                                          |
-| `backup_process` | Wakes a job now with a new token; 10 calls per job per hour.                           |
-| `backup_retry`   | Resumes a job that needs attention or waits to retry, from its stage or `fromStage`.   |
-| `backup_cancel`  | Cancels a job that has not ended.                                                      |
-| `backup_health`  | Stored probe results, last QStash ping and cron run, notification and agent settings.  |
+| Tool             | Does                                                                                                                                        |
+| ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
+| `backup_start`   | Creates this month's job, or returns the existing one. `force` starts `<period>-r<N>`.                                                      |
+| `backup_status`  | One job (default: active, else latest), its result or incident, and 10 events.                                                              |
+| `backup_list`    | Newest jobs first (`limit` 1–24, default 12).                                                                                               |
+| `backup_process` | Wakes a job now with a new token; 10 calls per job per hour.                                                                                |
+| `backup_retry`   | Resumes a job that needs attention or waits to retry, from its stage or `fromStage`.                                                        |
+| `backup_cancel`  | Cancels a job that has not ended.                                                                                                           |
+| `backup_health`  | Stored probe results, last QStash ping and cron run, notification and agent settings; `checkAgent: true` runs one canned decision (5/hour). |
 
 Results carry `structuredContent` plus a text summary. Refusals are `isError: true` with
 `{ code, message }`: `ACTIVE_JOB_EXISTS`, `JOB_NOT_FOUND`, `INVALID_STATE`, `RATE_LIMITED`,
@@ -410,8 +502,8 @@ All variables are in [.env.example](.env.example) with comments; defaults and va
 | Job policy    | `AUTO_START_ENABLED`, `BACKUP_TIME_ZONE`, `BACKUP_DAY_OF_MONTH`, `EMAIL_WAIT_TIMEOUT_HOURS`, `MAX_EXPORT_ATTEMPTS`, `MAX_STAGE_RETRIES`, `JOB_MAX_LIFETIME_HOURS`, `EXPORT_SHRINK_RATIO`, `LOGIN_WARNING_DAYS`, `WRITE_SHA256_SIDECAR` |
 | Supervisor    | `AGENT_MODEL_PROVIDER` (`gemini` default, or `none`), `GEMINI_API_KEY`, `AGENT_*` limits                                                                                                                                               |
 
-`GEMINI_API_KEY` is required by the worker and the cron while `AGENT_MODEL_PROVIDER=gemini`,
-although nothing calls Gemini yet.
+`GEMINI_API_KEY` is required by the worker and the cron while `AGENT_MODEL_PROVIDER=gemini`.
+The model, limits and diagnostics are documented under [Supervisor](#supervisor).
 
 While the Google OAuth app is in **Testing**, refresh tokens expire after 7 days: when `doctor`
 reports `GOOGLE_AUTH_REQUIRED`, run `auth:google` again and update Vercel.
@@ -490,6 +582,10 @@ Build notes:
    `backup_list` returns persisted jobs, and `backup_health` reports hub configuration and
    fresh probe results. After the first scheduled cron run, the healthchecks.io check shows
    "up".
+7. Validate the supervisor locally with `test:agent-live` (all 8 answers valid, at least 7
+   acceptable). Set `AGENT_MODEL_PROVIDER=gemini` and the chosen `AGENT_MODEL_NAME` in
+   Production and redeploy. Call `backup_health` with `checkAgent: true` from the MCP client;
+   expect `agent.lastCheck.ok` to be `true`.
 
 ### Deployment Acceptance
 

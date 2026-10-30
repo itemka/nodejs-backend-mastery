@@ -104,7 +104,7 @@ describe('loadEnv', () => {
       AGENT_MAX_DECISIONS_PER_DAY: 20,
       AGENT_MAX_DECISIONS_PER_INCIDENT: 4,
       AGENT_MAX_INCIDENTS_PER_JOB: 3,
-      AGENT_MODEL_NAME: 'gemini-2.5-flash',
+      AGENT_MODEL_NAME: 'gemini-3.6-flash',
       AGENT_MODEL_PROVIDER: 'gemini',
       AGENT_TIMEOUT_MS: 20_000,
       AUTO_START_ENABLED: false,

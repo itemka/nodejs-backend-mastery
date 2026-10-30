@@ -12,8 +12,18 @@ const probeCode = errorCodeSchema.optional();
  * Probes overwrite their own field; nothing here is secret.
  */
 export const healthSnapshotSchema = z.object({
+  /** The last `backup_health({ checkAgent: true })`: one canned supervisor decision. */
   agentCheck: z
-    .object({ checkedAt: timestamp, model: z.string().max(100), ok: z.boolean() })
+    .object({
+      checkedAt: timestamp,
+      durationMs: z.number().int().min(0).optional(),
+      /** Why `ok` is false: the model failure, or `not_configured`. */
+      failure: z
+        .enum(['timeout', 'rate_limited', 'invalid_output', 'unavailable', 'not_configured'])
+        .optional(),
+      model: z.string().max(100),
+      ok: z.boolean(),
+    })
     .optional(),
   /** The daily cron's last run; `ok` once it finished, false when a sub-step threw. */
   cron: z.object({ ok: z.boolean().optional(), ranAt: timestamp }).optional(),
