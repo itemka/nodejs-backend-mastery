@@ -79,11 +79,11 @@ export const errorCatalog = {
     supervised: true,
   },
   EMAIL_TIMEOUT: {
-    description: 'No export email arrived within the wait limit, and no export attempt is left.',
+    description: 'No export email arrived within the wait limit, so the job stopped checking.',
     howToFix:
-      'Check that Notion email notifications are on and the Gmail inbox, then run backup_retry.',
+      'Check that Notion email notifications are on and the Gmail inbox. Retry checks for the email once more; Retry from scratch requests a new export.',
     retry: 'none',
-    supervised: true,
+    supervised: false,
   },
   EMAIL_UNRECOGNIZED: {
     description: 'An export email did not match the expected format or download link.',

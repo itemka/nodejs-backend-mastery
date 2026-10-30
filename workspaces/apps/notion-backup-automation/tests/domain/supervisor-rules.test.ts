@@ -36,7 +36,7 @@ function invalidState(run: () => unknown): string | undefined {
 }
 
 const emailTimeout = (): BackupJob =>
-  valid(recordFailure(waitingJob(), minutesAfter(10), 'EMAIL_TIMEOUT', policy));
+  valid(recordFailure(waitingJob(), minutesAfter(10), 'EMAIL_UNRECOGNIZED', policy));
 
 describe('recordFailure with what the step observed', () => {
   it('keeps the landmarks on the incident, and refreshes them when it reopens', () => {

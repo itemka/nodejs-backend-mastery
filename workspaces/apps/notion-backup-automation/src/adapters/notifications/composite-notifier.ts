@@ -1,6 +1,7 @@
 import type {
   AttentionNotification,
   FailureNotification,
+  LateEmailNotification,
   LoginWarningNotification,
   Notifier,
   SuccessNotification,
@@ -13,7 +14,7 @@ export interface NamedNotifier {
   readonly notifier: Notifier;
 }
 
-type NotificationKind = 'attention' | 'failure' | 'loginWarning' | 'success';
+type NotificationKind = 'attention' | 'failure' | 'lateEmail' | 'loginWarning' | 'success';
 
 /**
  * Fans each notification out to every notifier at once. A notifier that fails is logged as
@@ -35,6 +36,10 @@ export class CompositeNotifier implements Notifier {
 
   failure(notification: FailureNotification): Promise<void> {
     return this.fanOut('failure', (notifier) => notifier.failure(notification));
+  }
+
+  lateEmail(notification: LateEmailNotification): Promise<void> {
+    return this.fanOut('lateEmail', (notifier) => notifier.lateEmail(notification));
   }
 
   loginWarning(notification: LoginWarningNotification): Promise<void> {

@@ -128,38 +128,6 @@ function gmailUnavailableExhausted(): ContextInput {
   return input(job, wakeup(at));
 }
 
-function emailTimeoutAfterWiderSearch(): ContextInput {
-  let job = waitingJob();
-
-  // Each attempt's email never comes; after the last one the job needs attention.
-  while (job.status === 'WAITING_FOR_EMAIL') {
-    const deadline = hoursAfter(policy.emailWaitTimeoutHours, new Date(job.requestedAt!));
-
-    job = recordEmailNotFound(job, deadline, policy);
-
-    if (job.status === 'TRIGGERING_EXPORT') {
-      job = requestExport(job, minutesAfter(5, deadline));
-    }
-  }
-
-  const searchedAt = wakeup(new Date(job.updatedAt));
-  const searched = recordSupervisorDecision(
-    job,
-    searchedAt,
-    { action: 'search_email_again', outcome: 'no_email' },
-    {
-      emailSearch: {
-        at: searchedAt.toISOString(),
-        candidates: 0,
-        rejected: {},
-        widenMinutes: 180,
-      },
-    },
-  );
-
-  return input(searched, wakeup(searchedAt));
-}
-
 function emailUnrecognized(): ContextInput {
   const checked = recordEmailNotFound(
     recordEmailNotFound(waitingJob(), minutesAfter(7), policy),
@@ -268,7 +236,6 @@ export const agentScenarios: Readonly<Record<string, () => ContextInput>> = {
   '01-notion-ui-changed-after-retry': notionUiChangedAfterRetry,
   '02-notion-unavailable-exhausted': notionUnavailableExhausted,
   '03-gmail-unavailable-exhausted': gmailUnavailableExhausted,
-  '04-email-timeout-after-wider-search': emailTimeoutAfterWiderSearch,
   '05-email-unrecognized': emailUnrecognized,
   '06-zip-invalid-no-attempt-left': zipInvalidNoAttemptLeft,
   '07-transfer-timeout-first': transferTimeoutFirst,

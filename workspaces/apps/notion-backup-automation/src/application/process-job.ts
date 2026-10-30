@@ -16,6 +16,7 @@ import {
   completeTransfer,
   failLifetimeExceeded,
   handOverToUser,
+  isEmailLate,
   markExportClick,
   markTransferProgress,
   recordEmailFound,
@@ -127,7 +128,7 @@ export interface ProcessJobOptions {
   readonly ids: IdGenerator;
   readonly jobs: JobRepository;
   readonly logger: Logger;
-  readonly notifications: Pick<JobNotifications, 'attention' | 'failure' | 'success'>;
+  readonly notifications: Pick<JobNotifications, 'attention' | 'failure' | 'lateEmail' | 'success'>;
   readonly policy: BackupPolicy;
   readonly scheduler: Scheduler;
   readonly storage: Pick<BackupStorage, 'findExisting'>;
@@ -224,7 +225,10 @@ export class ProcessJobUseCase {
   private readonly ids: IdGenerator;
   private readonly jobs: JobRepository;
   private readonly logger: Logger;
-  private readonly notifications: Pick<JobNotifications, 'attention' | 'failure' | 'success'>;
+  private readonly notifications: Pick<
+    JobNotifications,
+    'attention' | 'failure' | 'lateEmail' | 'success'
+  >;
   private readonly policy: BackupPolicy;
   private readonly scheduler: Scheduler;
   private readonly storage: Pick<BackupStorage, 'findExisting'>;
@@ -1087,6 +1091,8 @@ export class ProcessJobUseCase {
       await this.notifications.failure(job);
     } else if (job.status === 'NEEDS_ATTENTION' && job.incident?.state === 'awaiting_user') {
       await this.notifications.attention(job, job.incident.supervisorSummary);
+    } else if (isEmailLate(job, this.clock.now())) {
+      await this.notifications.lateEmail(job);
     }
   }
 

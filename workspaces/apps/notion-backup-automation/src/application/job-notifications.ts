@@ -6,12 +6,13 @@ import type { BackupPolicy } from '../domain/policy.js';
 import type { Clock } from '../shared/clock.js';
 import { systemClock } from '../shared/clock.js';
 import type { Logger } from '../shared/logger.js';
-import { attentionText, failureText, successText } from './notification-text.js';
+import { attentionText, failureText, lateEmailText, successText } from './notification-text.js';
 import type {
   AttentionNotification,
   FailureNotification,
   HealthStore,
   JobRepository,
+  LateEmailNotification,
   LoginWarningNotification,
   NotificationEventLine,
   NotificationGate,
@@ -19,7 +20,10 @@ import type {
   SuccessNotification,
 } from './ports.js';
 
-/** An `attention` repeats at most once per job and code, a `lost` warning once per service, per 24 h. */
+/**
+ * An `attention` repeats at most once per job and code, a `lost` warning once per service, and a
+ * late email once per export attempt, per 24 h.
+ */
 export const REPEAT_WINDOW_SEC = 24 * 60 * 60;
 
 const RECENT_EVENT_COUNT = 10;
@@ -135,6 +139,31 @@ export class JobNotifications {
 
       await this.notifier.failure(notification);
       await this.record(job, failureText(notification), lastError.code);
+    });
+  }
+
+  /** The export email is overdue: said once a day, while the job keeps checking. */
+  async lateEmail(job: BackupJob): Promise<void> {
+    await this.guard('lateEmail', job.id, async () => {
+      const { requestedAt } = job;
+
+      if (job.status !== 'WAITING_FOR_EMAIL' || requestedAt === undefined) {
+        throw new RangeError('Only a job waiting for its export email can have a late one');
+      }
+
+      if (!(await this.firstInWindow(`late-email:${job.id}:${job.exportAttempt}`))) {
+        return;
+      }
+
+      const notification: LateEmailNotification = {
+        exportAttempt: job.exportAttempt,
+        jobId: job.id,
+        period: job.period,
+        waitedMs: this.clock.now().getTime() - Date.parse(requestedAt),
+      };
+
+      await this.notifier.lateEmail(notification);
+      await this.record(job, lateEmailText(notification));
     });
   }
 

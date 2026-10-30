@@ -309,9 +309,20 @@ describe('BackupApplicationService.retry', () => {
     await harness.drain();
 
     expect(await storedJob(harness, '2026-10')).toMatchObject({
-      exportAttempt: 3,
+      exportAttempt: 1,
       status: 'NEEDS_ATTENTION',
     });
+
+    for (const exportAttempt of [2, 3]) {
+      await harness.service.retry('2026-10', 'NOTION_TRIGGER');
+      await harness.drain();
+
+      expect(await storedJob(harness, '2026-10')).toMatchObject({
+        exportAttempt,
+        status: 'NEEDS_ATTENTION',
+      });
+    }
+
     await expect(
       errorOf(harness.service.retry('2026-10', 'NOTION_TRIGGER')),
     ).resolves.toMatchObject({ code: 'INVALID_STATE' });

@@ -13,10 +13,10 @@ import { describeAction, fixtureMiss, loadAgentFixtures } from '../support/agent
 
 /*
  * Opt-in: `pnpm --filter notion-backup-automation test:agent-live` (sets NBA_LIVE_AGENT=1). The
- * S5 evaluation: the 8 fixture incidents go to the configured model (`AGENT_MODEL_NAME`, with
+ * S5 evaluation: the 7 fixture incidents go to the configured model (`AGENT_MODEL_NAME`, with
  * `GEMINI_API_KEY` from `.env.local`; a variable set in the shell wins). Every answer must be
- * schema-valid, and at least 7 of 8 acceptable. It sends only the fixtures' made-up,
- * content-free contexts: 8 requests, nothing else.
+ * schema-valid, and at least 6 of 7 acceptable. It sends only the fixtures' made-up,
+ * content-free contexts: 7 requests, nothing else.
  */
 const enabled = process.env.NBA_LIVE_AGENT === '1';
 const envFile = path.resolve(import.meta.dirname, '../../.env.local');
@@ -25,7 +25,7 @@ if (enabled && existsSync(envFile)) {
   process.loadEnvFile(envFile);
 }
 
-const MIN_ACCEPTABLE = 7;
+const MIN_ACCEPTABLE = 6;
 /**
  * Production asks at most once a minute; back-to-back calls trip the free tier's per-minute
  * limit (429) or a busy model (503). So the calls are spaced, and a 429 or 503 is asked again
@@ -53,7 +53,7 @@ async function decideWithOneRetry(
 }
 
 describe.runIf(enabled)('live supervisor decisions (S5)', () => {
-  it('answers every fixture validly, and acceptably for at least 7 of 8', async () => {
+  it('answers every fixture validly, and acceptably for at least 6 of 7', async () => {
     const env = loadEnv(agentEnvSchema, process.env);
 
     if (env.AGENT_MODEL_PROVIDER !== 'gemini') {

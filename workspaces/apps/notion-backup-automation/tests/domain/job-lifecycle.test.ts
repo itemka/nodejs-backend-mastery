@@ -9,6 +9,7 @@ import {
   completeTransfer,
   failLifetimeExceeded,
   handOverToUser,
+  isEmailLate,
   isLifetimeExceeded,
   markExportClick,
   markTransferProgress,
@@ -134,11 +135,11 @@ describe('the edges drawn in the plan’s state diagram, plus the undrawn ones',
       'EMAIL_FOUND',
     ],
     [
-      '48 h timeout, attempt < 3',
+      '48 h email timeout',
       waitingJob,
       (job) => recordEmailNotFound(job, hoursAfter(49), policy),
       'WAITING_FOR_EMAIL',
-      'TRIGGERING_EXPORT',
+      'NEEDS_ATTENTION',
     ],
     [
       'Drive file adopted',
@@ -323,16 +324,16 @@ describe('email wait', () => {
     expect(twice.status).toBe('WAITING_FOR_EMAIL');
   });
 
-  it('starts a new export attempt after the wait limit, with every attempt field reset', () => {
-    const found = recordEmailNotFound(waitingJob(), hoursAfter(48, minutesAfter(2)), policy);
+  it('starts a new export attempt with every attempt field reset', () => {
+    const fresh = startNewExportAttempt(waitingJob(), hoursAfter(48, minutesAfter(2)), policy);
 
-    expect(found).toMatchObject({
+    expect(fresh).toMatchObject({
       emailCheckAttempt: 0,
       exportAttempt: 2,
       status: 'TRIGGERING_EXPORT',
     });
-    expect(found.exportClickAt).toBeUndefined();
-    expect(found.requestedAt).toBeUndefined();
+    expect(fresh.exportClickAt).toBeUndefined();
+    expect(fresh.requestedAt).toBeUndefined();
   });
 
   it('keeps waiting just before the wait limit', () => {
@@ -341,11 +342,12 @@ describe('email wait', () => {
     expect(job.status).toBe('WAITING_FOR_EMAIL');
   });
 
-  it('needs attention with EMAIL_TIMEOUT once no attempt is left', () => {
-    const job = recordEmailNotFound(lastAttempt(waitingJob()), hoursAfter(49), policy);
+  it('stops with EMAIL_TIMEOUT at the wait limit, without a new export, and waits for you', () => {
+    const job = recordEmailNotFound(waitingJob(), hoursAfter(48, minutesAfter(2)), policy);
 
     expect(valid(job)).toMatchObject({
-      incident: { code: 'EMAIL_TIMEOUT', stage: 'EMAIL_WAIT', state: 'awaiting_supervisor' },
+      exportAttempt: 1,
+      incident: { code: 'EMAIL_TIMEOUT', stage: 'EMAIL_WAIT', state: 'awaiting_user' },
       resumeFrom: 'WAITING_FOR_EMAIL',
       status: 'NEEDS_ATTENTION',
     });
@@ -357,6 +359,22 @@ describe('email wait', () => {
       emailReceivedAt: sampleEmail.receivedAt,
       transferAttempt: 0,
     });
+  });
+});
+
+describe('isEmailLate', () => {
+  it('starts 45 minutes after the export request', () => {
+    // waitingJob() requested its export 2 minutes after T0.
+    expect(isEmailLate(waitingJob(), minutesAfter(46))).toBe(false);
+    expect(isEmailLate(waitingJob(), minutesAfter(47))).toBe(true);
+  });
+
+  it('holds only while the job waits for an email it has requested', () => {
+    expect(isEmailLate(triggeringJob(), hoursAfter(2))).toBe(false);
+    expect(isEmailLate(emailFoundJob(), hoursAfter(2))).toBe(false);
+    expect(
+      isEmailLate(recordEmailNotFound(waitingJob(), hoursAfter(49), policy), hoursAfter(50)),
+    ).toBe(false);
   });
 });
 
@@ -595,7 +613,7 @@ describe('backup_retry', () => {
   });
 
   it('starts a new export attempt when NOTION_TRIGGER is retried after this attempt clicked', () => {
-    const timedOut = recordFailure(waitingJob(), minutesAfter(30), 'EMAIL_TIMEOUT', policy);
+    const timedOut = recordFailure(waitingJob(), minutesAfter(30), 'EMAIL_UNRECOGNIZED', policy);
     const fromScratch = valid(retryJob(timedOut, minutesAfter(31), policy, 'NOTION_TRIGGER'));
 
     expect(fromScratch).toMatchObject({ exportAttempt: 2, status: 'TRIGGERING_EXPORT' });

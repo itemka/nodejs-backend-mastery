@@ -625,6 +625,7 @@ export function backupHarness(options: HarnessOptions = {}) {
   const notifier: Notifier = {
     attention: deliver('attention'),
     failure: deliver('failure'),
+    lateEmail: deliver('lateEmail'),
     loginWarning: deliver('loginWarning'),
     success: deliver('success'),
   };

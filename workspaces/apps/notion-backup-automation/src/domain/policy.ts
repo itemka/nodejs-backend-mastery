@@ -17,5 +17,8 @@ export const defaultBackupPolicy: BackupPolicy = {
   maxStageRetries: 3,
 };
 
+/** Export emails arrived 3 to 12 minutes after the request, so this long means something is off. */
+export const LATE_EMAIL_AFTER_MINUTES = 45;
+
 /** Transfer runs per email: the first run and one retry, whatever stopped the first. */
 export const MAX_TRANSFER_RUNS = 2;

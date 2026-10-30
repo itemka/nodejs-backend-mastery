@@ -274,6 +274,12 @@ describe('the Telegram webhook', () => {
     harness.emails.arriveFor = () => 'never';
     await harness.service.start();
     await harness.drain();
+
+    for (let attempt = 2; attempt <= 3; attempt += 1) {
+      await harness.service.retry('2026-10', 'NOTION_TRIGGER');
+      await harness.drain();
+    }
+
     await harness.tap('f:2026-10');
 
     expect(answers(harness)).toEqual(['Job 2026-10 used all 3 export attempts']);
