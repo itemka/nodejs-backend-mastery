@@ -5,20 +5,21 @@ English with short sentences and familiar words. On GitHub, put the title in
 the title field. By default, put only the summary and changes in the body. Add
 extras only under the skill's [Extra Sections](SKILL.md#extra-sections) rules.
 
+For sentence length in the summary and each changes-list bullet, follow the
+skill's [Writing Rules](SKILL.md#writing-rules).
+
 ## Title
 
 [Short one-line title]
 
 ## Summary
 
-[Explain the main change and why it is needed. Use one sentence for a simple
-change or two or three sentences when more context is useful.]
+[Explain the main change and why it is needed.]
 
 ## Changes
 
-- [What changed and why it matters. Use one sentence for a simple change or
-  two or three sentences when more explanation is useful.]
-- [Another logical change, if needed, with the same flexible sentence length.]
+- [What changed and why it matters.]
+- [Another logical change, if needed.]
 
 <!-- Authoring guidance: do not copy this comment into the PR body.
 Extra sections are opt-in; follow SKILL.md's Extra Sections rules.
