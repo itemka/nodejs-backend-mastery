@@ -137,14 +137,14 @@ export interface StoredBackup {
 }
 
 /**
- * The ZIP to upload:
- * - `file`: a verified file, with the SHA-256 the verifier computed (`TRANSFER_MODE=tmp`);
- * - `stream`: bytes hashed while they are uploaded. No transfer uses it yet: S4 showed that
- *   `/tmp` holds a 250 MiB ZIP, so only the tmp transfer is built.
+ * The ZIP to upload: a verified file, with the SHA-256 the verifier computed
+ * (`TRANSFER_MODE=tmp`). S4 showed that `/tmp` holds a 250 MiB ZIP, so no streamed upload exists.
  */
-export type BackupContent =
-  | { readonly kind: 'file'; readonly path: string; readonly sha256: string }
-  | { readonly kind: 'stream'; readonly stream: AsyncIterable<Uint8Array> };
+export interface BackupContent {
+  readonly kind: 'file';
+  readonly path: string;
+  readonly sha256: string;
+}
 
 export interface BackupUpload {
   readonly content: BackupContent;
@@ -165,11 +165,6 @@ export interface BackupUpload {
 export type SidecarOutcome = 'disabled' | 'exists' | 'failed' | 'written';
 
 export interface UploadedBackup extends StoredBackup {
-  /**
-   * Set when a streamed upload duplicated this stored backup and Drive refused to delete the
-   * duplicate. It carries no SHA-256 mark, so it is never adopted; delete it in Drive.
-   */
-  readonly leftoverFileId?: string;
   readonly sidecar: SidecarOutcome;
   /** False when Drive already held a verified copy with the same SHA-256. */
   readonly uploaded: boolean;

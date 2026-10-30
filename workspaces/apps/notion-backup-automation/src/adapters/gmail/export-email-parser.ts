@@ -1,3 +1,5 @@
+import { DomUtils, ElementType, parseDocument } from 'htmlparser2';
+
 import type { ExportEmailRejection } from '../../application/ports.js';
 import type { GmailMessage, GmailMessagePart } from './gmail-schemas.js';
 
@@ -112,19 +114,23 @@ export function extractDownloadLink(message: GmailMessage): DownloadLinkResult {
     return { ok: false, problem: 'html_missing' };
   }
 
-  if (!textOf(html).toLowerCase().includes(EXPORT_EMAIL.linkSentence)) {
+  const { children } = parseDocument(html);
+
+  if (!textOf(children).toLowerCase().includes(EXPORT_EMAIL.linkSentence)) {
     return { ok: false, problem: 'sentence_missing' };
   }
 
-  const anchors = [...html.matchAll(/<a\b([^>]*)>([\s\S]*?)<\/a\s*>/gi)].filter(
-    (anchor) => textOf(anchor[2] ?? '').toLowerCase() === EXPORT_EMAIL.linkText,
+  const anchors = DomUtils.getElementsByTagName('a', children).filter(
+    (anchor) => textOf(anchor.children).toLowerCase() === EXPORT_EMAIL.linkText,
   );
+  const [anchor] = anchors;
 
-  if (anchors.length !== 1) {
+  if (anchors.length !== 1 || anchor === undefined) {
     return { ok: false, problem: 'link_count' };
   }
 
-  const href = hrefOf(anchors[0]?.[1] ?? '');
+  // The parser decodes entities in attribute values.
+  const href = DomUtils.getAttributeValue(anchor, 'href')?.trim();
 
   return href !== undefined && isAllowedDownloadLink(href)
     ? { link: href, ok: true }
@@ -327,13 +333,6 @@ function findHtml(part: GmailMessagePart): string | undefined {
   return undefined;
 }
 
-function hrefOf(attributes: string): string | undefined {
-  const match = /\bhref\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s"'>]+))/i.exec(attributes);
-  const raw = match?.[1] ?? match?.[2] ?? match?.[3];
-
-  return raw === undefined ? undefined : decodeEntities(raw.trim());
-}
-
 /** Only `https://mg.mail.notion.com/c/<token>`: no other host, port, credentials or path. */
 export function isAllowedDownloadLink(href: string): boolean {
   let url: URL;
@@ -355,38 +354,21 @@ export function isAllowedDownloadLink(href: string): boolean {
   );
 }
 
-/** Visible text: no style or script blocks, no tags, entities decoded, whitespace collapsed. */
-function textOf(html: string): string {
-  const withoutBlocks = html.replaceAll(/<(style|script)\b[\s\S]*?<\/\1\s*>/gi, ' ');
+/** Parsed HTML nodes, typed through `DomUtils` so `domhandler` needs no direct dependency. */
+type HtmlNodes = Parameters<typeof DomUtils.getElementsByTagType>[1];
 
-  return decodeEntities(withoutBlocks.replaceAll(/<[^>]*>/g, ' '))
+/** Their text stays out of the visible text. */
+const hiddenTextParents = new Set<string>([ElementType.Script, ElementType.Style]);
+
+/**
+ * Visible text: the text nodes outside `<script>` and `<style>`, entities decoded, joined with a
+ * space as if every tag were one, and whitespace collapsed.
+ */
+function textOf(nodes: HtmlNodes): string {
+  return DomUtils.getElementsByTagType(ElementType.Text, nodes)
+    .filter((node) => !hiddenTextParents.has(node.parent?.type ?? ''))
+    .map((node) => DomUtils.textContent(node))
+    .join(' ')
     .replaceAll(/\s+/g, ' ')
     .trim();
-}
-
-const namedEntities: Readonly<Record<string, string>> = {
-  amp: '&',
-  apos: "'",
-  gt: '>',
-  lt: '<',
-  nbsp: ' ',
-  quot: '"',
-};
-
-/** U+10FFFF, the largest Unicode code point. */
-const MAX_CODE_POINT = 1_114_111;
-
-function decodeEntities(text: string): string {
-  return text.replaceAll(/&(#x[\da-f]+|#\d+|[a-z]+);/gi, (entity, name: string) => {
-    if (name.startsWith('#')) {
-      const codePoint =
-        name[1]?.toLowerCase() === 'x' ? Number.parseInt(name.slice(2), 16) : Number(name.slice(1));
-
-      return Number.isInteger(codePoint) && codePoint > 0 && codePoint <= MAX_CODE_POINT
-        ? String.fromCodePoint(codePoint)
-        : entity;
-    }
-
-    return namedEntities[name.toLowerCase()] ?? entity;
-  });
 }

@@ -1,4 +1,4 @@
-import { createHash, randomBytes } from 'node:crypto';
+import { randomBytes } from 'node:crypto';
 import { tmpdir } from 'node:os';
 import { describe, expect, it } from 'vitest';
 
@@ -9,7 +9,6 @@ import type {
 } from '../../../src/adapters/drive/resumable-upload.js';
 import {
   bytesSource,
-  HashingStreamSource,
   openFileSource,
   ResumableUploader,
   UPLOAD_CHUNK_UNIT,
@@ -51,19 +50,11 @@ function setup(options: Partial<ResumableUploaderOptions> = {}) {
   return { drive, sleeps, uploader };
 }
 
-/** An async stream of `content` in pieces of `pieceSize`, like a `fetch` body. */
-async function* piecesOf(content: Uint8Array, pieceSize: number): AsyncGenerator<Uint8Array> {
-  for (let offset = 0; offset < content.length; offset += pieceSize) {
-    await Promise.resolve();
-    yield content.slice(offset, offset + pieceSize);
-  }
-}
-
 function stored(drive: FakeDrive, fileId: string): Buffer {
   return Buffer.from(drive.files.get(fileId)?.content ?? []);
 }
 
-function range(start: number, end: number, total: number | '*'): string {
+function range(start: number, end: number, total: number): string {
   return `bytes ${start}-${end - 1}/${total}`;
 }
 
@@ -316,21 +307,6 @@ describe('ResumableUploader', () => {
     expect(drive.sessionCount).toBe(3);
   });
 
-  it('cannot start a stream again after its session expired', async () => {
-    const { drive, uploader } = setup();
-    const content = randomBytes(2 * UNIT);
-
-    drive.onChunk = ({ index }) => (index === 2 ? { expire: true } : undefined);
-
-    await expect(
-      uploader.upload(metadata, new HashingStreamSource(piecesOf(content, 64 * 1024))),
-    ).rejects.toMatchObject({
-      code: 'DRIVE_UNAVAILABLE',
-      message: 'The Drive upload session expired, and a stream cannot be sent again',
-    });
-    expect(drive.sessionCount).toBe(1);
-  });
-
   it('retries the session start after a 503: no file exists before the first chunk', async () => {
     const { drive, sleeps, uploader } = setup();
 
@@ -434,11 +410,7 @@ describe('ResumableUploader', () => {
           // A stalled stream never delivers the chunk.
         });
       },
-      release: () => {
-        // Nothing is buffered.
-      },
-      restartable: false,
-      size: undefined,
+      size: 10,
     };
 
     await expect(uploader.upload(metadata, stalled, controller.signal)).rejects.toThrow(
@@ -492,73 +464,6 @@ describe('ResumableUploader', () => {
   it('rejects a chunk size that is not a multiple of 256 KiB', () => {
     expect(() => new ResumableUploader({ chunkSize: 1000, tokenProvider })).toThrow(RangeError);
   });
-
-  describe('a stream of unknown size', () => {
-    it('sends "*" as the total until the last chunk, and hashes every byte once', async () => {
-      const { drive, uploader } = setup();
-      const total = 2 * UNIT + UNIT / 2;
-      const content = randomBytes(total);
-      const source = new HashingStreamSource(piecesOf(content, 100 * 1024));
-
-      const { fileId } = await uploader.upload(metadata, source);
-
-      expect(drive.contentRanges).toEqual([
-        range(0, UNIT, '*'),
-        range(UNIT, 2 * UNIT, '*'),
-        range(2 * UNIT, total, total),
-      ]);
-      expect(stored(drive, fileId).equals(content)).toBe(true);
-      expect(source.digests()).toEqual({
-        sha256: createHash('sha256').update(content).digest('hex'),
-        sizeBytes: total,
-      });
-
-      const [start] = drive.google.requestsTo('www.googleapis.com/upload/drive/v3/files');
-
-      expect(start?.headers.get('x-upload-content-length')).toBeNull();
-    });
-
-    it('names the total with the last chunk when the stream ends on a chunk boundary', async () => {
-      const { drive, uploader } = setup();
-      const content = randomBytes(2 * UNIT);
-
-      await uploader.upload(metadata, new HashingStreamSource(piecesOf(content, UNIT / 2)));
-
-      expect(drive.contentRanges).toEqual([range(0, UNIT, '*'), range(UNIT, 2 * UNIT, 2 * UNIT)]);
-    });
-
-    it('finishes an empty stream with "bytes */0"', async () => {
-      const { drive, uploader } = setup();
-
-      const { fileId } = await uploader.upload(
-        metadata,
-        new HashingStreamSource(piecesOf(new Uint8Array(), 1)),
-      );
-
-      expect(drive.contentRanges).toEqual(['bytes */0']);
-      expect(stored(drive, fileId)).toHaveLength(0);
-    });
-
-    it('sends the unconfirmed rest of a chunk from its buffer', async () => {
-      const { drive, uploader } = setup();
-      const total = 2 * UNIT;
-      const content = randomBytes(total);
-
-      drive.onChunk = ({ index }) => (index === 1 ? { persist: 1000 } : undefined);
-
-      const { fileId } = await uploader.upload(
-        metadata,
-        new HashingStreamSource(piecesOf(content, 64 * 1024)),
-      );
-
-      expect(drive.contentRanges).toEqual([
-        range(0, UNIT, '*'),
-        range(1000, UNIT + 1000, '*'),
-        range(UNIT + 1000, total, total),
-      ]);
-      expect(stored(drive, fileId).equals(content)).toBe(true);
-    });
-  });
 });
 
 describe('upload sources', () => {
@@ -568,14 +473,8 @@ describe('upload sources', () => {
 
     try {
       expect(source.size).toBe(1000);
-      await expect(source.read(900, 512)).resolves.toEqual({
-        bytes: content.subarray(900),
-        end: true,
-      });
-      await expect(source.read(0, 100)).resolves.toEqual({
-        bytes: content.subarray(0, 100),
-        end: false,
-      });
+      await expect(source.read(900, 512)).resolves.toEqual(content.subarray(900));
+      await expect(source.read(0, 100)).resolves.toEqual(content.subarray(0, 100));
     } finally {
       await source.close();
     }
@@ -583,18 +482,5 @@ describe('upload sources', () => {
 
   it('refuses a directory', async () => {
     await expect(openFileSource(tmpdir())).rejects.toThrow('not a regular file');
-  });
-
-  it('a stream cannot read before its last release, and has no digests before its end', async () => {
-    const source: UploadSource & { digests(): unknown } = new HashingStreamSource(
-      piecesOf(randomBytes(100), 10),
-    );
-
-    await source.read(0, 50);
-    source.release(40);
-
-    expect(() => source.digests()).toThrow('has not been read to its end');
-    await expect(source.read(30, 10)).rejects.toThrow(RangeError);
-    await expect(source.read(40, 100)).resolves.toMatchObject({ end: true });
   });
 });

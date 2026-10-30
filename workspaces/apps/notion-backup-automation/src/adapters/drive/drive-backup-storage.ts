@@ -28,7 +28,7 @@ import {
   ZIP_MIME_TYPE,
 } from './drive-schemas.js';
 import type { DriveUploadMetadata, ResumableUploader, UploadSource } from './resumable-upload.js';
-import { bytesSource, HashingStreamSource, openFileSource } from './resumable-upload.js';
+import { bytesSource, openFileSource } from './resumable-upload.js';
 
 /** `appProperties` keys. They are private to this app: no other app or user sees them. */
 export const backupProperties = {
@@ -166,27 +166,20 @@ export class DriveBackupStorage implements BackupStorage {
 
     const yearFolderId = await this.ensureYearFolder(period, signal);
     const target: UploadTarget = { fileName, jobId, period, yearFolderId };
-
-    if (content.kind === 'stream') {
-      return this.uploadStream(target, content.stream, signal);
-    }
-
     const existing = await this.findIn(yearFolderId, { period, sha256: content.sha256 }, signal);
 
     if (existing !== undefined) {
-      return this.reused(existing, undefined, signal);
+      return this.reused(existing, signal);
     }
 
     const source = await openFileSource(content.path);
     let fileId: string;
 
     try {
-      const digests = { sha256: content.sha256, sizeBytes: source.size };
-
       fileId = await this.uploadVerified(
         zipMetadata(target, content.sha256),
         source,
-        () => digests,
+        { sha256: content.sha256, sizeBytes: source.size },
         signal,
       );
     } finally {
@@ -310,7 +303,6 @@ export class DriveBackupStorage implements BackupStorage {
 
       // The `shasum -a 256 -c` format: the digest, two spaces, the file name.
       const bytes = Buffer.from(`${backup.sha256}  ${backup.fileName}\n`);
-      const digests = digestsOf(bytes);
 
       await this.uploadVerified(
         {
@@ -320,7 +312,7 @@ export class DriveBackupStorage implements BackupStorage {
           parents: [backup.yearFolderId],
         },
         bytesSource(bytes),
-        () => digests,
+        digestsOf(bytes),
         signal,
       );
 
@@ -438,43 +430,6 @@ export class DriveBackupStorage implements BackupStorage {
     );
   }
 
-  /**
-   * A streamed upload learns its SHA-256 only at the end. A verified copy with that SHA-256 wins
-   * and the new file is deleted; otherwise the new file is marked with its SHA-256. On any
-   * failure, an abort included, the new file is deleted: unmarked, it could never be found again.
-   * Deletion never takes the signal, so cleanup still runs after an abort.
-   */
-  private async keepStreamedUpload(
-    fileId: string,
-    { period, yearFolderId }: UploadTarget,
-    sha256: string,
-    signal: AbortSignal | undefined,
-  ): Promise<{ deleted: boolean; existing: StoredBackup } | undefined> {
-    try {
-      const existing = await this.findIn(yearFolderId, { period, sha256 }, signal);
-
-      if (existing !== undefined) {
-        return { deleted: await this.deleteUploaded(fileId), existing };
-      }
-
-      await this.api.send({
-        body: { appProperties: { [backupProperties.sha256]: sha256 } },
-        // Setting the same property again changes nothing.
-        idempotent: true,
-        method: 'PATCH',
-        query: { fields: 'id', supportsAllDrives: true },
-        signal,
-        url: `${DRIVE_API_URL}/files/${fileId}`,
-      });
-
-      return undefined;
-    } catch (error) {
-      await this.deleteUploaded(fileId);
-
-      throw error;
-    }
-  }
-
   /** Drive's size and SHA-256, asked again while Drive has not computed the SHA-256 yet. */
   private async readChecksum(fileId: string, signal: AbortSignal | undefined): Promise<DriveFile> {
     const read = () =>
@@ -578,7 +533,7 @@ export class DriveBackupStorage implements BackupStorage {
   private async uploadVerified(
     metadata: DriveUploadMetadata,
     source: UploadSource,
-    expected: () => Digests,
+    expected: Digests,
     signal: AbortSignal | undefined,
   ): Promise<string> {
     let fileId: string;
@@ -599,7 +554,7 @@ export class DriveBackupStorage implements BackupStorage {
       throw error;
     }
 
-    const problem = checksumProblem(file, expected());
+    const problem = checksumProblem(file, expected);
 
     if (problem === undefined) {
       return fileId;
@@ -636,54 +591,14 @@ export class DriveBackupStorage implements BackupStorage {
     return { ...backup, sidecar: await this.ensureSidecar(backup, signal), uploaded: true };
   }
 
-  /** A stream: hashed while it uploads, then kept, or deleted as a duplicate of a stored ZIP. */
-  private async uploadStream(
-    target: UploadTarget,
-    stream: AsyncIterable<Uint8Array>,
-    signal: AbortSignal | undefined,
-  ): Promise<UploadedBackup> {
-    const source = new HashingStreamSource(stream);
-    let fileId: string;
-
-    try {
-      fileId = await this.uploadVerified(
-        zipMetadata(target),
-        source,
-        () => source.digests(),
-        signal,
-      );
-    } finally {
-      await source.close();
-    }
-
-    const { sha256, sizeBytes } = source.digests();
-    const duplicate = await this.keepStreamedUpload(fileId, target, sha256, signal);
-
-    if (duplicate !== undefined) {
-      return this.reused(duplicate.existing, duplicate.deleted ? undefined : fileId, signal);
-    }
-
-    return this.uploaded(storedBackup(target, fileId, sha256, sizeBytes), signal);
-  }
-
-  /** A verified copy was already in Drive; `leftoverFileId` is a duplicate Drive kept. */
+  /** A verified copy was already in Drive. */
   private async reused(
     existing: StoredBackup,
-    leftoverFileId: string | undefined,
     signal: AbortSignal | undefined,
   ): Promise<UploadedBackup> {
     this.logger.info('drive.backup.exists', { driveFileId: existing.driveFileId });
 
-    if (leftoverFileId !== undefined) {
-      this.logger.warn('drive.backup.duplicate_kept', { driveFileId: leftoverFileId });
-    }
-
-    return {
-      ...existing,
-      ...(leftoverFileId === undefined ? {} : { leftoverFileId }),
-      sidecar: await this.ensureSidecar(existing, signal),
-      uploaded: false,
-    };
+    return { ...existing, sidecar: await this.ensureSidecar(existing, signal), uploaded: false };
   }
 }
 
@@ -704,16 +619,15 @@ function storedBackup(
   return { driveFileId, fileName, jobId, sha256, sizeBytes, yearFolderId };
 }
 
-/** The ZIP's metadata; a stream's SHA-256 is recorded only after Drive confirms it. */
 function zipMetadata(
   { fileName, jobId, period, yearFolderId }: UploadTarget,
-  sha256?: string,
+  sha256: string,
 ): DriveUploadMetadata {
   return {
     appProperties: {
       [backupProperties.jobId]: jobId,
       [backupProperties.period]: period,
-      ...(sha256 === undefined ? {} : { [backupProperties.sha256]: sha256 }),
+      [backupProperties.sha256]: sha256,
     },
     mimeType: ZIP_MIME_TYPE,
     name: fileName,

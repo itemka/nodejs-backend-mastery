@@ -54,7 +54,6 @@ export async function serveWebhook(
         ? {}
         : { legacyIntegrationId: source.HUB_LEGACY_INTEGRATION_ID }),
       state: overrides.state ?? new RedisDeliveryState(redis, env.HUB_KEY_PREFIX),
-      webhookSecret: auth.TELEGRAM_WEBHOOK_SECRET,
     });
   } catch {
     return json(503, { code: 'CONFIG_INCOMPLETE' });
@@ -71,9 +70,9 @@ export async function serveMessages(
   }
 
   try {
-    const integrations = readIntegrations(source);
+    const integration = authorizedIntegration(request, readIntegrations(source));
 
-    if (authorizedIntegration(request, integrations) === undefined) {
+    if (integration === undefined) {
       return json(401, { code: 'UNAUTHORIZED' });
     }
 
@@ -91,7 +90,7 @@ export async function serveMessages(
           fetch: overrides.fetch ?? globalThis.fetch,
           token: env.TELEGRAM_BOT_TOKEN,
         }),
-      integrations,
+      integration,
     });
   } catch {
     return json(503, { code: 'CONFIG_INCOMPLETE' });

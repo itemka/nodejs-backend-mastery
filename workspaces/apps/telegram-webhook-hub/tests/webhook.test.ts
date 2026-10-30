@@ -29,7 +29,6 @@ function harness() {
     integrations: [integration],
     legacyIntegrationId: 'nb-prod',
     state,
-    webhookSecret: secret,
   };
 
   return { client, deps, fetch, state };

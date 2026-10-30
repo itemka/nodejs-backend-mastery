@@ -31,7 +31,7 @@ describe('authenticated outbound operations', () => {
         action: 'sendMessage',
         message: { buttons: [[{ callbackData: 'nb-prod:s:', text: 'Status' }]], html: 'hello' },
       }),
-      { chatId: '1234', client, integrations: [integration] },
+      { chatId: '1234', client, integration },
     );
     expect(response.status).toBe(200);
     expect(await response.json()).toEqual({ messageId: 88 });
@@ -59,7 +59,7 @@ describe('authenticated outbound operations', () => {
         handleMessagesRequest(messageRequest(body), {
           chatId: '1234',
           client,
-          integrations: [integration],
+          integration,
         }),
       ),
     ).toBe(400);
@@ -77,7 +77,7 @@ describe('authenticated outbound operations', () => {
               action: 'sendMessage',
               message: { buttons: [[{ callbackData, text: 'Status' }]], html: 'hello' },
             }),
-            { chatId: '1234', client, integrations: [integration] },
+            { chatId: '1234', client, integration },
           ),
         ),
       ).toBe(403);
@@ -88,7 +88,7 @@ describe('authenticated outbound operations', () => {
 
   it('supports callback answers and button edits', async () => {
     const client = fakeClient();
-    const deps = { chatId: '1234', client, integrations: [integration] };
+    const deps = { chatId: '1234', client, integration };
     expect(
       await statusOf(
         handleMessagesRequest(
@@ -126,7 +126,7 @@ describe('authenticated outbound operations', () => {
       );
       const response = await handleMessagesRequest(
         messageRequest({ action: 'sendMessage', message: { html: 'hello' } }),
-        { chatId: '1234', client, integrations: [integration] },
+        { chatId: '1234', client, integration },
       );
 
       expect(response.status).toBe(status);
@@ -145,7 +145,7 @@ describe('authenticated outbound operations', () => {
         handleMessagesRequest(messageRequest({ action: 'removeButtons', messageId: 12 }), {
           chatId: '1234',
           client,
-          integrations: [integration],
+          integration,
         }),
       ),
     ).toBe(503);
@@ -156,7 +156,7 @@ describe('authenticated outbound operations', () => {
     client.sendMessage.mockRejectedValueOnce(new Error('sensitive content'));
     const response = await handleMessagesRequest(
       messageRequest({ action: 'sendMessage', message: { html: 'hello' } }),
-      { chatId: '1234', client, integrations: [integration] },
+      { chatId: '1234', client, integration },
     );
     expect(response.status).toBe(503);
     expect(await response.text()).not.toContain('sensitive content');

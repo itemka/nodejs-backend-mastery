@@ -8,7 +8,8 @@ import { isPermanentRefusal, json, readJson, secretEquals } from './shared.js';
 export interface MessagesDeps {
   readonly chatId: string;
   readonly client: BotClient;
-  readonly integrations: readonly Integration[];
+  /** The caller, as `authorizedIntegration` found it. */
+  readonly integration: Integration;
 }
 
 export function authorizedIntegration(
@@ -20,20 +21,12 @@ export function authorizedIntegration(
   return integrations.find((integration) => secretEquals(bearer, `Bearer ${integration.token}`));
 }
 
+/** A `POST` from an integration that `serveMessages` has already authenticated. */
 export async function handleMessagesRequest(
   request: Request,
   deps: MessagesDeps,
 ): Promise<Response> {
-  const integration = authorizedIntegration(request, deps.integrations);
-
-  if (integration === undefined) {
-    return json(401, { code: 'UNAUTHORIZED' });
-  }
-
-  if (request.method !== 'POST') {
-    return json(405, { code: 'METHOD_NOT_ALLOWED' }, { Allow: 'POST' });
-  }
-
+  const { integration } = deps;
   const parsed = hubOperationSchema.safeParse(await readJson(request));
 
   if (!parsed.success) {

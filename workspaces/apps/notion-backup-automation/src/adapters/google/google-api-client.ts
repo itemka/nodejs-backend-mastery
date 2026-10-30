@@ -5,8 +5,9 @@ import { IntegrationError } from '../../application/integration-error.js';
 import type { GoogleTokenProvider } from '../../application/ports.js';
 import type { ErrorCode } from '../../domain/error-catalog.js';
 import { abortable } from '../../shared/abortable.js';
+import { parseRetryAfter, retryTransient, TransientFailure } from '../../shared/retry.js';
 import type { Sleep } from '../../shared/sleep.js';
-import { pause, systemSleep } from '../../shared/sleep.js';
+import { systemSleep } from '../../shared/sleep.js';
 import { GoogleTokenUnavailableError } from './token-provider.js';
 
 export type GoogleService = 'drive' | 'gmail';
@@ -22,9 +23,6 @@ const unavailableCodes = {
 const scopeReasons = new Set(['ACCESS_TOKEN_SCOPE_INSUFFICIENT', 'insufficientPermissions']);
 /** 403 reasons that mean "slow down": retried like a 429. */
 const rateLimitReasons = new Set(['rateLimitExceeded', 'userRateLimitExceeded']);
-
-/** In-tick retries wait at most this long; a longer `Retry-After` is left to the job's backoff. */
-export const MAX_IN_TICK_DELAY_SEC = 10;
 
 /** A failed Google API call: the cataloged code, plus the HTTP status and Google's reason. */
 export class GoogleApiError extends IntegrationError {
@@ -139,54 +137,45 @@ export class GoogleApiClient {
     const url = buildUrl(request);
     const { signal } = request;
 
-    for (let attempt = 1; ; attempt += 1) {
-      signal?.throwIfAborted();
+    return retryTransient(
+      async () => {
+        // A token refresh takes no signal, so the abort must not wait for it. Its failure is
+        // thrown, not retried: gaxios has already retried the token endpoint.
+        const token = await abortable(this.accessToken(), signal);
+        const timeout = AbortSignal.timeout(this.timeoutMs);
+        let response: Response;
 
-      // A token refresh takes no signal, so the abort must not wait for it.
-      const token = await abortable(this.accessToken(), signal);
-      const timeout = AbortSignal.timeout(this.timeoutMs);
-      let response: Response;
+        try {
+          response = await this.fetch(url, {
+            ...(request.body === undefined ? {} : { body: JSON.stringify(request.body) }),
+            headers: {
+              Authorization: `Bearer ${token}`,
+              ...(request.body === undefined ? {} : { 'Content-Type': 'application/json' }),
+            },
+            method,
+            redirect: 'error',
+            signal: signal === undefined ? timeout : AbortSignal.any([signal, timeout]),
+          });
+        } catch {
+          signal?.throwIfAborted();
 
-      try {
-        response = await this.fetch(url, {
-          ...(request.body === undefined ? {} : { body: JSON.stringify(request.body) }),
-          headers: {
-            Authorization: `Bearer ${token}`,
-            ...(request.body === undefined ? {} : { 'Content-Type': 'application/json' }),
-          },
-          method,
-          redirect: 'error',
-          signal: signal === undefined ? timeout : AbortSignal.any([signal, timeout]),
-        });
-      } catch {
-        signal?.throwIfAborted();
-
-        if (attempt < attempts) {
-          await pause(this.sleep, backoffMs(attempt), signal);
-          continue;
+          return new TransientFailure(serviceUnavailable(this.service));
         }
 
-        throw serviceUnavailable(this.service);
-      }
+        if (response.ok) {
+          return response;
+        }
 
-      if (response.ok) {
-        return response;
-      }
+        const error = await googleApiErrorOf(this.service, response, signal);
 
-      const error = await googleApiErrorOf(this.service, response, signal);
-      const delaySec = error.retryAfterSec ?? backoffMs(attempt) / 1000;
+        if (isServiceUnavailable(error, this.service)) {
+          return new TransientFailure(error);
+        }
 
-      if (
-        isServiceUnavailable(error, this.service) &&
-        attempt < attempts &&
-        delaySec <= MAX_IN_TICK_DELAY_SEC
-      ) {
-        await pause(this.sleep, delaySec * 1000, signal);
-        continue;
-      }
-
-      throw error;
-    }
+        throw error;
+      },
+      { attempts, signal, sleep: this.sleep },
+    );
   }
 
   private accessToken(): Promise<string> {
@@ -287,11 +276,6 @@ function buildUrl({ query = {}, url }: GoogleApiRequest): URL {
   return result;
 }
 
-/** 0.5 s, 1 s, 2 s, … */
-export function backoffMs(attempt: number): number {
-  return 500 * 2 ** (attempt - 1);
-}
-
 async function readReason(response: Response): Promise<string | undefined> {
   let body: unknown;
 
@@ -314,19 +298,4 @@ async function readReason(response: Response): Promise<string | undefined> {
     status;
 
   return reason !== undefined && reasonPattern.test(reason) ? reason : undefined;
-}
-
-/** `Retry-After` as seconds or an HTTP date; undefined when absent or unreadable. */
-export function parseRetryAfter(value: null | string, nowMs: number): number | undefined {
-  if (value === null || value.trim() === '') {
-    return undefined;
-  }
-
-  if (/^\d+$/.test(value.trim())) {
-    return Number(value.trim());
-  }
-
-  const date = Date.parse(value);
-
-  return Number.isNaN(date) ? undefined : Math.max(0, Math.ceil((date - nowMs) / 1000));
 }
