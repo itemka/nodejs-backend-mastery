@@ -5,12 +5,13 @@ choices. Keep each ADR short, evidence-based, and linked from this index.
 
 ## Index
 
-| Number | Decision                                                                   | Status   | Date       |
-| ------ | -------------------------------------------------------------------------- | -------- | ---------- |
-| 0001   | [Architecture-as-code format](./0001-architecture-as-code-format.md)       | Accepted | 2026-07-15 |
-| 0002   | [API contract generation](./0002-api-contract-generation.md)               | Accepted | 2026-07-22 |
-| 0003   | [AI-agent surface promotion bar](./0003-ai-agent-surface-promotion-bar.md) | Accepted | 2026-07-19 |
-| 0004   | [Path-scoped Claude rules (pilot)](./0004-path-scoped-claude-rules.md)     | Proposed | 2026-09-17 |
+| Number | Decision                                                                       | Status   | Date       |
+| ------ | ------------------------------------------------------------------------------ | -------- | ---------- |
+| 0001   | [Architecture-as-code format](./0001-architecture-as-code-format.md)           | Accepted | 2026-07-15 |
+| 0002   | [API contract generation](./0002-api-contract-generation.md)                   | Accepted | 2026-07-22 |
+| 0003   | [AI-agent surface promotion bar](./0003-ai-agent-surface-promotion-bar.md)     | Accepted | 2026-07-19 |
+| 0004   | [Path-scoped Claude rules (pilot)](./0004-path-scoped-claude-rules.md)         | Proposed | 2026-09-17 |
+| 0005   | [Notion backup serverless runtime](./0005-notion-backup-serverless-runtime.md) | Proposed | 2026-10-01 |
 
 ## When An ADR Is Required
 
