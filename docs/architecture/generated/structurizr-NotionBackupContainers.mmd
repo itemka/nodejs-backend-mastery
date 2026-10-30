@@ -52,12 +52,12 @@ graph LR
     29-. "<div>Leases updates, records<br />completed deliveries, and<br />counts retry-safe ingress<br />limits in the hub namespace</div><div style='font-size: 70%'>[Redis REST over HTTPS]</div>" .->38
     29-. "<div>Forwards validated normalized<br />updates to the configured<br />backup integration</div><div style='font-size: 70%'>[HTTPS POST (integration bearer)]</div>" .->26
     26-. "<div>Reads and updates backup<br />jobs, deduplicates actions,<br />and keeps one-time<br />confirmations</div><div style='font-size: 70%'>[Redis REST over HTTPS]</div>" .->38
-    26-. "<div>Publishes the wakeup of a<br />retried job</div><div style='font-size: 70%'>[REST over HTTPS]</div>" .->41
+    26-. "<div>Publishes the wakeup of a<br />retried job and cancels<br />superseded ones</div><div style='font-size: 70%'>[REST over HTTPS]</div>" .->41
     26-. "<div>Replies, answers taps and<br />removes used buttons</div><div style='font-size: 70%'>[HTTPS POST (integration bearer)]</div>" .->29
     27-. "<div>Checks the saved session,<br />requests workspace exports in<br />Settings, and downloads an<br />export with the session's<br />cookies</div><div style='font-size: 70%'>[Playwright + Chrome; HTTPS]</div>" .->40
     27-. "<div>Publishes the signed _ping<br />smoke test, and a wakeup for<br />a prod job that waited for<br />the Notion login</div><div style='font-size: 70%'>[REST over HTTPS]</div>" .->41
     41-. "<div>Delivers signed wakeups and<br />the _ping</div><div style='font-size: 70%'>[HTTPS POST (Upstash-Signature JWT)]</div>" .->23
-    23-. "<div>Publishes the next wakeup and<br />cancels a superseded one</div><div style='font-size: 70%'>[REST over HTTPS]</div>" .->41
+    23-. "<div>Publishes the next wakeup</div><div style='font-size: 70%'>[REST over HTTPS]</div>" .->41
     23-. "<div>Leases, reads and updates<br />jobs, appends events, claims<br />emails, and reads the<br />encrypted Notion session</div><div style='font-size: 70%'>[Redis REST over HTTPS]</div>" .->38
     23-. "<div>Requests the workspace export<br />in Settings, and downloads<br />the ZIP with the session's<br />cookies</div><div style='font-size: 70%'>[serverless Chromium; HTTPS]</div>" .->40
     23-. "<div>Refreshes access tokens</div><div style='font-size: 70%'>[OAuth 2.0 over HTTPS]</div>" .->35
@@ -67,7 +67,7 @@ graph LR
     23-. "<div>Asks for one supervisor<br />decision on a pending<br />incident</div><div style='font-size: 70%'>[REST over HTTPS (API key header)]</div>" .->43
     27-. "<div>Runs dev:tick's supervisor<br />decisions and the<br />test:agent-live evaluation</div><div style='font-size: 70%'>[REST over HTTPS (API key header)]</div>" .->43
     24-. "<div>Records the run and the probe<br />results, finds the active<br />job, and marks warnings as<br />sent</div><div style='font-size: 70%'>[Redis REST over HTTPS]</div>" .->38
-    24-. "<div>Starts, re-arms or resumes<br />the active job with a wakeup</div><div style='font-size: 70%'>[REST over HTTPS]</div>" .->41
+    24-. "<div>Starts, re-arms or resumes<br />the active job with a wakeup<br />and cancels superseded ones</div><div style='font-size: 70%'>[REST over HTTPS]</div>" .->41
     24-. "<div>Probes the session and the<br />export dialog, without<br />exporting</div><div style='font-size: 70%'>[serverless Chromium; HTTPS]</div>" .->40
     24-. "<div>Probes the refresh token and<br />its scopes</div><div style='font-size: 70%'>[OAuth 2.0 over HTTPS]</div>" .->35
     24-. "<div>Probes the mailbox profile</div><div style='font-size: 70%'>[REST over HTTPS (gmail.readonly)]</div>" .->36

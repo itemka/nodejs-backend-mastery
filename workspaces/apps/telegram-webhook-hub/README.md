@@ -1,58 +1,141 @@
-# Telegram Webhook Hub
+# telegram-webhook-hub
 
-Independent webhook and delivery service for **Artsem Automation Hub**,
-`@artsem_automation_bot`. The Vercel project is `telegram-webhook-hub`, with
-`workspaces/apps/telegram-webhook-hub` as its Root Directory. The public webhook
-is `https://telegram-webhook-hub.vercel.app/api/webhook`.
+The only owner of the Telegram bot **Artsem Automation Hub** (`@artsem_automation_bot`). It
+receives the bot's webhook, routes commands and button taps to registered feature apps over
+authenticated HTTP, and sends their replies. Feature apps never see the bot token, the chat ID
+or the webhook secret, and never import the hub's code at runtime: they share only the
+validated schemas in `@workspaces/telegram-contracts`.
 
-The hub owns the bot token, owner chat, webhook configuration, update
-authentication, routing, duplicate protection and inbound rate limits. Feature
-applications own their business rules and data. They communicate with the hub
-through authenticated HTTP; there are no imports from another application.
+The only integration today is [notion-backup-automation](../notion-backup-automation/README.md)
+(`nb-prod`). Deployed as its own Vercel project; public webhook:
+`https://telegram-webhook-hub.vercel.app/api/webhook`.
+
+## How It Works
+
+```mermaid
+flowchart LR
+  TG[Telegram<br/>Bot API] -->|update +<br/>secret header| WH["/api/webhook"]
+  WH <-->|lease, receipt,<br/>hourly quota| R[(Upstash Redis)]
+  WH -->|normalized update +<br/>integration bearer| APP[Integration receiver<br/>e.g. notion-backup-automation]
+  APP -->|operation +<br/>integration bearer| MSG["/api/messages"]
+  MSG -->|sendMessage, answerCallbackQuery,<br/>editMessageReplyMarkup| TG
+  WH -->|help and notices| TG
+```
+
+1. Telegram posts an update to `/api/webhook` with `X-Telegram-Bot-Api-Secret-Token`.
+2. The hub accepts only private-chat updates from the configured owner, claims a delivery
+   lease in Redis, checks the hourly quota, and routes by command or callback namespace.
+3. It forwards `{ updateId, input }` to the integration's HTTPS URL with that integration's
+   bearer token, and completes the receipt when the integration answers 2xx.
+4. The integration replies through `POST /api/messages` with the same token; the hub sends to
+   the owner chat.
+
+Step-by-step flow and the cross-app sequence: [docs/webhook-flow.md](docs/webhook-flow.md).
+
+## Layout
+
+| Path                              | Purpose                                                               |
+| --------------------------------- | --------------------------------------------------------------------- |
+| `api/`                            | Vercel entry points: `webhook.ts`, `messages.ts`, `health.ts`.        |
+| `src/config/env.ts`               | Zod env schemas and the `HUB_INTEGRATIONS` registry validation.       |
+| `src/config/containers.ts`        | Composition root: auth before config, then the handlers.              |
+| `src/http/webhook.ts`             | Update parsing, owner check, lease, quota, routing, forwarding.       |
+| `src/http/messages.ts`            | Integration auth, operation validation, callback namespace check.     |
+| `src/adapters/redis-state.ts`     | Lua scripts for leases, receipts and the quota.                       |
+| `src/adapters/telegram-client.ts` | Bot API client over `fetch`; errors never contain the token or URL.   |
+| `src/cli/`                        | `telegram:setup`: chat discovery, test message, webhook registration. |
 
 ## Endpoints
 
-| Endpoint             | Authentication                    | Purpose                                                              |
-| -------------------- | --------------------------------- | -------------------------------------------------------------------- |
-| `POST /api/webhook`  | `X-Telegram-Bot-Api-Secret-Token` | Telegram updates from the owner private chat                         |
-| `POST /api/messages` | Integration bearer token          | Send a message, answer a callback or remove buttons                  |
-| `GET /api/health`    | Public                            | Basic `{ ok: true, service: 'telegram-webhook-hub' }` process health |
+| Endpoint             | Auth                                  | Purpose                                                |
+| -------------------- | ------------------------------------- | ------------------------------------------------------ |
+| `POST /api/webhook`  | `X-Telegram-Bot-Api-Secret-Token`     | Telegram updates from the owner's private chat         |
+| `POST /api/messages` | `Authorization: Bearer <integration>` | Send a message, answer a button tap, or remove buttons |
+| `GET /api/health`    | Public                                | `{ "ok": true, "service": "telegram-webhook-hub" }`    |
 
-`/api/messages` accepts the strict `@workspaces/telegram-contracts` operation
-union. It cannot change the bot webhook, choose a chat destination or call an
-arbitrary Telegram method:
+`/api/messages` accepts one of three operations (`hubOperationSchema`):
 
 ```json
-{ "action": "sendMessage", "message": { "html": "Backup complete" } }
+{
+  "action": "sendMessage",
+  "message": {
+    "html": "Backup complete",
+    "buttons": [[{ "text": "Status", "callbackData": "nb-prod:s:2026-10" }]]
+  }
+}
 ```
 
-The other operations are `{ "action": "removeButtons", "messageId": 42 }` and
-`{ "action": "answerCallbackQuery", "callbackId": "...", "text": "Queued" }`.
-Send returns `{ "messageId": 42 }`; other successful operations return
-`{ "ok": true }`. A Telegram refusal that a resend cannot change (any 4xx but 429, such as bad
-markup or a blocked bot) returns `422 TELEGRAM_REJECTED`; other Telegram or network failures
-return `503 TELEGRAM_UNAVAILABLE`. An authenticated `GET` answers 405 (a wrong token 401), which
-integrations use as a token check that sends nothing. Sender authentication identifies the integration. Callback
-buttons sent by an integration must begin with that integration's ID plus `:`.
-URL buttons require HTTPS. The owner chat is selected exclusively by hub config.
-Feature applications remain responsible for escaping HTML and sanitizing data.
+The others are `{ "action": "answerCallbackQuery", "callbackId": "...", "text": "Queued" }` and
+`{ "action": "removeButtons", "messageId": 42 }`.
 
-Registry entries are trusted services authorized to send messages, edit buttons
-and acknowledge callbacks in the same owner's chat. They are not sandboxed
-tenants: message IDs and callback IDs are not scoped by integration. Callback
-namespaces prevent accidental routing collisions; they do not establish a
-separate per-integration chat permission boundary.
+| Response                                     | When                                                                         |
+| -------------------------------------------- | ---------------------------------------------------------------------------- |
+| `200 { "messageId": 42 }` / `{ "ok": true }` | Sent / done                                                                  |
+| `400 INVALID_OPERATION`                      | Body does not match the schema (or is over 64 KiB)                           |
+| `401 UNAUTHORIZED`                           | No or unknown bearer token                                                   |
+| `403 CALLBACK_NAMESPACE_FORBIDDEN`           | A callback button does not start with the caller's `<id>:`                   |
+| `405 METHOD_NOT_ALLOWED`                     | Authenticated `GET`; integrations use it as a token check that sends nothing |
+| `422 TELEGRAM_REJECTED`                      | Telegram refused for good (a 4xx but 408/429): bad markup, blocked bot       |
+| `503 TELEGRAM_UNAVAILABLE`                   | Telegram or network failure; retry                                           |
+| `503 CONFIG_INCOMPLETE`                      | Hub configuration missing or invalid                                         |
 
-## Configuration and routing
+The hub always picks the owner chat; callers cannot choose a chat or call other Bot API
+methods. URL buttons must be HTTPS. Escaping HTML and removing private data is the caller's job.
 
-Copy `.env.example` to `.env.local` and fill it using the relevant 1Password
-entries. The setup CLI reads `.env.local` in the workspace directory; existing
-process environment variables take precedence. Vercel receives the same values
-as Production environment variables. Treat `HUB_INTEGRATIONS` as secret because
-it contains bearer credentials.
+## Routing
 
-`HUB_INTEGRATIONS` is a JSON array. Each integration has a unique `id`, command
-list, HTTPS `url` and unique `token` of at least 32 characters. The first route:
+- **Commands:** `/status` and `/backup_status` go to the integration that lists them in
+  `commands`. `/start`, `/help`, unknown commands and plain text get the hub's help, which lists
+  every configured command.
+- **Buttons:** callback data `nb-prod:s:2026-10` goes to `nb-prod`, which receives `s:2026-10`.
+  An unknown namespace (such as an unconfigured `nb-dev`) is refused with "Unknown or
+  unavailable integration"; it never falls back to production.
+- **Legacy buttons:** old unprefixed `s:`, `r:`, `f:`, `x:`, `l:` and `c:` callbacks go to
+  `HUB_LEGACY_INTEGRATION_ID` (`nb-prod`), so messages sent before namespacing keep working.
+- **Forwarded body:** `{ "updateId": 1, "input": <input> }`, where `<input>` is
+  `{ "kind": "callback", "callbackId": "...", "data": "s:2026-10", "messageId": 42 }` or
+  `{ "kind": "message", "text": "/status" }`.
+
+Integrations are trusted services in the same owner's chat, not sandboxed tenants: message
+and callback IDs are not scoped per integration. Namespaces prevent routing collisions only.
+
+## Delivery Guarantees
+
+- **At least once.** Each update gets a 60 s processing lease and, once handled, a 48 h
+  completed receipt (`<HUB_KEY_PREFIX>:processing|done:<updateId>`). A completed duplicate
+  returns 200 without forwarding; one still in progress returns 503 so Telegram retries.
+- **Retries.** An integration 5xx, 408, 429, timeout (20 s) or network error, and any Redis or
+  Telegram failure, release the lease and return `503` with `Retry-After: 5`. Receivers must
+  deduplicate by `updateId`.
+- **Final refusals.** An integration 4xx other than 408/429 completes the receipt with a notice
+  (`<id> could not handle this button`, or a reply for commands) and returns 200: a resend would
+  fail the same way.
+- **Quota.** 30 admitted updates per fixed UTC hour; a retry of an admitted update costs
+  nothing. `<HUB_KEY_PREFIX>:allowed:<updateId>` records admission for 48 h;
+  `<HUB_KEY_PREFIX>:rate:<hourWindow>` counts admissions and expires at the end of that UTC
+  hour. Excess updates get 200 (and a short notice for button taps).
+- **Ignored with 200:** malformed updates, other chats and other senders.
+- **Limits:** bodies are capped at 64 KiB while streaming; responses are `no-store`; the hub
+  logs no message content or credentials.
+
+## Configuration
+
+Copy `.env.example` to `.env.local` and fill it from 1Password; Vercel gets the same values as
+Production variables. The CLI reads `.env.local` in this directory; shell variables win.
+
+| Variable                                             | Notes                                                                    |
+| ---------------------------------------------------- | ------------------------------------------------------------------------ |
+| `TELEGRAM_BOT_TOKEN`                                 | From @BotFather. Only this app holds it.                                 |
+| `TELEGRAM_CHAT_ID`                                   | The owner's private chat; `telegram:setup --find-chat` saves it.         |
+| `TELEGRAM_WEBHOOK_SECRET`                            | 32–256 of `A–Z a–z 0–9 _ -`, e.g. `openssl rand -hex 32`.                |
+| `UPSTASH_REDIS_REST_URL`, `UPSTASH_REDIS_REST_TOKEN` | Prefer a database separate from the backup app's.                        |
+| `HUB_KEY_PREFIX`                                     | Default `telegram-hub:prod`; never the backup app's prefix.              |
+| `HUB_INTEGRATIONS`                                   | JSON registry (below). Secret: it holds bearer tokens.                   |
+| `HUB_LEGACY_INTEGRATION_ID`                          | Optional; must name a registry `id`. Receives unprefixed legacy buttons. |
+| `APP_BASE_URL`                                       | CLI only: the hub's origin for webhook registration.                     |
+
+`HUB_INTEGRATIONS` lists 1–32 integrations. IDs, tokens and commands must be unique, `start`
+and `help` are reserved, URLs must be HTTPS without credentials, tokens 32–256 characters:
 
 ```json
 [
@@ -65,106 +148,52 @@ list, HTTPS `url` and unique `token` of at least 32 characters. The first route:
 ]
 ```
 
-Use the same integration credential in the backup application's
-`TELEGRAM_HUB_TOKEN`; set its hub URL and route ID as documented in that app's
-README. Keep this credential separate from `TELEGRAM_WEBHOOK_SECRET` and MCP
-credentials. The bot token and owner chat belong only in this application's
-environment.
-
-- `/status` and `/backup_status` route only to the configured owner of those
-  commands. `/start`, `/help`, unknown commands and ordinary text show hub help.
-- A callback `nb-prod:s:2026-10` routes to `nb-prod`; the integration receives
-  the original callback data `s:2026-10`. The forwarded body is
-  `{ "updateId": 1, "input": { "kind": "callback", "callbackId": "...", "data": "s:2026-10", "messageId": 42 } }`.
-  Message input is `{ "kind": "message", "text": "/status" }`.
-- Existing unprefixed `s:`, `r:`, `f:`, `x:`, `l:` and `c:` buttons route to
-  `HUB_LEGACY_INTEGRATION_ID=nb-prod`. This includes existing confirmations;
-  their state remains in the backup application. New outgoing buttons always
-  use namespaces.
-- Unknown namespaces, including an unconfigured `nb-dev`, are refused instead
-  of falling back to production. Configure a separate route and backend for
-  another environment. Never point a development callback namespace at the
-  production backup application.
-- Future services add an explicit registry entry and implement the shared
-  receiver contract. The hub never accepts a destination URL from an update.
-  The reserved hub commands `start` and `help` cannot be claimed by an integration.
-
-The hub forwards with `Authorization: Bearer <integration token>`. Receivers
-must independently validate that credential and the strict update schema.
-The outbound endpoint is authenticated with the same per-integration token.
-Messages and credentials are not logged by the hub, and network/Telegram errors
-return only fixed public codes.
-
-## Delivery behavior
-
-Redis uses `HUB_KEY_PREFIX` (default `telegram-hub:prod`), independent of backup
-job state. Prefer a separate Redis database; a distinct prefix also works.
-Each update has a 60-second processing lease and, after successful handling,
-a completed receipt for 48 hours. Lease completion/release uses an atomic
-owner-token comparison. Completed duplicates return 200 without forwarding.
-An update being handled concurrently returns 503 for Telegram to retry.
-
-Temporary backend/Telegram/Redis failures return 503 and release this request's
-lease when possible. A 4xx from an integration other than 408 and 429 (an unknown contract,
-a token it refuses, an oversized body) is final: the hub completes the receipt, answers a tap
-with `<id> could not handle this button` or replies to a command with a short notice, and
-returns 200, since a resend would get the same answer. A backend timeout or lost response may cause redelivery;
-the receiving application must deduplicate actions by `updateId`. This is
-at-least-once HTTP delivery, not an exactly-once transaction across services.
-The receiver must not acknowledge an unhandled temporary failure with 200.
-
-The private chat allows 30 incoming updates per fixed UTC hour. A retry of an
-already admitted update does not consume another quota unit. Excess updates
-are acknowledged; callback taps receive a short rate-limit notice. Malformed
-updates and other chats are ignored with 200. Request bodies are bounded at
-64 KiB while streaming. All responses disable caching.
-
-## Deployment
-
-Use Node 24 and pnpm workspaces. Deploy this directory as its own Vercel
-project with access to workspace packages outside the Root Directory. Configure
-the environment variables described above. Only this application registers the
-bot's webhook.
-
-The app's `vercel-build` script builds `@workspaces/telegram-contracts` before Vercel
-traces its functions. The package exports JavaScript in `dist/`; runtime exports must
-not point to TypeScript sources that the Node builder renames during packaging.
-
-Vercel's type check of each function applies `target` and `module` only when they are in
-this app's `tsconfig.json`, and finds `undici-types` only through the app's own
-devDependency, since it does not follow pnpm's symlinks. Keep that version in the range
-that `@types/node` declares, or the build log fills with false `Request`/`Response` errors.
+The integration uses the same token as its `TELEGRAM_HUB_TOKEN` and the same `id` as its
+callback namespace. Keep each token separate from the webhook secret and from MCP tokens. To add
+an integration, add a registry entry and implement the receiver contract; the hub never takes a
+destination URL from an update.
 
 ## Setup CLI
-
-From the repository root:
 
 ```sh
 pnpm --filter telegram-webhook-hub cli telegram:setup [option]
 ```
 
-| Option        | Behavior                                                                                        |
-| ------------- | ----------------------------------------------------------------------------------------------- |
-| No option     | Register `/api/webhook` under `APP_BASE_URL`, preserving pending updates.                       |
-| `--info`      | Show the current webhook origin and delivery status without changing it; paths are hidden.      |
-| `--find-chat` | Save the single private chat ID to `.env.local` with mode 0600; requires no registered webhook. |
-| `--test`      | Send a delivery test, including a Status button when the legacy integration is configured.      |
-| `--replace`   | Allow replacement of a different registered webhook; valid only with registration.              |
+| Option        | Does                                                                                  |
+| ------------- | ------------------------------------------------------------------------------------- |
+| (none)        | Registers `<APP_BASE_URL>/api/webhook` with the secret, keeping pending updates.      |
+| `--replace`   | Allows replacing a webhook that points elsewhere (registration only).                 |
+| `--info`      | Shows the current webhook origin (path hidden), pending count and last error time.    |
+| `--find-chat` | Saves your private chat ID to `.env.local` (mode 0600). Needs no webhook registered.  |
+| `--test`      | Sends a test message, with a Status button when the legacy integration is configured. |
 
-## Local checks
+## Deployment
 
-`pnpm install` prepares the shared contracts package. After changing its schemas or
-installing with `--ignore-scripts`, rebuild it before using the hub:
+1. **Vercel project:** Root Directory `workspaces/apps/telegram-webhook-hub`, "Include source
+   files outside of the Root Directory" on, Node 24, other settings default. `vercel-build`
+   builds `@workspaces/telegram-contracts` first; its exports point to compiled `dist/`.
+2. **Chat ID:** put `TELEGRAM_BOT_TOKEN` in `.env.local`, send `/start` to the bot, and run
+   `telegram:setup --find-chat` before any webhook is set.
+3. **Variables:** add every variable above to Production; mark the token, secret, Redis and
+   `HUB_INTEGRATIONS` values Sensitive. Deploy.
+4. **Webhook:** `telegram:setup --info`, then `telegram:setup` (add `--replace` only after
+   checking who owns the current URL), then `telegram:setup --test`.
+5. **Check:** unauthenticated `curl -si -X POST <hub>/api/webhook` and `<hub>/api/messages`
+   return 401; `/status` in Telegram reaches the backup app.
+
+Vercel's per-function type check honours `target`/`module` only from this app's
+`tsconfig.json`, and finds `undici-types` only through this app's own devDependency. Keep its
+version in the range `@types/node` declares, or the build log fills with false
+`Request`/`Response` errors.
+
+## Local Checks
 
 ```sh
-pnpm --filter @workspaces/telegram-contracts build
+pnpm --filter @workspaces/telegram-contracts build   # after schema changes or --ignore-scripts
 pnpm --filter telegram-webhook-hub typecheck
 pnpm --filter telegram-webhook-hub lint
 pnpm --filter telegram-webhook-hub test
 ```
 
-The Vercel entry points are native Web API handlers. Tests use fake Telegram,
-state and HTTP dependencies and do not access the live bot or Redis. The hub
-has no Google, Notion, QStash, Playwright or Chromium runtime dependencies.
-
-See [the webhook flow](docs/webhook-flow.md).
+Tests use fake Telegram, Redis and HTTP dependencies; they never call the live bot or Redis.
+The hub has no Google, Notion, QStash, Playwright or Chromium dependencies.
