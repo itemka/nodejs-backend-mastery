@@ -657,6 +657,55 @@ Build notes:
    Production and redeploy. Call `backup_health` with `checkAgent: true` from the MCP client;
    expect `agent.lastCheck.ok` to be `true`.
 
+### Deployment Cleanup
+
+[Clean up Vercel deployments](../../../.github/workflows/vercel-deployment-cleanup.yml) runs on
+every push to `main`, so on every merge, with a separate job for this project. It retains the **ten
+newest successful or in-progress `main` builds**, the deployment behind
+`notion-backup-automation.vercel.app`, and other current project targets. It deletes older builds
+and completed preview, failed, and canceled deployments. If fewer than ten such `main` builds exist,
+it keeps all of them. Other in-progress builds and deployments without Git branch metadata stay
+intact.
+
+This project is the main driver of Function Storage: `api/jobs/process/[jobId].ts` and
+`api/cron/daily.ts` each bundle Chromium, and every retained build keeps those bundles. Check Vercel
+Usage → Deployment Storage → Functions Storage → Projects after a few merges.
+
+Vercel's Git integration deploys the same push independently, so cleanup runs alongside that
+deployment rather than strictly before it. The new build normally shows as in progress and takes one
+of the ten slots, leaving nine older successful builds. If that build then fails, those nine remain
+until the next merge. If Vercel has not registered the build when cleanup lists deployments, or a
+protected target is outside the newest ten, more than ten deployments can exist until a later merge.
+Removed preview links stop working, and older builds are no longer available as rollback targets.
+Vercel's native age-based retention also applies: Hobby permits up to 30 days, so Vercel can expire
+older retained builds and leave fewer than ten. This workflow does not override that platform limit
+or restore previously deleted builds.
+
+Configure these under GitHub → repository Settings → Secrets and variables → Actions:
+
+| Type     | Name                              | Value                                                                    |
+| -------- | --------------------------------- | ------------------------------------------------------------------------ |
+| Secret   | `VERCEL_CLEANUP_TOKEN`            | Vercel access token for the owning team, with deletion access            |
+| Variable | `VERCEL_NOTION_BACKUP_PROJECT_ID` | Project ID from Vercel → `notion-backup-automation` → Settings → General |
+| Variable | `VERCEL_TEAM_ID`                  | Owning team ID from Vercel → Team Settings → General                     |
+
+The token and team ID are shared with
+[`telegram-webhook-hub`](../telegram-webhook-hub/README.md#deployment-cleanup). Enter the token
+directly in GitHub; do not commit it or add it to the app's runtime environment. The script verifies
+the project name, owner, production branch, and production domain before cleanup, and rechecks live
+targets before each deletion. It stops on API or validation errors, and a failure in the other
+project's job does not stop this one. No dependencies are installed in the workflow, and the
+credential is available only to the cleanup step running code from `main`.
+
+Pushes to `main` apply the cleanup automatically, including the merge that adds this workflow. To
+preview a run, open GitHub Actions → **Clean up Vercel deployments** → **Run workflow** on `main`,
+leave **dry_run** checked, and open the `notion-backup-automation` job to review the retained IDs
+and deletion candidates. A manual run covers both projects, so unchecking **dry_run** applies the
+cleanup to both. For a local dry-run of this project, export `VERCEL_TOKEN`, `VERCEL_TEAM_ID`,
+`VERCEL_PROJECT_ID`, and `VERCEL_PROJECT_NAME=notion-backup-automation`, then run
+`node scripts/cleanup-vercel-deployments.mjs` from the repository root; deletion requires
+`--apply`.
+
 ### Deployment Acceptance
 
 Complete these checks after deploying both apps, following the hub's

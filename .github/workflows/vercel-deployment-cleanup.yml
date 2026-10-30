@@ -1,0 +1,56 @@
+name: Clean up Vercel deployments
+
+on:
+  # Vercel deploys the same push on its own, so the new build usually shows as in progress here.
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: Preview deletions without removing deployments
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: vercel-deployment-cleanup
+  cancel-in-progress: false
+
+jobs:
+  cleanup:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      # A failure in one project must not stop the other project's cleanup.
+      fail-fast: false
+      matrix:
+        include:
+          - project: notion-backup-automation
+            project_id_var: VERCEL_NOTION_BACKUP_PROJECT_ID
+          - project: telegram-webhook-hub
+            project_id_var: VERCEL_TELEGRAM_HUB_PROJECT_ID
+    steps:
+      # Always execute reviewed main, including manual runs; never run PR code with the token.
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: main
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 24.x
+      - name: Retain the ten newest main builds and protect production
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_CLEANUP_TOKEN }}
+          VERCEL_PROJECT_NAME: ${{ matrix.project }}
+          VERCEL_PROJECT_ID: ${{ vars[matrix.project_id_var] }}
+          VERCEL_TEAM_ID: ${{ vars.VERCEL_TEAM_ID }}
+          DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run }}
+        run: |
+          if [ "$DRY_RUN" = "true" ]; then
+            node scripts/cleanup-vercel-deployments.mjs
+          else
+            node scripts/cleanup-vercel-deployments.mjs --apply
+          fi
