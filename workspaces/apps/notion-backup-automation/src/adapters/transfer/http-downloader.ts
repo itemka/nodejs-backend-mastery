@@ -8,11 +8,11 @@ import { systemClock } from '../../shared/clock.js';
 import type { Digests } from '../../shared/digests.js';
 import { Digester } from '../../shared/digests.js';
 import type { Logger } from '../../shared/logger.js';
+import { parseRetryAfter, retryTransient, TransientFailure } from '../../shared/retry.js';
 import { SecretValue } from '../../shared/secret-value.js';
 import type { Sleep } from '../../shared/sleep.js';
-import { pause, systemSleep } from '../../shared/sleep.js';
+import { systemSleep } from '../../shared/sleep.js';
 import { isAllowedDownloadLink } from '../gmail/export-email-parser.js';
-import { backoffMs, MAX_IN_TICK_DELAY_SEC, parseRetryAfter } from '../google/google-api-client.js';
 
 /**
  * Notion's signed export file, as observed in Phase 0:
@@ -282,38 +282,31 @@ export class HttpDownloader {
    * Runs `attempt` again after a `DOWNLOAD_FAILED` that is worth retrying now: a network error,
    * a timeout, a short download, 429 or 5xx with a `Retry-After` of at most 10 s.
    */
-  private async withAttempts<T>(
-    signal: AbortSignal | undefined,
-    attempt: () => Promise<T>,
-    attemptNumber = 1,
-  ): Promise<T> {
-    signal?.throwIfAborted();
+  private withAttempts<T>(signal: AbortSignal | undefined, attempt: () => Promise<T>): Promise<T> {
+    return retryTransient(
+      async () => {
+        try {
+          return await attempt();
+        } catch (error) {
+          if (error instanceof IntegrationError && error.code === 'DOWNLOAD_FAILED') {
+            return new TransientFailure(error);
+          }
 
-    try {
-      return await attempt();
-    } catch (error) {
-      if (
-        !(error instanceof IntegrationError) ||
-        error.code !== 'DOWNLOAD_FAILED' ||
-        attemptNumber >= this.maxAttempts ||
-        (error.retryAfterSec ?? 0) > MAX_IN_TICK_DELAY_SEC
-      ) {
-        throw error;
-      }
-
-      this.logger.warn('transfer.download.retry', {
-        attempt: attemptNumber,
-        reason: error.message,
-      });
-      await pause(
-        this.sleep,
-        (error.retryAfterSec ?? backoffMs(attemptNumber) / 1000) * 1000,
+          throw error;
+        }
+      },
+      {
+        attempts: this.maxAttempts,
+        onRetry: (error, attemptNumber) => {
+          this.logger.warn('transfer.download.retry', {
+            attempt: attemptNumber,
+            reason: error.message,
+          });
+        },
         signal,
-      );
-    }
-
-    // At most `maxAttempts` deep.
-    return this.withAttempts(signal, attempt, attemptNumber + 1);
+        sleep: this.sleep,
+      },
+    );
   }
 }
 

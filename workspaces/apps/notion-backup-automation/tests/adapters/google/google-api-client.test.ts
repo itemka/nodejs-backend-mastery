@@ -2,11 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
 
 import type { GoogleService } from '../../../src/adapters/google/google-api-client.js';
-import {
-  GoogleApiClient,
-  GoogleApiError,
-  parseRetryAfter,
-} from '../../../src/adapters/google/google-api-client.js';
+import { GoogleApiClient, GoogleApiError } from '../../../src/adapters/google/google-api-client.js';
 import { GoogleTokenUnavailableError } from '../../../src/adapters/google/token-provider.js';
 import { IntegrationError } from '../../../src/application/integration-error.js';
 import { FakeGoogle, googleError } from '../../support/fake-google.js';
@@ -350,21 +346,5 @@ describe('GoogleApiClient', () => {
     });
 
     await expect(client.send({ url: URL })).rejects.toBe(authRequired);
-  });
-});
-
-describe('parseRetryAfter', () => {
-  const now = Date.parse('2026-10-01T12:00:00.000Z');
-
-  it.each([
-    [null, undefined],
-    ['', undefined],
-    ['30', 30],
-    [' 7 ', 7],
-    ['Thu, 01 Oct 2026 12:01:00 GMT', 60],
-    ['Thu, 01 Oct 2026 11:59:00 GMT', 0],
-    ['soon', undefined],
-  ])('%s → %s', (value, expected) => {
-    expect(parseRetryAfter(value, now)).toBe(expected);
   });
 });

@@ -617,13 +617,6 @@ export class ProcessJobUseCase {
 
       await this.store.note(id, checked.note);
 
-      if (backup.leftoverFileId !== undefined) {
-        await this.store.note(
-          id,
-          `drive.duplicate_kept · Drive kept duplicate file ${backup.leftoverFileId}; delete it in Drive`,
-        );
-      }
-
       if (backup.sidecar === 'failed') {
         await this.store.note(id, 'drive.sidecar_failed · the .sha256 sidecar was not written');
       }
