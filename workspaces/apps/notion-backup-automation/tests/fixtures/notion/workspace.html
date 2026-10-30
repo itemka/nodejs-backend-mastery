@@ -51,6 +51,7 @@
           content: config.content,
           folders: config.folders,
           format: config.format,
+          privatePages: config.privatePages,
           views: config.views,
         };
 
@@ -250,6 +251,9 @@
                 selectRow('Export format', 'format', formats),
                 selectRow('Database views', 'views', ['Current view', 'Default view']),
                 selectRow('Page content', 'content', ['Everything', 'No files or images']),
+                ...(config.broken.includes('private-pages')
+                  ? []
+                  : [toggleRow('Include private pages', 'privatePages')]),
                 toggleRow('Create folders for subpages', 'folders'),
                 el(
                   'div',

@@ -10,33 +10,35 @@ const WORKSPACE_HTML = readFileSync(
   'utf8',
 );
 
-/** What the fixture's final Export posts: the four dialog values. */
+/** What the fixture's final Export posts: the five dialog values. */
 export interface ExportRecord {
   readonly content: string;
   readonly folders: boolean;
   readonly format: string;
+  readonly privatePages: boolean;
   readonly views: string;
 }
 
 /**
  * How the fixture behaves (`tests/fixtures/notion/workspace.html`):
  * - `name`: the workspace switcher's text;
- * - `format`, `views`, `content`, `folders`: the dialog's values when it opens;
+ * - `format`, `views`, `content`, `folders`, `privatePages`: the dialog's values when it opens;
  * - `broken`: parts left out, so a step finds nothing: `general` (the Settings tab),
  *   `settings-menu` (the menu item; the shortcut still works), `settings` (Settings never
- *   opens), `format` (Markdown & CSV);
+ *   opens), `format` (Markdown & CSV), `private-pages` (the private pages toggle);
  * - `brokenOnFirstLoad`: `broken` applies to the first page load only;
  * - `state: 'exporting'`: the row's Export shows an export already running;
  * - `confirm: 'none'`: the final Export shows no confirmation.
  */
 export interface WorkspaceOptions {
-  broken?: readonly ('format' | 'general' | 'settings' | 'settings-menu')[];
+  broken?: readonly ('format' | 'general' | 'private-pages' | 'settings' | 'settings-menu')[];
   brokenOnFirstLoad?: boolean;
   confirm?: 'none' | 'shown';
   content?: string;
   folders?: boolean;
   format?: string;
   name?: string;
+  privatePages?: boolean;
   state?: 'exporting' | 'idle';
   views?: string;
 }
@@ -169,6 +171,7 @@ export class NotionUi {
       folders: options.folders ?? true,
       format: options.format ?? 'Markdown & CSV',
       name: options.name ?? FIXTURE_WORKSPACE,
+      privatePages: options.privatePages ?? true,
       state: options.state ?? 'idle',
       views: options.views ?? 'Current view',
     };

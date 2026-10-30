@@ -55,6 +55,7 @@ export const KNOWN_LANDMARK_NAMES = [
   'HTML',
   'Identity',
   'Import',
+  'Include private pages',
   'Language & region',
   'Markdown & CSV',
   'Members',
