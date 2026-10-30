@@ -123,6 +123,42 @@ describe('POST /mcp', () => {
     expect(tools).toHaveLength(7);
   });
 
+  it('refuses subscriptions/listen at once, instead of holding a stream until the time limit', async () => {
+    const harness = mcpHarness();
+    const response = await harness.serve(
+      new Request(MCP_URL, {
+        body: JSON.stringify({
+          id: 1,
+          jsonrpc: '2.0',
+          method: 'subscriptions/listen',
+          params: {
+            _meta: {
+              'io.modelcontextprotocol/clientCapabilities': {},
+              'io.modelcontextprotocol/clientInfo': { name: 'test', version: '1' },
+              'io.modelcontextprotocol/protocolVersion': '2026-07-28',
+            },
+            notifications: { toolsListChanged: true },
+          },
+        }),
+        headers: {
+          ...bearer,
+          accept: 'application/json, text/event-stream',
+          'content-type': 'application/json',
+          'mcp-method': 'subscriptions/listen',
+          'mcp-protocol-version': '2026-07-28',
+        },
+        method: 'POST',
+      }),
+    );
+
+    // An open stream would be `text/event-stream`, and reading its body would never end.
+    expect(response.headers.get('content-type')).toContain('application/json');
+    await expect(response.json()).resolves.toMatchObject({
+      error: { code: -32_603, message: 'Subscription limit reached' },
+      id: 1,
+    });
+  });
+
   it('allows 60 authenticated requests an hour, then answers 429 with Retry-After', async () => {
     const harness = mcpHarness();
 
