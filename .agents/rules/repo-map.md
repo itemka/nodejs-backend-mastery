@@ -101,9 +101,11 @@ and path-scoped because raw output stays in the conversation transcript.
 
 - TypeScript base config: `tsconfig.base.json`.
 - ESLint config: `eslint.config.mjs`.
-- GitHub workflows: `.github/workflows/ci.yml`, `.github/workflows/claude.yml`, and
+- GitHub workflows: `.github/workflows/ci.yml`, `.github/workflows/claude.yml`,
   `.github/workflows/docs-architecture.yml` (path-scoped: validates the Structurizr DSL
-  under `docs/architecture/**` and diffs the committed generated Mermaid output).
+  under `docs/architecture/**` and diffs the committed generated Mermaid output), and
+  `.github/workflows/vercel-deployment-cleanup.yml` (on push to `main`: trims old Vercel
+  deployments of the Notion backup and Telegram hub apps).
 - CI runs lint, format check, typecheck, tests, and per-workspace builds for directly changed
   workspaces; a change under `workspaces/packages/**` (or a root config file) also triggers the
   all-workspace `root-build` job, since a shared-package change can break a consumer's build
