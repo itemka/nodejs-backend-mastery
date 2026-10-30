@@ -11,7 +11,7 @@ import type {
 } from './job.js';
 import { MAX_INCIDENT_DECISIONS, stageOf } from './job.js';
 import type { BackupPolicy } from './policy.js';
-import { MAX_TRANSFER_RUNS } from './policy.js';
+import { LATE_EMAIL_AFTER_MINUTES, MAX_TRANSFER_RUNS } from './policy.js';
 import { canRetry } from './retry-policy.js';
 import type { JobStatus, Stage, TransferMarker } from './statuses.js';
 import { isTerminal, isTransferMarker, isWorkingStatus, stageEntryStatus } from './statuses.js';
@@ -101,8 +101,8 @@ export function recordExportRequested(
 
 /**
  * A Gmail check found no trusted email. Normally the job keeps waiting with the next check
- * counted. After `emailWaitTimeoutHours` it starts a new export attempt, or, with none left,
- * needs attention (`EMAIL_TIMEOUT`).
+ * counted. After `emailWaitTimeoutHours` it stops and needs attention (`EMAIL_TIMEOUT`): a new
+ * export is your call, since one that sent no email says something is wrong.
  */
 export function recordEmailNotFound(job: BackupJob, now: Date, policy: BackupPolicy): BackupJob {
   requireStatus(job, 'WAITING_FOR_EMAIL');
@@ -120,9 +120,16 @@ export function recordEmailNotFound(job: BackupJob, now: Date, policy: BackupPol
     return checked;
   }
 
-  return checked.exportAttempt < policy.maxExportAttempts
-    ? startNewExportAttempt(checked, now, policy)
-    : needsAttention(checked, now, 'EMAIL_TIMEOUT');
+  return needsAttention(checked, now, 'EMAIL_TIMEOUT');
+}
+
+/** Still waiting for this attempt's email, for longer than one normally takes to arrive. */
+export function isEmailLate(job: BackupJob, now: Date): boolean {
+  return (
+    job.status === 'WAITING_FOR_EMAIL' &&
+    job.requestedAt !== undefined &&
+    now.getTime() - Date.parse(job.requestedAt) >= LATE_EMAIL_AFTER_MINUTES * 60 * 1000
+  );
 }
 
 export interface FoundEmail {

@@ -359,6 +359,15 @@ export interface AttentionNotification {
   readonly supervisorSummary?: string;
 }
 
+/** The export email is overdue. The job keeps checking, so nobody needs to act yet. */
+export interface LateEmailNotification {
+  readonly exportAttempt: number;
+  readonly jobId: string;
+  readonly period: Period;
+  /** From the export request until now. */
+  readonly waitedMs: number;
+}
+
 /** `drive` is the backup folder's access (`drive:check`), apart from the Google sign-in itself. */
 export type LoginService = 'drive' | 'google' | 'notion';
 
@@ -383,13 +392,15 @@ export interface LoginWarningNotification {
 export interface Notifier {
   attention(notification: AttentionNotification): Promise<void>;
   failure(notification: FailureNotification): Promise<void>;
+  lateEmail(notification: LateEmailNotification): Promise<void>;
   loginWarning(notification: LoginWarningNotification): Promise<void>;
   success(notification: SuccessNotification): Promise<void>;
 }
 
 /**
  * Marks a notification as sent for `ttlSec`, so a repeat within that time is skipped: an
- * `attention` once per job and code per 24 h, a `lost` login warning once per service per 24 h.
+ * `attention` once per job and code, a `lost` login warning once per service, and a late email
+ * once per export attempt, per 24 h.
  */
 export interface NotificationGate {
   /** True for the first claim of `key` within `ttlSec`, false while an earlier claim lives. */

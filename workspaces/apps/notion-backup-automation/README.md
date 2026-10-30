@@ -31,7 +31,8 @@ flowchart LR
    lease, runs exactly one step, saves the result, and publishes the next wakeup.
 3. **Trigger.** Playwright replays the saved Notion session and clicks Export
    (Markdown & CSV, everything, subpage folders on).
-4. **Wait.** Gmail is checked at +5 min, +15 min, then every 30 min for a trusted export email.
+4. **Wait.** Gmail is checked at +5 min, +15 min, then every 30 min for a trusted export email,
+   for up to 48 hours.
 5. **Transfer.** In one invocation: download the ZIP with the session's cookies, verify every
    entry, upload it to `<root>/<YYYY>/` in Drive, and require Drive's SHA-256 to match.
 6. **Notify.** Success, failure and "needs attention" go to the console log and, if enabled,
@@ -97,7 +98,7 @@ pnpm --filter notion-backup-automation test:agent-live
   two empty probe files.
 - `test:browser` runs the export trigger in your installed Chrome, headless, against a local
   copy of Notion's Settings UI (`tests/fixtures/notion/workspace.html`). It never opens Notion.
-- `test:agent-live` sends the 8 made-up supervisor fixtures to Gemini using `GEMINI_API_KEY`
+- `test:agent-live` sends the 7 made-up supervisor fixtures to Gemini using `GEMINI_API_KEY`
   from `.env.local`; see [Supervisor](#supervisor) for the acceptance criteria.
 
 ### CLI
@@ -169,8 +170,11 @@ A job is `job:<period>` (`2026-10`; a forced one is `2026-10-r2`). It moves thro
   or a login fix. `auth:notion` resumes the job itself; after `auth:google` or a Drive grant,
   the next cron probe that passes resumes it. Once an incident is handed to you, no further
   supervisor wakeup is scheduled.
-- No email after `EMAIL_WAIT_TIMEOUT_HOURS` (48), an expired link, or an invalid ZIP downloaded
-  twice starts a new export attempt, up to `MAX_EXPORT_ATTEMPTS` (3).
+- No email after `EMAIL_WAIT_TIMEOUT_HOURS` (48) stops the job with `EMAIL_TIMEOUT`, without a
+  new export. The ⚠️ message offers Retry, which checks for the email once more, and Retry from
+  scratch, which requests a new export.
+- An expired link, or an invalid ZIP downloaded twice, starts a new export attempt, up to
+  `MAX_EXPORT_ATTEMPTS` (3).
 - A job older than `JOB_MAX_LIFETIME_HOURS` (168) ends as `FAILED`.
 
 **Shrink check.** On `COMPLETE`, the backup is compared with the previous complete one. Below
@@ -263,11 +267,10 @@ Full Workspace/                       GOOGLE_DRIVE_BACKUP_ROOT_FOLDER_ID (picked
 ## Supervisor
 
 The deterministic rules handle every known failure. An incident whose code the error catalog
-(`src/domain/error-catalog.ts`) marks `supervised` waits for the supervisor first: 15 codes,
-such as `NOTION_UI_CHANGED`, `UNKNOWN_ERROR`, `EMAIL_UNRECOGNIZED`, `EMAIL_TIMEOUT` once no
-export attempt is left, `ZIP_INVALID` and `TRANSFER_TIMEOUT` after their re-runs, and the
-transient codes once their retries ran out. The login, access and configuration codes go
-straight to you. The supervisor never bypasses the state machine.
+(`src/domain/error-catalog.ts`) marks `supervised` waits for the supervisor first: 14 codes,
+such as `NOTION_UI_CHANGED`, `UNKNOWN_ERROR`, `EMAIL_UNRECOGNIZED`, `ZIP_INVALID` and `TRANSFER_TIMEOUT` after their re-runs, and the
+transient codes once their retries ran out. The login, access and configuration codes, and
+`EMAIL_TIMEOUT`, go straight to you. The supervisor never bypasses the state machine.
 
 Each supervisor wakeup (1 minute after the incident, then after each decision) makes **one
 decision** (`src/agent/`, called from the tick's `supervise` step):
@@ -335,9 +338,9 @@ on the configured model (at most 5 an hour) and reports it as `agent.lastCheck`.
 `dev:tick` uses the model `.env.local` configures, prints which one, and shows the incident's
 last decision (`supervisor  decision N: <action> → <outcome>`) and the summary.
 
-**S5 evaluation:** `pnpm --filter notion-backup-automation test:agent-live` sends the 8 made-up
+**S5 evaluation:** `pnpm --filter notion-backup-automation test:agent-live` sends the 7 made-up
 incidents in `tests/fixtures/agent/` to the configured model and requires every answer to be
-valid and at least 7 acceptable: an acceptable action, allowed, with parameters the policy would
+valid and at least 6 acceptable: an acceptable action, allowed, with parameters the policy would
 take (`retry_stage` on the incident's stage, a `wait` within the lifetime). Each fixture's
 context is the one production builds for an incident reached through the lifecycle rules
 (`tests/support/agent-scenarios.ts`); a unit test keeps them equal. A shell variable wins over
@@ -400,6 +403,7 @@ content-free result, such as `{"ok":false,"probe":"google","code":"GOOGLE_AUTH_R
 | Stored but shrunk     | ⚠️ old and new file counts and sizes             | Open in Drive · Status                                              |
 | Needs attention       | ⚠️ stage, code, reason, fix, last 10 events      | Status · Retry · Retry from scratch · Cancel; Fix login if relevant |
 | Failed (lifetime)     | ❌ stage, code, reason                           | Status                                                              |
+| Export email late     | ⏳ attempt, time waited; the job keeps checking  | Status                                                              |
 | Login expiring / lost | 🔑 the date or "access is gone", and the fix     | Fix login                                                           |
 
 - Messages use allowlisted fields only, redacted and HTML-escaped; free text loses URLs. The
@@ -408,6 +412,9 @@ content-free result, such as `{"ok":false,"probe":"google","code":"GOOGLE_AUTH_R
   per 24 h (`notify:<key>`, `SET NX EX`). Each sent notification is recorded as a job event
   (login warnings, which belong to no job, in `health`), since Vercel Hobby keeps logs for an
   hour.
+- A late email is reported once a day: first at the first check 45 minutes or more after the
+  request (50 minutes on the normal schedule), then about 24 hours later. It changes nothing
+  about the job. At 48 hours the job stops, and the `EMAIL_TIMEOUT` ⚠️ replaces the third one.
 - Success and failure are sent once even after a crash: a later delivery sends what a dead
   worker left unsent. Dev messages start with "🧪 dev".
 
@@ -582,7 +589,7 @@ Build notes:
    `backup_list` returns persisted jobs, and `backup_health` reports hub configuration and
    fresh probe results. After the first scheduled cron run, the healthchecks.io check shows
    "up".
-7. Validate the supervisor locally with `test:agent-live` (all 8 answers valid, at least 7
+7. Validate the supervisor locally with `test:agent-live` (all 7 answers valid, at least 6
    acceptable). Set `AGENT_MODEL_PROVIDER=gemini` and the chosen `AGENT_MODEL_NAME` in
    Production and redeploy. Call `backup_health` with `checkAgent: true` from the MCP client;
    expect `agent.lastCheck.ok` to be `true`.

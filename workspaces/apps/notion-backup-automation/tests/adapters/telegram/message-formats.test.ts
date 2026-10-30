@@ -11,6 +11,7 @@ import {
   failureMessage,
   fixLoginMessage,
   helpMessage,
+  lateEmailMessage,
   loginWarningMessage,
   noticeMessage,
   parseCallbackData,
@@ -266,6 +267,26 @@ describe('failureMessage', () => {
         '❌ <b>Notion backup failed</b>',
         'Job 2026-10 · stage EMAIL_WAIT',
         '<b>JOB_LIFETIME_EXCEEDED</b>: The job exceeded its maximum lifetime.',
+      ].join('\n'),
+    );
+    expect(buttonsOf(message)).toEqual(['Status=s:2026-10']);
+    expectChatSafe(message);
+  });
+});
+
+describe('lateEmailMessage', () => {
+  it('says how long the email is overdue and that nothing is needed yet, with a Status button', () => {
+    const message = lateEmailMessage(
+      { exportAttempt: 2, jobId: '2026-10', period: '2026-10', waitedMs: 50 * 60_000 },
+      options,
+    );
+
+    expect(message.html).toBe(
+      [
+        '⏳ <b>Notion export email is late</b>',
+        'Job 2026-10 · attempt 2',
+        'No email 50 m 0 s after the export request.',
+        'The job keeps checking, so there is nothing to do yet.',
       ].join('\n'),
     );
     expect(buttonsOf(message)).toEqual(['Status=s:2026-10']);

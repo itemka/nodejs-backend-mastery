@@ -82,10 +82,10 @@ async function uiChangedIncident(harness: BackupHarness): Promise<void> {
   await harness.qstash.deliverNext(harness.processJob);
 }
 
-/** A job waiting for its email that ran out of export attempts (EMAIL_TIMEOUT). */
-function emailTimeoutJob(): BackupJob {
+/** A job in the email stage that needs the supervisor. */
+function emailStageJob(): BackupJob {
   return valid({
-    ...recordFailure(waitingJob(), minutesAfter(10), 'EMAIL_TIMEOUT', policy),
+    ...recordFailure(waitingJob(), minutesAfter(10), 'EMAIL_UNRECOGNIZED', policy),
     schedule: { notBefore: minutesAfter(10).toISOString(), token: SEEDED_TOKEN },
   });
 }
@@ -122,7 +122,7 @@ describe('Supervisor with provider none (Step 24 "Done when")', () => {
   );
 
   it('covers every supervised code of the catalog', () => {
-    expect(supervisedCodes).toHaveLength(15);
+    expect(supervisedCodes).toHaveLength(14);
   });
 
   it('runs end to end: the incident wakes once after 1 min, then goes to you', async () => {
@@ -496,7 +496,7 @@ describe('Supervisor with a scripted model', () => {
 
   it('searches Gmail again from earlier and keeps only counts', async () => {
     const { harness, model } = scripted();
-    const job = emailTimeoutJob();
+    const job = emailStageJob();
 
     model.script = [decision('search_email_again', { widenMinutes: 180 })];
     harness.emails.arrived.push({
@@ -531,7 +531,7 @@ describe('Supervisor with a scripted model', () => {
     const { harness, model } = scripted({ start: hoursAfter(3).toISOString() });
 
     model.script = [decision('retry')];
-    await seedJob(harness, emailTimeoutJob());
+    await seedJob(harness, emailStageJob());
     await deliverSeeded(harness);
 
     expect(await storedJob(harness, '2026-10')).toMatchObject({

@@ -24,6 +24,7 @@ import {
   minutesAfter,
   policy,
   valid,
+  waitingJob,
 } from '../support/jobs.js';
 import { ManualClock } from '../support/manual-clock.js';
 
@@ -42,6 +43,7 @@ function recordingNotifier(deliveries: Delivery[], failing = false): Notifier {
   return {
     attention: deliver('attention'),
     failure: deliver('failure'),
+    lateEmail: deliver('lateEmail'),
     loginWarning: deliver('loginWarning'),
     success: deliver('success'),
   };
@@ -224,6 +226,50 @@ describe('JobNotifications', () => {
         },
       },
     ]);
+  });
+
+  it('reports a late email once a day per export attempt and records it as a job event', async () => {
+    const { clock, deliveries, jobs, notifications } = setup();
+    const job = waitingJob();
+
+    await notifications.lateEmail(job);
+    await notifications.lateEmail(job);
+
+    expect(deliveries).toEqual([
+      {
+        kind: 'lateEmail',
+        notification: {
+          exportAttempt: 1,
+          jobId: '2026-10',
+          period: '2026-10',
+          waitedMs: 8 * 60_000,
+        },
+      },
+    ]);
+    await expect(jobs.listEvents(job.id, { limit: 10 })).resolves.toEqual([
+      expect.objectContaining({
+        status: 'WAITING_FOR_EMAIL',
+        text: '⏳ Notion export email is late · job 2026-10 · attempt 1 · no email after 8 m 0 s',
+        type: 'notification',
+      }),
+    ]);
+
+    await notifications.lateEmail({ ...job, exportAttempt: 2 });
+
+    expect(deliveries).toHaveLength(2);
+
+    clock.advance(REPEAT_WINDOW_SEC * 1000);
+    await notifications.lateEmail(job);
+
+    expect(deliveries).toHaveLength(3);
+  });
+
+  it('does not report a late email for a job that is not waiting for one', async () => {
+    const { deliveries, notifications } = setup();
+
+    await notifications.lateEmail(completeJob());
+
+    expect(deliveries).toEqual([]);
   });
 
   it('sends a job’s success and failure once: a recorded notification is not sent again', async () => {

@@ -153,7 +153,8 @@ describe('ProcessJobUseCase: the happy path', () => {
 
 describe('ProcessJobUseCase: crashes', () => {
   // The happy path saves 11 transitions with an email at the first check; a crash after each.
-  it.each(Array.from({ length: 11 }, (_, index) => index + 1))(
+  // Write 3, the click marker, has its own test: that crash leaves no export to wait for.
+  it.each(Array.from({ length: 11 }, (_, index) => index + 1).filter((write) => write !== 3))(
     'recovers from a worker killed after saved write %i, with one click per attempt and one upload',
     async (crashAfter) => {
       const harness = backupHarness();
@@ -172,7 +173,10 @@ describe('ProcessJobUseCase: crashes', () => {
       expect(harness.qstash.deliveries.filter(({ result }) => result === 'failed')).toHaveLength(1);
       await expect(harness.memory.findActive()).resolves.toBeUndefined();
       // Exactly one ✅, also when the worker died between saving COMPLETE and notifying (write 11).
-      expect(harness.sent.map(({ kind }) => kind)).toEqual(['success']);
+      // A crash can also delay the email check enough to report a late email, which is fine.
+      expect(harness.sent.map(({ kind }) => kind).filter((kind) => kind !== 'lateEmail')).toEqual([
+        'success',
+      ]);
     },
   );
 
@@ -208,7 +212,7 @@ describe('ProcessJobUseCase: crashes', () => {
     expect(harness.sent.map(({ kind }) => kind)).toEqual(['success']);
   });
 
-  it('never clicks again after the write-ahead marker: a crash before the click waits, then starts a new attempt', async () => {
+  it('never clicks again after the write-ahead marker: a crash before the click waits, then stops a new attempt', async () => {
     const harness = backupHarness();
 
     // Write 3 is the click marker: the worker dies after saving it, before the click.
@@ -218,8 +222,12 @@ describe('ProcessJobUseCase: crashes', () => {
 
     const job = await storedJob(harness, '2026-10');
 
-    expect(job).toMatchObject({ exportAttempt: 2, status: 'COMPLETE' });
-    expect(harness.trigger.clicks).toHaveLength(1);
+    expect(job).toMatchObject({
+      exportAttempt: 1,
+      incident: { code: 'EMAIL_TIMEOUT', state: 'awaiting_user' },
+      status: 'NEEDS_ATTENTION',
+    });
+    expect(harness.trigger.clicks).toEqual([]);
     await expect(eventTexts(harness)).resolves.toContain(
       'TRIGGERING_EXPORT → WAITING_FOR_EMAIL (in doubt)',
     );
@@ -256,7 +264,7 @@ describe('ProcessJobUseCase: crashes', () => {
       outcome: 'lease_held',
       retryAfterSec: expect.any(Number) as number,
     });
-    expect(await storedJob(harness, '2026-10')).toMatchObject({ status: 'COMPLETE' });
+    expect(await storedJob(harness, '2026-10')).toMatchObject({ status: 'NEEDS_ATTENTION' });
   });
 });
 
@@ -511,7 +519,7 @@ describe('ProcessJobUseCase: failures and retries', () => {
     await expect(eventTexts(harness)).resolves.toContain('DOWNLOADING → EMAIL_FOUND (over budget)');
   });
 
-  it('starts a new attempt after 48 h without an email, then needs attention when none is left', async () => {
+  it('reports a late email once a day, then stops with EMAIL_TIMEOUT at 48 h, without a new export', async () => {
     const harness = backupHarness();
 
     harness.emails.arriveFor = () => 'never';
@@ -521,12 +529,48 @@ describe('ProcessJobUseCase: failures and retries', () => {
     const job = await storedJob(harness, '2026-10');
 
     expect(job).toMatchObject({
-      exportAttempt: 3,
+      exportAttempt: 1,
       incident: { code: 'EMAIL_TIMEOUT', state: 'awaiting_user' },
       status: 'NEEDS_ATTENTION',
     });
-    expect(harness.trigger.clicks).toHaveLength(3);
-    expect(harness.sent.map(({ kind }) => kind)).toEqual(['attention']);
+    expect(harness.trigger.clicks).toHaveLength(1);
+    expect(harness.sent.map(({ kind }) => kind)).toEqual(['lateEmail', 'lateEmail', 'attention']);
+    expect(job.schedule).toBeUndefined();
+  });
+
+  it('reports the first late email at the first check after 45 minutes, and keeps checking', async () => {
+    const harness = backupHarness();
+
+    harness.emails.arriveFor = () => 'never';
+    await harness.service.start();
+    await harness.qstash.deliverNext(harness.processJob); // CREATED → TRIGGERING_EXPORT
+    await harness.qstash.deliverNext(harness.processJob); // the click
+    await harness.qstash.deliverNext(harness.processJob); // +5 m
+    await harness.qstash.deliverNext(harness.processJob); // +20 m
+
+    expect(harness.sent).toEqual([]);
+
+    await harness.qstash.deliverNext(harness.processJob); // +50 m
+
+    expect(harness.sent).toEqual([
+      {
+        kind: 'lateEmail',
+        notification: {
+          exportAttempt: 1,
+          jobId: '2026-10',
+          period: '2026-10',
+          waitedMs: 50 * 60_000,
+        },
+      },
+    ]);
+
+    await harness.qstash.deliverNext(harness.processJob); // +80 m
+
+    expect(harness.sent).toHaveLength(1);
+    expect(await storedJob(harness, '2026-10')).toMatchObject({
+      emailCheckAttempt: 4,
+      status: 'WAITING_FOR_EMAIL',
+    });
   });
 
   it('fails a job past its lifetime and sends a failure', async () => {

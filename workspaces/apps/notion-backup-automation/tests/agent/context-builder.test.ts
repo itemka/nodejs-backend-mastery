@@ -204,7 +204,7 @@ describe('buildAgentContext', () => {
   });
 
   it('reports the email search as counts, and the session probe as its state', () => {
-    const job = supervisedJob('EMAIL_TIMEOUT');
+    const job = supervisedJob('EMAIL_UNRECOGNIZED');
     const context = contextFor({
       ...job,
       incident: {

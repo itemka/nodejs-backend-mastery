@@ -2,6 +2,7 @@ import type { ExportShrink, ExportSize } from '../domain/export-size.js';
 import type {
   AttentionNotification,
   FailureNotification,
+  LateEmailNotification,
   LoginService,
   LoginWarningNotification,
   SuccessNotification,
@@ -97,6 +98,10 @@ export function failureText(notification: FailureNotification): string {
 
 export function attentionText(notification: AttentionNotification): string {
   return `⚠️ Notion backup requires attention · job ${notification.jobId} · stage ${notification.stage} · ${notification.code}: ${notification.howToFix}`;
+}
+
+export function lateEmailText(notification: LateEmailNotification): string {
+  return `⏳ Notion export email is late · job ${notification.jobId} · attempt ${notification.exportAttempt} · no email after ${formatDuration(notification.waitedMs)}`;
 }
 
 export function loginWarningText(notification: LoginWarningNotification): string {

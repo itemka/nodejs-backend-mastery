@@ -8,6 +8,7 @@ import {
 import type {
   AttentionNotification,
   FailureNotification,
+  LateEmailNotification,
   LoginService,
   LoginWarningNotification,
   NotificationEventLine,
@@ -192,6 +193,21 @@ export function attentionMessage(
       ...retryButtons(notification.jobId, notification.code, notification.retryFromScratch),
     ],
     html,
+  };
+}
+
+export function lateEmailMessage(
+  notification: LateEmailNotification,
+  options: MessageFormatOptions,
+): TelegramMessage {
+  return {
+    buttons: [[statusButton(notification.jobId)]],
+    html: lines(
+      `${envTag(options)}⏳ <b>Notion export email is late</b>`,
+      `Job ${safe(notification.jobId)} · attempt ${notification.exportAttempt}`,
+      `No email ${formatDuration(notification.waitedMs)} after the export request.`,
+      'The job keeps checking, so there is nothing to do yet.',
+    ),
   };
 }
 

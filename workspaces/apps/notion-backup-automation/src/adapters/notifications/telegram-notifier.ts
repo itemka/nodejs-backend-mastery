@@ -1,6 +1,7 @@
 import type {
   AttentionNotification,
   FailureNotification,
+  LateEmailNotification,
   LoginWarningNotification,
   Notifier,
   SuccessNotification,
@@ -9,6 +10,7 @@ import type { MessageFormatOptions } from '../telegram/message-formats.js';
 import {
   attentionMessage,
   failureMessage,
+  lateEmailMessage,
   loginWarningMessage,
   successMessage,
 } from '../telegram/message-formats.js';
@@ -34,6 +36,10 @@ export class TelegramNotifier implements Notifier {
 
   failure(notification: FailureNotification): Promise<void> {
     return this.send(failureMessage(notification, this.format));
+  }
+
+  lateEmail(notification: LateEmailNotification): Promise<void> {
+    return this.send(lateEmailMessage(notification, this.format));
   }
 
   loginWarning(notification: LoginWarningNotification): Promise<void> {

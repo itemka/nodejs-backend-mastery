@@ -13,8 +13,8 @@ function fixture(prefix: string): AgentFixture {
 }
 
 describe('the S5 fixtures (tests/fixtures/agent)', () => {
-  it('holds the 8 incidents test:agent-live scores', () => {
-    expect(fixtures).toHaveLength(8);
+  it('holds the 7 incidents test:agent-live scores', () => {
+    expect(fixtures).toHaveLength(7);
   });
 
   it.each(fixtures.map((fixture) => [fixture.name, fixture] as const))(
@@ -70,6 +70,6 @@ describe('fixtureMiss (how test:agent-live scores a valid answer)', () => {
 
   it('refuses an action that is not allowed, or allowed but not acceptable', () => {
     expect(fixtureMiss(fixture('08'), { action: 'inspect_status' })).toBe('not_allowed');
-    expect(fixtureMiss(fixture('04'), { action: 'wait', minutes: 15 })).toBe('not_acceptable');
+    expect(fixtureMiss(fixture('05'), { action: 'wait', minutes: 15 })).toBe('not_acceptable');
   });
 });

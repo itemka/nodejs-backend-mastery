@@ -57,6 +57,7 @@ describe('errorCatalog', () => {
       [
         'CONFIG_INCOMPLETE',
         'DRIVE_ROOT_INACCESSIBLE',
+        'EMAIL_TIMEOUT',
         'GOOGLE_AUTH_REQUIRED',
         'JOB_LIFETIME_EXCEEDED',
         'NOTION_INTERACTIVE_CHALLENGE',

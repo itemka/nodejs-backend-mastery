@@ -85,13 +85,24 @@ describe('ConsoleNotifier', () => {
       stage: 'EMAIL_WAIT',
     });
     await notifier.loginWarning({ howToFix: 'Run auth:notion.', kind: 'lost', service: 'notion' });
+    await notifier.lateEmail({
+      exportAttempt: 1,
+      jobId: '2026-10',
+      period: '2026-10',
+      waitedMs: 50 * 60 * 1000,
+    });
 
     expect(lines.map(({ event, level }) => `${String(level)} ${String(event)}`)).toEqual([
       'info notify.success',
       'warn notify.attention',
       'error notify.failure',
       'warn notify.login',
+      'warn notify.late_email',
     ]);
+    expect(lines[4]).toMatchObject({
+      jobId: '2026-10',
+      text: '⏳ Notion export email is late · job 2026-10 · attempt 1 · no email after 50 m 0 s',
+    });
     expect(lines[0]).toMatchObject({
       jobId: '2026-10',
       period: '2026-10',
@@ -140,6 +151,7 @@ describe('CompositeNotifier', () => {
     const recording: Notifier = {
       attention: () => Promise.resolve(),
       failure: () => Promise.resolve(),
+      lateEmail: () => Promise.resolve(),
       loginWarning: () => Promise.resolve(),
       success: (notification) => {
         delivered.push(notification.jobId);
@@ -176,6 +188,7 @@ describe('CompositeNotifier', () => {
         throw new Error('synchronous bug');
       },
       failure: () => Promise.resolve(),
+      lateEmail: () => Promise.resolve(),
       loginWarning: () => Promise.resolve(),
       success: () => Promise.resolve(),
     };

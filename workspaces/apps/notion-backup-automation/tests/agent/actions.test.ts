@@ -29,7 +29,9 @@ function withObservations(job: BackupJob, observations: object): BackupJob {
 }
 
 const notionIncident = supervisedJob('UNKNOWN_ERROR');
-const emailIncident = valid(recordFailure(waitingJob(), minutesAfter(10), 'EMAIL_TIMEOUT', policy));
+const emailIncident = valid(
+  recordFailure(waitingJob(), minutesAfter(10), 'EMAIL_UNRECOGNIZED', policy),
+);
 const transferIncident = valid(
   recordFailure(emailFoundJob(), minutesAfter(10), 'UNKNOWN_ERROR', policy),
 );
