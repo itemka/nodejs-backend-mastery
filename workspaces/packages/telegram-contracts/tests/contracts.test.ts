@@ -2,6 +2,7 @@ import {
   callbackDataSchema,
   hubOperationSchema,
   integrationUpdateSchema,
+  isPermanentRefusal,
   telegramMessageSchema,
 } from '@workspaces/telegram-contracts';
 import { describe, expect, it } from 'vitest';
@@ -68,5 +69,19 @@ describe('Telegram HTTP boundaries', () => {
         updateId: -1,
       }).success,
     ).toBe(false);
+  });
+
+  it.each([
+    [400, true],
+    [401, true],
+    [422, true],
+    [499, true],
+    [408, false],
+    [429, false],
+    [500, false],
+    [503, false],
+    [200, false],
+  ])('treats HTTP %i as a permanent refusal: %s', (status, permanent) => {
+    expect(isPermanentRefusal(status)).toBe(permanent);
   });
 });

@@ -1,12 +1,16 @@
 import type { IntegrationUpdate } from '@workspaces/telegram-contracts';
-import { integrationUpdateSchema, MAX_MESSAGE_LENGTH } from '@workspaces/telegram-contracts';
+import {
+  integrationUpdateSchema,
+  isPermanentRefusal,
+  MAX_MESSAGE_LENGTH,
+} from '@workspaces/telegram-contracts';
 import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
 
 import { TelegramApiError } from '../adapters/telegram-client.js';
 import type { Integration } from '../config/env.js';
 import type { BotClient, DeliveryState } from '../ports.js';
-import { isPermanentRefusal, json, readJson } from './shared.js';
+import { json, readJson } from './shared.js';
 
 const personSchema = z.object({ id: z.number().int().positive().max(Number.MAX_SAFE_INTEGER) });
 const chatSchema = z.object({

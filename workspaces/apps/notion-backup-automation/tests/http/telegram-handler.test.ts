@@ -58,10 +58,15 @@ describe('POST /api/integrations/telegram', () => {
     expect(handle).toHaveBeenCalledWith(body);
   });
 
-  it('refuses malformed, raw Telegram and oversized payloads before construction', async () => {
+  it('refuses malformed, raw Telegram, extra-field and oversized payloads before construction', async () => {
     const { deps, webhook } = setup();
 
-    for (const payload of ['not json', { update_id: 1 }]) {
+    for (const payload of [
+      'not json',
+      { update_id: 1 },
+      { ...body, chatId: 10 },
+      { input: { callbackId: 'x', data: 'x'.repeat(65), kind: 'callback' }, updateId: 1 },
+    ]) {
       expect(await status(request(fakeHubToken, payload), deps)).toBe(400);
     }
 

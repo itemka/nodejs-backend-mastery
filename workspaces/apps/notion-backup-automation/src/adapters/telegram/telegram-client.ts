@@ -1,5 +1,5 @@
 import type { HubOperation, TelegramMessage } from '@workspaces/telegram-contracts';
-import { hubOperationSchema } from '@workspaces/telegram-contracts';
+import { hubOperationSchema, isPermanentRefusal } from '@workspaces/telegram-contracts';
 import { z } from 'zod';
 
 import type { SecretValue } from '../../shared/secret-value.js';
@@ -36,14 +36,12 @@ export class TelegramApiError extends Error {
  * Whether the hub refused a request for good: any 4xx except 408 and 429, such as an operation
  * it does not accept or Telegram's own refusal (`422 TELEGRAM_REJECTED`). A resend gets the same.
  */
-export function isPermanentRefusal(error: unknown): error is TelegramApiError {
-  if (!(error instanceof TelegramApiError) || error.failure !== 'api') {
-    return false;
-  }
-
-  const status = error.errorCode ?? 0;
-
-  return status >= 400 && status < 500 && status !== 408 && status !== 429;
+export function isPermanentHubRefusal(error: unknown): error is TelegramApiError {
+  return (
+    error instanceof TelegramApiError &&
+    error.failure === 'api' &&
+    isPermanentRefusal(error.errorCode ?? 0)
+  );
 }
 
 export interface TelegramClientOptions {
