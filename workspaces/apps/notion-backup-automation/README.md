@@ -30,7 +30,7 @@ flowchart LR
 2. **Tick.** Each wakeup is one `POST /api/jobs/process/<jobId>`. The worker takes the job's
    lease, runs exactly one step, saves the result, and publishes the next wakeup.
 3. **Trigger.** Playwright replays the saved Notion session and clicks Export
-   (Markdown & CSV, everything, subpage folders on).
+   (Markdown & CSV, everything, private pages and subpage folders on).
 4. **Wait.** Gmail is checked at +5 min, +15 min, then every 30 min for a trusted export email,
    for up to 48 hours.
 5. **Transfer.** In one invocation: download the ZIP with the session's cookies, verify every
@@ -442,6 +442,32 @@ which already checked Telegram's secret and the owner chat:
 The app never sees the bot token, chat ID or webhook secret. How the hub routes updates:
 [telegram-webhook-hub flow](../telegram-webhook-hub/docs/webhook-flow.md).
 
+### Telegram Setup
+
+The bot belongs to the hub: create it and register its webhook with the
+[hub's deployment steps](../telegram-webhook-hub/README.md#deployment). Then connect this app:
+
+1. Generate the integration token with `openssl rand -base64 32` and save it in 1Password. It is
+   not the bot token or the webhook secret.
+2. In the hub's Production variables, add this route to `HUB_INTEGRATIONS`
+   ([format](../telegram-webhook-hub/README.md#configuration)), then Redeploy the hub:
+   `id` `nb-prod`, `commands` `status` and `backup_status`, `url`
+   `https://<app>.vercel.app/api/integrations/telegram`, and `token` from step 1.
+3. In this app's Production variables, set `TELEGRAM_HUB_URL`, `TELEGRAM_HUB_TOKEN` (the same
+   token), `TELEGRAM_INTEGRATION_ID=nb-prod` and `NOTIFIERS=console,telegram`, then Redeploy.
+4. With the same hub URL and token in `.env.local`, send a test message:
+
+   ```sh
+   APP_ENV=prod pnpm --filter notion-backup-automation cli telegram:setup --test
+   ```
+
+   Expect a test message with a Status button in the bot's chat. Tap Status, and send `/status`:
+   both answer with the job's status, or say there is no job.
+
+Each environment needs its own route. Without an `nb-dev` route the hub refuses dev messages with
+403, and the job carries on. Do not set `TELEGRAM_INTEGRATION_ID=nb-prod` for dev: dev and prod job
+IDs match, so a button could act on the prod job.
+
 ## MCP Server
 
 `POST /mcp` is a stateless Streamable HTTP MCP server (a new server per request). Checks, in
@@ -602,10 +628,7 @@ Build notes:
    **Redeploy**: QStash destinations and the signature check both use it.
 3. Save the prod Notion session: with prod Redis credentials in `.env.local`, run
    `APP_ENV=prod pnpm --filter notion-backup-automation auth:notion`.
-4. Register this app in the hub: add `nb-prod` with commands `status`, `backup_status`, URL
-   `https://<app>.vercel.app/api/integrations/telegram` and the same `TELEGRAM_HUB_TOKEN` to the
-   hub's `HUB_INTEGRATIONS` ([hub README](../telegram-webhook-hub/README.md#configuration)),
-   then run `pnpm --filter notion-backup-automation cli telegram:setup --test`.
+4. Connect this app to the hub: follow [Telegram Setup](#telegram-setup).
 5. Smoke tests (`CRON_SECRET` in your shell):
 
    ```sh
@@ -667,6 +690,18 @@ repository root. The fixes:
 - **Drive access:** `pnpm --filter notion-backup-automation cli drive:check`. If it reports a
   hidden folder, run `pnpm --filter notion-backup-automation auth:google --pick-folders` and pick
   it. The next daily cron whose probe passes resumes the job, or run `backup_retry`.
+
+The daily cron sends a 🔑 message with a Fix login button, which replies with the command:
+
+| Warning                      | What happened                                                                                 | What to do                                                                                  |
+| ---------------------------- | --------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------- |
+| Notion login expires on date | The saved session ends within 30, 7 or 1 days; backups still work                             | Notion login before that date. The new session has a new expiry, so the warnings start over |
+| Notion access is gone        | The Notion probe found the session signed out, a challenge or the wrong workspace             | Notion login; for the wrong workspace, first check the two `NOTION_WORKSPACE_*` variables   |
+| Google access is gone        | The Google probe got `GOOGLE_AUTH_REQUIRED`: the token was refused, or a scope is missing     | Google login                                                                                |
+| Drive access is gone         | The Drive probe got `DRIVE_ROOT_INACCESSIBLE`: the root or year folder is hidden or read-only | Drive access                                                                                |
+
+A probe that fails because a service is down sends no 🔑. A lost-access warning is sent again only
+after a probe in between did not find the access gone, and at most once per service per 24 h.
 
 "Supervised" means the supervisor triages the incident first, after any automatic retries, and
 then hands it to you if it cannot clear it.

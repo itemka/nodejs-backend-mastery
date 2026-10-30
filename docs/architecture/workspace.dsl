@@ -41,7 +41,7 @@ workspace "nodejs-backend-mastery" "C4 model of the runnable apps in this monore
             notionBackupHealth = container "Health function" "Public GET /api/health returning ok and the short commit SHA, with no caching and no other data." "Vercel Function (Node.js)"
             notionBackupWorker = container "Worker function" "POST /api/jobs/process/[jobId]: verifies the QStash signature against APP_BASE_URL plus the path and the raw body, runs one tick of one job (serverless Chromium for the export trigger; one supervisor decision on a pending incident, from a closed set of actions with deterministic preconditions), publishes the next wakeup, and records the _ping smoke test's nonce." "Vercel Function (Node.js, 300 s)"
             notionBackupCron = container "Daily cron function" "GET /api/cron/daily with the cron secret: auto-start when enabled, the watchdog and lifetime check, Google, Drive and Notion probes, login warnings, resuming a job whose login works again, and the heartbeat; ?probe= runs one probe." "Vercel Function (Node.js, 300 s, Vercel Cron)"
-            notionBackupMcp = container "MCP function" "POST /mcp (rewritten to /api/mcp) with the bearer token, an Origin rule and an hourly limit: a new stateless MCP server per request with 7 tools (start, status, list, process, retry, cancel, health) whose views come from an allowlist; it publishes wakeups and never runs a step. backup_health with checkAgent runs one canned, content-free supervisor decision." "Vercel Function (Node.js, MCP Streamable HTTP)"
+            notionBackupMcp = container "MCP function" "POST /mcp (rewritten to /api/mcp) with the bearer token, an Origin rule and an hourly limit: a new stateless MCP server per request with 7 tools (start, status, list, process, retry, cancel, health) whose views come from an allowlist; it refuses subscriptions, publishes wakeups and never runs a step. backup_health with checkAgent runs one canned, content-free supervisor decision." "Vercel Function (Node.js, MCP Streamable HTTP)"
             notionBackupIntegration = container "Telegram integration function" "POST /api/integrations/telegram with the integration bearer token: normalized commands and callbacks from the hub, backup action deduplication and single-use confirmations; status, retry, cancel and login guidance use the existing backup application methods." "Vercel Function (Node.js)"
             notionBackupCli = container "Local CLI" "auth:google, auth:notion, drive:check, drive:init, doctor, smoke:qstash, dev:upload, dev:trigger, dev:download, dev:tick, and telegram:setup: Google consent, a Notion sign-in you complete in a Chrome window that then resumes a job waiting for it, the deployed QStash smoke test, trusted export-email discovery, Drive probes, Redis/session diagnostics, checksum-verified test uploads into the _dev folder, dev-session export requests and download checks, the whole dev backup job one tick per call, and Telegram test notifications through the independent hub; bot setup is owned by the hub CLI." "Node.js + TypeScript CLI + Playwright"
             notionBackupConfig = container "Local configuration" "Google OAuth credentials and refresh token, the Telegram hub URL, integration ID and bearer token, plus connection and encryption settings; no bot token or webhook configuration." ".env.local file"
@@ -126,7 +126,7 @@ workspace "nodejs-backend-mastery" "C4 model of the runnable apps in this monore
         notionBackupWorker -> googleOAuth "Refreshes access tokens" "OAuth 2.0 over HTTPS"
         notionBackupWorker -> gmail "Finds the export email and re-reads its link" "REST over HTTPS (gmail.readonly)"
         notionBackupWorker -> googleDrive "Adopts an existing backup, or uploads the verified ZIP" "REST over HTTPS (drive.file)"
-        notionBackupWorker -> telegramHubMessages "Sends backup reports and attention alerts" "HTTPS POST (integration bearer)"
+        notionBackupWorker -> telegramHubMessages "Sends backup reports, late-email notices and attention alerts" "HTTPS POST (integration bearer)"
         notionBackupWorker -> gemini "Asks for one supervisor decision on a pending incident" "REST over HTTPS (API key header)"
         notionBackupCli -> gemini "Runs dev:tick's supervisor decisions and the test:agent-live evaluation" "REST over HTTPS (API key header)"
         notionBackupCron -> upstashRedis "Records the run and the probe results, finds the active job, and marks warnings as sent" "Redis REST over HTTPS"
@@ -137,7 +137,7 @@ workspace "nodejs-backend-mastery" "C4 model of the runnable apps in this monore
         notionBackupCron -> googleDrive "Probes the root and the year folder, and a probe file under _dev" "REST over HTTPS (drive.file)"
         notionBackupCron -> telegramHubMessages "Sends login warnings and lost-access alerts" "HTTPS POST (integration bearer)"
         notionBackupCron -> healthchecks "Pings after each run, or /fail when a sub-step threw" "HTTPS GET"
-        healthchecks -> developer "Alerts when the pings stop" "Email or Telegram"
+        healthchecks -> developer "Alerts when the pings stop" "Email"
     }
 
     views {

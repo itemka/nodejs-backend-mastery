@@ -36,7 +36,7 @@ graph LR
       style 23 fill:#ffffff,stroke:#444444,color:#444444
       24["<div style='font-weight: bold'>Daily cron function</div><div style='font-size: 70%; margin-top: 0px'>[Container: Vercel Function (Node.js, 300 s, Vercel Cron)]</div><div style='font-size: 80%; margin-top:10px'>GET /api/cron/daily with the<br />cron secret: auto-start when<br />enabled, the watchdog and<br />lifetime check, Google, Drive<br />and Notion probes, login<br />warnings, resuming a job<br />whose login works again, and<br />the heartbeat; ?probe= runs<br />one probe.</div>"]
       style 24 fill:#ffffff,stroke:#444444,color:#444444
-      25["<div style='font-weight: bold'>MCP function</div><div style='font-size: 70%; margin-top: 0px'>[Container: Vercel Function (Node.js, MCP Streamable HTTP)]</div><div style='font-size: 80%; margin-top:10px'>POST /mcp (rewritten to<br />/api/mcp) with the bearer<br />token, an Origin rule and an<br />hourly limit: a new stateless<br />MCP server per request with 7<br />tools (start, status, list,<br />process, retry, cancel,<br />health) whose views come from<br />an allowlist; it publishes<br />wakeups and never runs a<br />step. backup_health with<br />checkAgent runs one canned,<br />content-free supervisor<br />decision.</div>"]
+      25["<div style='font-weight: bold'>MCP function</div><div style='font-size: 70%; margin-top: 0px'>[Container: Vercel Function (Node.js, MCP Streamable HTTP)]</div><div style='font-size: 80%; margin-top:10px'>POST /mcp (rewritten to<br />/api/mcp) with the bearer<br />token, an Origin rule and an<br />hourly limit: a new stateless<br />MCP server per request with 7<br />tools (start, status, list,<br />process, retry, cancel,<br />health) whose views come from<br />an allowlist; it refuses<br />subscriptions, publishes<br />wakeups and never runs a<br />step. backup_health with<br />checkAgent runs one canned,<br />content-free supervisor<br />decision.</div>"]
       style 25 fill:#ffffff,stroke:#444444,color:#444444
       26["<div style='font-weight: bold'>Telegram integration function</div><div style='font-size: 70%; margin-top: 0px'>[Container: Vercel Function (Node.js)]</div><div style='font-size: 80%; margin-top:10px'>POST<br />/api/integrations/telegram<br />with the integration bearer<br />token: normalized commands<br />and callbacks from the hub,<br />backup action deduplication<br />and single-use confirmations;<br />status, retry, cancel and<br />login guidance use the<br />existing backup application<br />methods.</div>"]
       style 26 fill:#ffffff,stroke:#444444,color:#444444
@@ -63,7 +63,7 @@ graph LR
     23-. "<div>Refreshes access tokens</div><div style='font-size: 70%'>[OAuth 2.0 over HTTPS]</div>" .->35
     23-. "<div>Finds the export email and<br />re-reads its link</div><div style='font-size: 70%'>[REST over HTTPS (gmail.readonly)]</div>" .->36
     23-. "<div>Adopts an existing backup, or<br />uploads the verified ZIP</div><div style='font-size: 70%'>[REST over HTTPS (drive.file)]</div>" .->37
-    23-. "<div>Sends backup reports and<br />attention alerts</div><div style='font-size: 70%'>[HTTPS POST (integration bearer)]</div>" .->29
+    23-. "<div>Sends backup reports,<br />late-email notices and<br />attention alerts</div><div style='font-size: 70%'>[HTTPS POST (integration bearer)]</div>" .->29
     23-. "<div>Asks for one supervisor<br />decision on a pending<br />incident</div><div style='font-size: 70%'>[REST over HTTPS (API key header)]</div>" .->43
     27-. "<div>Runs dev:tick's supervisor<br />decisions and the<br />test:agent-live evaluation</div><div style='font-size: 70%'>[REST over HTTPS (API key header)]</div>" .->43
     24-. "<div>Records the run and the probe<br />results, finds the active<br />job, and marks warnings as<br />sent</div><div style='font-size: 70%'>[Redis REST over HTTPS]</div>" .->38
@@ -74,7 +74,7 @@ graph LR
     24-. "<div>Probes the root and the year<br />folder, and a probe file<br />under _dev</div><div style='font-size: 70%'>[REST over HTTPS (drive.file)]</div>" .->37
     24-. "<div>Sends login warnings and<br />lost-access alerts</div><div style='font-size: 70%'>[HTTPS POST (integration bearer)]</div>" .->29
     24-. "<div>Pings after each run, or<br />/fail when a sub-step threw</div><div style='font-size: 70%'>[HTTPS GET]</div>" .->42
-    42-. "<div>Alerts when the pings stop</div><div style='font-size: 70%'>[Email or Telegram]</div>" .->1
+    42-. "<div>Alerts when the pings stop</div><div style='font-size: 70%'>[Email]</div>" .->1
     1-. "<div>Checks that a deployment is<br />live</div><div style='font-size: 70%'>[HTTPS]</div>" .->22
     1-. "<div>Runs Google setup and backup<br />dependency diagnostics</div><div style='font-size: 70%'>[Terminal]</div>" .->27
     1-. "<div>Grants Gmail and Drive<br />access, optionally choosing<br />folders</div><div style='font-size: 70%'>[HTTPS in browser]</div>" .->35

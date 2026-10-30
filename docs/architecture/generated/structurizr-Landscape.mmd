@@ -61,7 +61,7 @@ graph LR
     21-. "<div>Checks the saved session,<br />requests workspace exports in<br />Settings, and downloads an<br />export with the session's<br />cookies</div><div style='font-size: 70%'>[Playwright + Chrome; HTTPS]</div>" .->40
     41-. "<div>Delivers signed wakeups and<br />the _ping</div><div style='font-size: 70%'>[HTTPS POST (Upstash-Signature JWT)]</div>" .->21
     21-. "<div>Pings after each run, or<br />/fail when a sub-step threw</div><div style='font-size: 70%'>[HTTPS GET]</div>" .->42
-    42-. "<div>Alerts when the pings stop</div><div style='font-size: 70%'>[Email or Telegram]</div>" .->1
+    42-. "<div>Alerts when the pings stop</div><div style='font-size: 70%'>[Email]</div>" .->1
     1-. "<div>Chats and compares models in<br />the browser</div><div style='font-size: 70%'></div>" .->5
     5-. "<div>Sends chat/completions<br />requests</div><div style='font-size: 70%'>[OpenAI-compatible HTTP]</div>" .->2
     1-. "<div>Chats in the terminal</div><div style='font-size: 70%'></div>" .->10

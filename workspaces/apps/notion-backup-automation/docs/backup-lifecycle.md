@@ -123,7 +123,7 @@ on.
 
 ```mermaid
 flowchart LR
-  Event[success · failure ·<br/>attention · login warning] --> Gate{attention: first for this<br/>job and code in 24 h?<br/>lost login: first for this service?}
+  Event[success · failure · attention ·<br/>late email · login warning] --> Gate{First in 24 h?<br/>attention: this job and code<br/>late email: this export attempt<br/>lost login: this service}
   Gate -->|no| Skip([skipped])
   Gate -->|yes| Fan[CompositeNotifier:<br/>console + Telegram]
   Fan -->|a channel fails| Logged[notify.failed:<br/>name and code only]
