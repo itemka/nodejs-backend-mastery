@@ -61,7 +61,7 @@ graph LR
     23-. "<div>Adopts an existing backup, or<br />uploads the verified ZIP</div><div style='font-size: 70%'>[REST over HTTPS (drive.file)]</div>" .->37
     23-. "<div>Sends backup reports and<br />attention alerts</div><div style='font-size: 70%'>[HTTPS POST (integration bearer)]</div>" .->29
     24-. "<div>Records the run and the probe<br />results, finds the active<br />job, and marks warnings as<br />sent</div><div style='font-size: 70%'>[Redis REST over HTTPS]</div>" .->38
-    24-. "<div>Starts, re-arms or resumes<br />the active job with a wakeup</div><div style='font-size: 70%'>[REST over HTTPS]</div>" .->41
+    24-. "<div>Starts, re-arms or resumes<br />the active job with a wakeup<br />and cancels superseded ones</div><div style='font-size: 70%'>[REST over HTTPS]</div>" .->41
     24-. "<div>Probes the session and the<br />export dialog, without<br />exporting</div><div style='font-size: 70%'>[serverless Chromium; HTTPS]</div>" .->40
     24-. "<div>Probes the refresh token and<br />its scopes</div><div style='font-size: 70%'>[OAuth 2.0 over HTTPS]</div>" .->35
     24-. "<div>Probes the mailbox profile</div><div style='font-size: 70%'>[REST over HTTPS (gmail.readonly)]</div>" .->36

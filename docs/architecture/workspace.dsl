@@ -126,7 +126,7 @@ workspace "nodejs-backend-mastery" "C4 model of the runnable apps in this monore
         notionBackupWorker -> googleDrive "Adopts an existing backup, or uploads the verified ZIP" "REST over HTTPS (drive.file)"
         notionBackupWorker -> telegramHubMessages "Sends backup reports and attention alerts" "HTTPS POST (integration bearer)"
         notionBackupCron -> upstashRedis "Records the run and the probe results, finds the active job, and marks warnings as sent" "Redis REST over HTTPS"
-        notionBackupCron -> qstash "Starts, re-arms or resumes the active job with a wakeup" "REST over HTTPS"
+        notionBackupCron -> qstash "Starts, re-arms or resumes the active job with a wakeup and cancels superseded ones" "REST over HTTPS"
         notionBackupCron -> notion "Probes the session and the export dialog, without exporting" "serverless Chromium; HTTPS"
         notionBackupCron -> googleOAuth "Probes the refresh token and its scopes" "OAuth 2.0 over HTTPS"
         notionBackupCron -> gmail "Probes the mailbox profile" "REST over HTTPS (gmail.readonly)"

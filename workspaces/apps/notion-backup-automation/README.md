@@ -8,8 +8,9 @@ Functions, woken by Upstash QStash, with state in Upstash Redis.
 You control it from an MCP client (Claude Code, Cursor, Codex) and from Telegram buttons, and
 set it up with a local CLI.
 
-**Not built yet:** the AI supervisor. Incidents it would triage go straight to you; the
-`AGENT_*` variables are validated and shown by `backup_health`, but nothing acts on them.
+**Not built yet:** the AI supervisor. Incidents it would triage wait one minute for another
+wakeup, then that tick hands them to you. The `AGENT_*` variables are validated and shown by
+`backup_health`, but no AI acts on them.
 
 ## How It Works
 
@@ -471,6 +472,7 @@ Build notes:
    ```sh
    curl -s https://<app>.vercel.app/api/health
    curl -si -X POST https://<app>.vercel.app/api/jobs/process/_ping
+   curl -si https://<app>.vercel.app/api/cron/daily
    curl -si -X POST https://<app>.vercel.app/mcp
    curl -si -X POST https://<app>.vercel.app/api/integrations/telegram
    APP_ENV=prod pnpm --filter notion-backup-automation cli smoke:qstash
@@ -479,12 +481,32 @@ Build notes:
    curl -s -H "Authorization: Bearer $CRON_SECRET" "https://<app>.vercel.app/api/cron/daily?probe=drive"
    ```
 
-   Expect `{"ok":true,…}` from health; 401 from the unsigned worker, `/mcp` and the integration
-   calls; "ping delivered and verified"; `"notionSession":"valid"` with
+   Expect `{"ok":true,…}` from health; 401 from the unsigned worker, cron without its secret,
+   `/mcp` and the integration calls; "ping delivered and verified"; `"notionSession":"valid"` with
    `"exportDialog":"ready"`; both scopes for Google; `"ok":true` for Drive.
+   `NBA_LIVE_REDIS=1 pnpm --filter notion-backup-automation test:live` checks Redis itself.
 
-6. Add the MCP client ([MCP Server](#mcp-server)): `tools/list` shows 7 tools. After the first
-   scheduled cron run, the healthchecks.io check shows "up".
+6. Add the MCP client ([MCP Server](#mcp-server)): `tools/list` shows 7 tools,
+   `backup_list` returns persisted jobs, and `backup_health` reports hub configuration and
+   fresh probe results. After the first scheduled cron run, the healthchecks.io check shows
+   "up".
+
+### Deployment Acceptance
+
+Complete these checks after deploying both apps, following the hub's
+[deployment runbook](../telegram-webhook-hub/README.md#deployment):
+
+- Send `/status` and `/backup_status`; tap both old, unprefixed Status buttons and new,
+  namespaced ones.
+- Exercise Retry, Fix login (Notion, Google and Drive), Cancel and Retry from scratch,
+  including the second-tap confirmations for mutations.
+- Verify success, failure, needs-attention and login-warning notification delivery.
+- Replay duplicate updates and check that a job action runs only once. Exercise temporary
+  backend unavailability and verify redelivery recovers without repeating the action.
+- Verify environment isolation: dev jobs and uploads stay in `{nba:dev}:` and `_dev/`, and
+  an unconfigured `nb-dev` callback never falls back to `nb-prod`.
+- Inspect deployed function bundles: the hub has no backup, Google or Playwright dependencies;
+  the backup app's `/api/mcp` and `/api/integrations/telegram` have no Playwright or Chromium.
 
 Real backups start only through `backup_start`, or through the cron once
 `AUTO_START_ENABLED=true`.

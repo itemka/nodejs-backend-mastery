@@ -18,7 +18,7 @@ stateDiagram-v2
   CREATED --> TRIGGERING_EXPORT
   TRIGGERING_EXPORT --> WAITING_FOR_EMAIL: export requested
   WAITING_FOR_EMAIL --> EMAIL_FOUND: trusted email claimed
-  WAITING_FOR_EMAIL --> TRIGGERING_EXPORT: no email in 48 h
+  WAITING_FOR_EMAIL --> TRIGGERING_EXPORT: email timeout (default 48 h)
   EMAIL_FOUND --> DOWNLOADING
   DOWNLOADING --> VERIFYING
   VERIFYING --> UPLOADING
@@ -32,6 +32,8 @@ stateDiagram-v2
 
 Not shown, to keep the diagram readable:
 
+- The email timeout is `EMAIL_WAIT_TIMEOUT_HOURS` (default 48 h); the lifetime limit is
+  `JOB_MAX_LIFETIME_HOURS` (default 168 h).
 - A dead or over-budget transfer run rolls back to `EMAIL_FOUND` once. A link that expires
   during the download also starts a new export attempt.
 - A new export attempt (back to `TRIGGERING_EXPORT`) needs attempts left
@@ -49,7 +51,7 @@ flowchart LR
   Budget -->|no| Attention[NEEDS_ATTENTION:<br/>notify you]
   Attention -->|backup_retry, Telegram Retry,<br/>or a fixed login| Resume
   Attention -->|backup_cancel| Cancelled([CANCELLED])
-  Lifetime[Job older than<br/>168 h] --> Failed([FAILED])
+  Lifetime[Job lifetime exceeded<br/>default 168 h] --> Failed([FAILED])
 ```
 
 Supervised codes (such as `NOTION_UI_CHANGED`) first wait one minute for the supervisor; with

@@ -111,7 +111,9 @@ and callback IDs are not scoped per integration. Namespaces prevent routing coll
   (`<id> could not handle this button`, or a reply for commands) and returns 200: a resend would
   fail the same way.
 - **Quota.** 30 admitted updates per fixed UTC hour; a retry of an admitted update costs
-  nothing. Excess updates get 200 (and a short notice for button taps).
+  nothing. `<HUB_KEY_PREFIX>:allowed:<updateId>` records admission for 48 h;
+  `<HUB_KEY_PREFIX>:rate:<hourWindow>` counts admissions and expires at the end of that UTC
+  hour. Excess updates get 200 (and a short notice for button taps).
 - **Ignored with 200:** malformed updates, other chats and other senders.
 - **Limits:** bodies are capped at 64 KiB while streaming; responses are `no-store`; the hub
   logs no message content or credentials.

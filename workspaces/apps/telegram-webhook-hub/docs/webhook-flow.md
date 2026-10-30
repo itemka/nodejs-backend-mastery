@@ -6,14 +6,17 @@ Workflow diagrams for the [telegram-webhook-hub workspace](../). Codes and limit
 
 ## Webhook — `handleWebhookRequest`
 
-Every answer except `503` tells Telegram the update is finished. A `503` releases this
-request's lease, so Telegram's redelivery can claim it again.
+Only successful responses acknowledge delivery (`200` in this handler). Telegram retries
+non-2xx responses, as described in the [Bot API](https://core.telegram.org/bots/api#setwebhook).
+Before delivery processing, a missing or wrong secret returns `401`, an authenticated
+non-POST returns `405`, and invalid configuration in `serveWebhook` returns
+`503 CONFIG_INCOMPLETE`. These checks do not claim a delivery lease.
+
+The flow below starts after those checks, with a configured, authenticated POST:
 
 ```mermaid
 flowchart TD
-  Update([Telegram POST /api/webhook]) --> Secret{Secret header<br/>matches?}
-  Secret -->|no| Unauth([401])
-  Secret -->|yes| Owner{Private chat update<br/>from the owner?}
+  Update([Authenticated POST /api/webhook]) --> Owner{Valid body and private<br/>chat update from the owner?}
   Owner -->|no| Ignore([200: ignored])
   Owner -->|yes| Claim{Claim the<br/>update's lease}
   Claim -->|already done| Dup([200: duplicate])
@@ -25,8 +28,14 @@ flowchart TD
   Route -->|integration| Forward[POST to the integration<br/>with its bearer token, 20 s]
   Forward -->|2xx| Done([Complete: 200])
   Forward -->|4xx except 408, 429| Refused([Notice, complete: 200])
-  Forward -->|5xx, 408, 429, timeout| Retry([Release the lease: 503])
+  Forward -->|5xx, 408, 429, timeout| Retry([Release owned lease: 503])
 ```
+
+Malformed JSON, oversized bodies and invalid updates follow the ignored `200` path. A Redis
+failure during claim, quota or completion (including an expired lease), or a Telegram or
+network failure, returns `503 DELIVERY_UNAVAILABLE` with `Retry-After: 5`. The handler tries
+to release a lease only if this request claimed it; if release fails, the lease expires after
+60 s. `503 DELIVERY_IN_PROGRESS` leaves the other request's lease intact.
 
 ## Button Tap Across Both Apps
 
