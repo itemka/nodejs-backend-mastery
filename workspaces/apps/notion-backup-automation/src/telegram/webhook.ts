@@ -1,3 +1,4 @@
+import type { CallbackInput, IntegrationUpdate } from '@workspaces/telegram-contracts';
 import { telegramMessageSchema } from '@workspaces/telegram-contracts';
 import { createHash } from 'node:crypto';
 import { z } from 'zod';
@@ -15,7 +16,7 @@ import {
   statusMessage,
 } from '../adapters/telegram/message-formats.js';
 import type { TelegramClient, TelegramMessage } from '../adapters/telegram/telegram-client.js';
-import { isPermanentRefusal } from '../adapters/telegram/telegram-client.js';
+import { isPermanentHubRefusal } from '../adapters/telegram/telegram-client.js';
 import { ApplicationError } from '../application/application-error.js';
 import type { BackupApplicationService } from '../application/backup-service.js';
 import type { BackupJob } from '../domain/job.js';
@@ -26,8 +27,6 @@ import { isTerminal } from '../domain/statuses.js';
 import { jobView } from '../mcp/views.js';
 import type { IdGenerator } from '../shared/ids.js';
 import type { Logger } from '../shared/logger.js';
-import type { CallbackInput } from './updates.js';
-import { parseUpdate } from './updates.js';
 
 /** A confirmation button works for 10 minutes. */
 export const CONFIRM_TTL_SEC = 10 * 60;
@@ -54,10 +53,9 @@ export interface TelegramState {
 /**
  * - `handled`: a message or button from your chat was answered;
  * - `duplicate`: this `update_id` was handled before;
- * - `invalid`: not a Telegram update;
  * - `rejected`: the hub refused a reply for good (a 4xx), so the update is finished unanswered.
  */
-export type WebhookOutcome = 'duplicate' | 'handled' | 'invalid' | 'rejected';
+export type WebhookOutcome = 'duplicate' | 'handled' | 'rejected';
 
 export interface TelegramWebhookOptions {
   readonly client: Pick<TelegramClient, 'answerCallbackQuery' | 'removeButtons' | 'sendMessage'>;
@@ -114,20 +112,11 @@ export class TelegramWebhook {
   }
 
   /**
-   * A normalized update from the authenticated hub. Explicit application refusals are terminal;
-   * storage, scheduling and hub transport failures release the receipt and remain retryable.
+   * A normalized update from the authenticated hub, already checked against the contract.
+   * Explicit application refusals are terminal; storage, scheduling and hub transport failures
+   * release the receipt and remain retryable.
    */
-  async handle(body: unknown): Promise<WebhookOutcome> {
-    const parsed = parseUpdate(body);
-
-    if (parsed.outcome !== 'accepted') {
-      this.logger.info(`telegram.${parsed.outcome}`);
-
-      return parsed.outcome;
-    }
-
-    const { input, updateId } = parsed;
-
+  async handle({ input, updateId }: IntegrationUpdate): Promise<WebhookOutcome> {
     const claim = await this.state.claimUpdate(updateId);
 
     if (claim === 'completed') {
@@ -169,7 +158,7 @@ export class TelegramWebhook {
 
       return 'handled';
     } catch (error) {
-      if (!isPermanentRefusal(error)) {
+      if (!isPermanentHubRefusal(error)) {
         await this.state.releaseUpdate(updateId);
 
         throw error;
@@ -199,7 +188,7 @@ export class TelegramWebhook {
         return;
       }
 
-      if (!isPermanentRefusal(error)) {
+      if (!isPermanentHubRefusal(error)) {
         this.logger.error('telegram.failed', { error });
       }
 

@@ -12,11 +12,6 @@ export function secretEquals(actual: string | null, expected: string): boolean {
   );
 }
 
-/** A refusal that a resend cannot change: any 4xx except 408 (timeout) and 429 (rate limit). */
-export function isPermanentRefusal(status: number): boolean {
-  return status >= 400 && status < 500 && status !== 408 && status !== 429;
-}
-
 export function json(
   status: number,
   body: unknown,

@@ -52,6 +52,15 @@ export const hubOperationSchema = z.discriminatedUnion('action', [
   }),
 ]);
 
+/**
+ * Whether a status refuses a request for good: any 4xx except 408 (timeout) and 429 (rate
+ * limit). A resend gets the same answer, so the hub and its integrations finish the update
+ * instead of retrying it.
+ */
+export function isPermanentRefusal(status: number): boolean {
+  return status >= 400 && status < 500 && status !== 408 && status !== 429;
+}
+
 export type TelegramButton = z.infer<typeof telegramButtonSchema>;
 export interface TelegramMessage {
   readonly buttons?: readonly (readonly TelegramButton[])[];

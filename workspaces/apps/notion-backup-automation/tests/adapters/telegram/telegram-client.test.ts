@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import {
-  isPermanentRefusal,
+  isPermanentHubRefusal,
   TelegramApiError,
   TelegramClient,
 } from '../../../src/adapters/telegram/telegram-client.js';
@@ -152,7 +152,7 @@ describe('the Telegram hub client', () => {
   ])(
     'tells a final hub refusal from a retryable failure: $error.message',
     ({ error, permanent }) => {
-      expect(isPermanentRefusal(error)).toBe(permanent);
+      expect(isPermanentHubRefusal(error)).toBe(permanent);
     },
   );
 

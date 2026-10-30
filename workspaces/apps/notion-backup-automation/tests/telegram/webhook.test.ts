@@ -1,3 +1,4 @@
+import type { IntegrationUpdate } from '@workspaces/telegram-contracts';
 import { describe, expect, it, vi } from 'vitest';
 
 import { keyPrefixFor } from '../../src/adapters/persistence/keys.js';
@@ -121,21 +122,16 @@ describe('the Telegram webhook', () => {
 
   it('deduplicates a completed normalized update, including a lost HTTP response replay', async () => {
     const harness = webhookHarness();
-    const update = { input: { kind: 'message', text: '/status' }, updateId: 900 };
+    const update: IntegrationUpdate = {
+      input: { kind: 'message', text: '/status' },
+      updateId: 900,
+    };
 
     await expect(harness.webhook.handle(update)).resolves.toBe('handled');
     await expect(harness.webhook.handle(update)).resolves.toBe('duplicate');
     expect(replies(harness)).toHaveLength(1);
     expect(harness.redis.strings.get('{nba:test}:telegram:update:900')).toBe('done');
     expect(harness.redis.expirySeconds.get('{nba:test}:telegram:update:900')).toBe(172_800);
-  });
-
-  it('ignores anything that is not an update', async () => {
-    const harness = webhookHarness();
-
-    await expect(harness.webhook.handle({ hello: 'world' })).resolves.toBe('invalid');
-    await expect(harness.webhook.handle('not an update')).resolves.toBe('invalid');
-    expect(harness.telegram.calls).toEqual([]);
   });
 
   it('Status shows the tapped job and answers the button', async () => {
@@ -333,7 +329,7 @@ describe('the Telegram webhook', () => {
 
   it('answers a tap once, with its real notice, when the resent update succeeds', async () => {
     const harness = webhookHarness();
-    const update = {
+    const update: IntegrationUpdate = {
       input: { callbackId: 'cb-905', data: 'r:2026-10', kind: 'callback', messageId: 10 },
       updateId: 905,
     };
@@ -351,7 +347,7 @@ describe('the Telegram webhook', () => {
     'finishes an update whose reply the hub refuses for good (HTTP %i)',
     async (status) => {
       const harness = webhookHarness();
-      const update = {
+      const update: IntegrationUpdate = {
         input: { callbackId: 'cb-906', data: 's:', kind: 'callback', messageId: 10 },
         updateId: 906,
       };
@@ -391,7 +387,10 @@ describe('the Telegram webhook', () => {
 
   it('releases an update when the hub is temporarily unavailable so the same update can retry', async () => {
     const harness = webhookHarness();
-    const update = { input: { kind: 'message', text: '/status' }, updateId: 901 };
+    const update: IntegrationUpdate = {
+      input: { kind: 'message', text: '/status' },
+      updateId: 901,
+    };
 
     harness.telegram.on('sendMessage', () => telegramError(503, 'Unavailable'));
     await expect(harness.webhook.handle(update)).rejects.toMatchObject({ code: 'hub_503' });
@@ -407,7 +406,7 @@ describe('the Telegram webhook', () => {
 
     await waitingForLogin(harness);
     const retry = vi.spyOn(harness.service, 'retry');
-    const update = {
+    const update: IntegrationUpdate = {
       input: { callbackId: 'cb-902', data: 'r:2026-10', kind: 'callback', messageId: 10 },
       updateId: 902,
     };
@@ -440,7 +439,7 @@ describe('the Telegram webhook', () => {
 
       return originalSet(key, value, options);
     });
-    const update = {
+    const update: IntegrationUpdate = {
       input: { callbackId: 'cb-903', data: 'r:2026-10', kind: 'callback', messageId: 10 },
       updateId: 903,
     };
@@ -465,7 +464,7 @@ describe('the Telegram webhook', () => {
     const status = vi
       .spyOn(harness.service, 'status')
       .mockRejectedValueOnce(new Error('Redis unavailable'));
-    const update = {
+    const update: IntegrationUpdate = {
       input: { callbackId: 'cb-904', data: confirm ?? '', kind: 'callback', messageId: 11 },
       updateId: 904,
     };

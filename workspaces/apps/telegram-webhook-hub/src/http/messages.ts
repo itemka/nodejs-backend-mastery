@@ -1,9 +1,9 @@
-import { hubOperationSchema } from '@workspaces/telegram-contracts';
+import { hubOperationSchema, isPermanentRefusal } from '@workspaces/telegram-contracts';
 
 import { TelegramApiError } from '../adapters/telegram-client.js';
 import type { Integration } from '../config/env.js';
 import type { BotClient } from '../ports.js';
-import { isPermanentRefusal, json, readJson, secretEquals } from './shared.js';
+import { json, readJson, secretEquals } from './shared.js';
 
 export interface MessagesDeps {
   readonly chatId: string;
