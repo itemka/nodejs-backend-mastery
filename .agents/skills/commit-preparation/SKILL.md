@@ -5,7 +5,7 @@ metadata:
   created: '2026-04-25'
   status: 'baseline'
   portability: 'cross-tool'
-  last-reviewed: '2026-07-03'
+  last-reviewed: '2026-10-30'
 ---
 
 # Commit Preparation
@@ -32,7 +32,7 @@ Turn a current diff into logical commit guidance and handoff notes.
 
 - [conventional-commits](conventional-commits.md): commit type, scope, and example guidance.
 - [commit-message-template](commit-message-template.md): subject and body shape for detailed commit messages.
-- [pr-description skill](../pr-description/SKILL.md): PR title, summary, logical change breakdown, validation, risks, and rollback guidance.
+- [pr-description skill](../pr-description/SKILL.md): PR title, summary, changes list, and rules for extra sections.
 
 ## Related Role Specs
 
@@ -48,13 +48,11 @@ Turn a current diff into logical commit guidance and handoff notes.
 6. Keep the commit subject as a single Conventional Commit title; when a body is useful, use [commit-message-template](commit-message-template.md).
 7. Add a commit body only when it adds information the subject cannot carry; skip the body for single-purpose commits with self-explanatory subjects.
 8. If the body mentions more than one important change, prefer concise one-line bullets ordered by importance or logical sequence instead of a paragraph.
-9. For PR text, use [pr-description](../pr-description/SKILL.md) and [pr-readiness checklist](../../checklists/pr-readiness.md).
-10. Include motivation, user-visible changes, internal changes, validation, risks, rollback, screenshots, examples, and migration notes when relevant.
+9. For PR text, use [pr-description](../pr-description/SKILL.md) and [pr-readiness checklist](../../checklists/pr-readiness.md); the pr-description Extra Sections rules decide what goes in the PR body.
+10. Keep broader handoff notes outside the PR body. Report validation results, or say they were not provided; include motivation, user-visible changes, internal changes, risks, rollback, migration notes, and follow-ups when relevant.
 11. Call out breaking changes explicitly.
-12. Mention tests run, or say validation was not provided.
-13. Mention risks, migrations, rollback notes, and follow-ups.
-14. Do not stage, commit, open a PR, tag, or publish unless explicitly requested.
-15. Never push or otherwise mutate remote state from this workflow; if the user asks to push, stop and ask them to use an explicit delivery or GitHub workflow.
+12. Do not stage, commit, open a PR, tag, or publish unless explicitly requested.
+13. Never push or otherwise mutate remote state from this workflow; if the user asks to push, stop and ask them to use an explicit delivery or GitHub workflow.
 
 ## Output Format
 
