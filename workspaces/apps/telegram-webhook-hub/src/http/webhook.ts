@@ -6,7 +6,7 @@ import { z } from 'zod';
 import { TelegramApiError } from '../adapters/telegram-client.js';
 import type { Integration } from '../config/env.js';
 import type { BotClient, DeliveryState } from '../ports.js';
-import { isPermanentRefusal, json, readJson, secretEquals } from './shared.js';
+import { isPermanentRefusal, json, readJson } from './shared.js';
 
 const personSchema = z.object({ id: z.number().int().positive().max(Number.MAX_SAFE_INTEGER) });
 const chatSchema = z.object({
@@ -35,7 +35,6 @@ export interface WebhookDeps {
   readonly integrations: readonly Integration[];
   readonly legacyIntegrationId?: string;
   readonly state: DeliveryState;
-  readonly webhookSecret: string;
 }
 
 export function parseTelegramUpdate(body: unknown, chatId: string): IntegrationUpdate | undefined {
@@ -146,15 +145,8 @@ function helpPages(integrations: readonly Integration[]): string[] {
   return pages;
 }
 
+/** A `POST` whose webhook secret `serveWebhook` has already checked. */
 export async function handleWebhookRequest(request: Request, deps: WebhookDeps): Promise<Response> {
-  if (!secretEquals(request.headers.get('X-Telegram-Bot-Api-Secret-Token'), deps.webhookSecret)) {
-    return json(401, { code: 'UNAUTHORIZED' });
-  }
-
-  if (request.method !== 'POST') {
-    return json(405, { code: 'METHOD_NOT_ALLOWED' }, { Allow: 'POST' });
-  }
-
   const update = parseTelegramUpdate(await readJson(request), deps.chatId);
 
   if (update === undefined) {

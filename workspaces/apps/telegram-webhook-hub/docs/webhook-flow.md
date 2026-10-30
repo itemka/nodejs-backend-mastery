@@ -8,9 +8,9 @@ Workflow diagrams for the [telegram-webhook-hub workspace](../). Codes and limit
 
 Only successful responses acknowledge delivery (`200` in this handler). Telegram retries
 non-2xx responses, as described in the [Bot API](https://core.telegram.org/bots/api#setwebhook).
-Before delivery processing, a missing or wrong secret returns `401`, an authenticated
-non-POST returns `405`, and invalid configuration in `serveWebhook` returns
-`503 CONFIG_INCOMPLETE`. These checks do not claim a delivery lease.
+Before delivery processing, `serveWebhook` returns `401` for a missing or wrong secret, `405`
+for an authenticated non-POST, and `503 CONFIG_INCOMPLETE` for invalid configuration; the
+handler itself runs only after these checks. They do not claim a delivery lease.
 
 The flow below starts after those checks, with a configured, authenticated POST:
 
