@@ -11,7 +11,7 @@ extras only under the skill's [Extra Sections](SKILL.md#extra-sections) rules.
 
 ## Summary
 
-[One or two short sentences explaining the main change and why it is needed.]
+[Two or three sentences explaining the main change and why it is needed.]
 
 ## Changes
 
