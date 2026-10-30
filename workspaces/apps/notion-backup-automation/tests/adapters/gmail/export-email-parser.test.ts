@@ -310,6 +310,16 @@ describe('extractDownloadLink', () => {
     });
   });
 
+  it('reads a ">" inside an attribute and any named entity as HTML does', () => {
+    const html =
+      '<p title="a > b">You&rsquo;re set. Click <a title="1 > 0" href="https://mg.mail.notion.com/c/x">here</a> to&nbsp;download the export&hellip;</p>';
+
+    expect(extractDownloadLink(withHtml(html))).toEqual({
+      link: 'https://mg.mail.notion.com/c/x',
+      ok: true,
+    });
+  });
+
   it('fails without an HTML part', () => {
     const message = toGmailMessage(fixture);
 
