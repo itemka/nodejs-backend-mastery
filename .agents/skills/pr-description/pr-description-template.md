@@ -11,12 +11,14 @@ extras only under the skill's [Extra Sections](SKILL.md#extra-sections) rules.
 
 ## Summary
 
-[Two or three sentences explaining the main change and why it is needed.]
+[Explain the main change and why it is needed. Use one sentence for a simple
+change or two or three sentences when more context is useful.]
 
 ## Changes
 
-- [What changed and why it matters.]
-- [Another logical change, if needed.]
+- [What changed and why it matters. Use one sentence for a simple change or
+  two or three sentences when more explanation is useful.]
+- [Another logical change, if needed, with the same flexible sentence length.]
 
 <!-- Authoring guidance: do not copy this comment into the PR body.
 Extra sections are opt-in; follow SKILL.md's Extra Sections rules.

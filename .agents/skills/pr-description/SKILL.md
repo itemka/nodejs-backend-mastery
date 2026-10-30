@@ -81,9 +81,12 @@ and logical change breakdown.
   Keep technical terms only when they help the reader understand the change.
 - Title: short, one line, action-oriented, and specific. Use it as the GitHub PR
   title; do not repeat it as a heading in the PR body.
-- Summary: 2-3 sentences explaining the main change and why it is needed.
+- Summary: explain the main change and why it is needed. One sentence is enough
+  for a simple change; use 2-3 sentences when the scope needs more context.
 - Changes: always include a short bullet list, even for a small PR. Use one
-  bullet per logical change and focus on what changed for the reader.
+  bullet per logical change and focus on what changed for the reader. Each
+  bullet can be one sentence for a simple change or 2-3 sentences when more
+  explanation is useful.
 - Keep the summary and bullets brief and informative. Avoid repeating the same
   sentence in both sections or listing each file and implementation step.
 - Do not include code snippets, version tables, file lists, or long logs by default.
