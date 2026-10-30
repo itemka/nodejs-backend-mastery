@@ -1,43 +1,28 @@
 # PR Description Template
 
+Use these three parts for every PR, including small changes. Write in B2-level
+English with short sentences and familiar words. On GitHub, put the title in
+the title field. By default, put only the summary and changes in the body. Add
+extras only under the skill's [Extra Sections](SKILL.md#extra-sections) rules.
+
 ## Title
 
 [Short one-line title]
 
 ## Summary
 
-[Two or three sentences explaining what changed and why.]
+[Two or three sentences explaining the main change and why it is needed.]
 
 ## Changes
 
-[Logical area] - [What was done and why.]
+- [What changed and why it matters.]
+- [Another logical change, if needed.]
 
-[Logical area] - [What was done and why.]
-
-## Validation
-
-[Commands run and results, or state that validation was not run/provided.]
-
-## Risks
-
-[Known risks, weak coverage, behavior needing review, or omit when not relevant.]
-
-## Rollback
-
-[How to revert or disable the change, or omit when not relevant.]
-
-## Screenshots Or Examples
-
-[Screenshots, recordings, curl output, logs, or examples when relevant.]
-
-## Checklist
-
-- [ ] Diff is focused.
-- [ ] Tests or relevant validation were run or explicitly noted.
-- [ ] Docs or examples were updated when needed.
-- [ ] Migration or rollback notes are included when needed.
-- [ ] No secrets or local machine paths are included.
-
-For small single-concern PRs, omit the `Changes` section when the summary is
-enough. Omit optional sections that do not add review value unless the target
-repository's PR template requires them.
+<!-- Authoring guidance: do not copy this comment into the PR body.
+Extra sections are opt-in; follow SKILL.md's Extra Sections rules.
+Available on request: Validation, Risks, Rollback, Migrations, Screenshots Or
+Examples, Checklist, issue links, or another section the user asks for.
+Only essential merge or release notes may be added without a request.
+Screenshots, recordings, and examples always require an explicit request.
+Do not copy unused headings, placeholders, or empty checklist items.
+-->

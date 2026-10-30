@@ -5,7 +5,7 @@ metadata:
   created: '2026-07-03'
   status: 'baseline'
   portability: 'cross-tool'
-  last-reviewed: '2026-07-03'
+  last-reviewed: '2026-10-30'
 ---
 
 # PR Description
@@ -26,14 +26,14 @@ and logical change breakdown.
 - Current branch and git status.
 - Target branch or base branch when provided.
 - Branch commits, branch diff, staged diff, and unstaged diff.
-- Validation commands and results, when available.
-- Issue links, screenshots, migration notes, release constraints, risks, or
-  rollback notes when provided.
+- Extra sections the user explicitly requests.
+- Validation results, issue links, migration notes, or release constraints when
+  needed to understand the change or a requested section.
 
 ## Supporting Files
 
 - [pr-description-template](pr-description-template.md): concise PR title,
-  summary, logical changes, and optional review sections.
+  summary, and changes, plus guidance on requested extras.
 - [pr-readiness checklist](../../checklists/pr-readiness.md): final readiness
   checks before presenting or opening a PR.
 
@@ -45,7 +45,7 @@ and logical change breakdown.
 ## Related Role Specs
 
 - [delivery](../../agents/delivery.md): load for full handoff work that includes
-  PR text, validation notes, risks, rollback, and follow-ups.
+  PR text and other handoff notes. Keep the PR body within this skill's output rules.
 
 ## Workflow
 
@@ -70,33 +70,48 @@ and logical change breakdown.
    and cleanup commits into the logical change they belong to.
 7. Group changes by logical review area, not by file path. Each area should say
    what changed and why it matters.
-8. Capture validation from the user context or commands already run. If
-   validation is unknown, say it was not provided or not run.
-9. Use [pr-description-template](pr-description-template.md) for the output
-   shape. Keep optional sections only when they add review value or the repo's
-   PR template requires them.
+8. Use [pr-description-template](pr-description-template.md) for the output
+   shape. Always include the title, summary, and changes.
+9. Add extra sections only under the rules below. Report validation and other
+   handoff details outside the PR body unless they meet those rules.
 
 ## Writing Rules
 
-- Title: short, one line, action-oriented, and specific.
-- Summary: 2-3 sentences explaining what changed and why.
-- Changes: one entry per logical area, formatted as `[Area] - [what was done and why]`.
-- For small single-concern PRs, omit the Changes section when the Summary is
-  enough.
-- Do not include code snippets, version tables, or file lists.
-- Do not paste long logs; summarize validation results.
+- Use B2-level English: short sentences, familiar words, and direct explanations.
+  Keep technical terms only when they help the reader understand the change.
+- Title: short, one line, action-oriented, and specific. Use it as the GitHub PR
+  title; do not repeat it as a heading in the PR body.
+- Summary: 2-3 sentences explaining the main change and why it is needed.
+- Changes: always include a short bullet list, even for a small PR. Use one
+  bullet per logical change and focus on what changed for the reader.
+- Keep the summary and bullets brief and informative. Avoid repeating the same
+  sentence in both sections or listing each file and implementation step.
+- Do not include code snippets, version tables, file lists, or long logs by default.
 - Do not include secrets, private URLs, credentials, or local absolute paths.
-- Call out breaking changes, migrations, notable risks, and rollback notes when
-  relevant.
+
+## Extra Sections
+
+- Default to only the title, summary, and changes. These rules also apply when
+  PR text is part of a larger commit or delivery handoff.
+- Add validation, risks, rollback, migrations, checklists, issue links, or other
+  sections when the user explicitly asks for them. Include only the requested
+  extras; available context or a template placeholder is not a request.
+- CI reports routine validation. Keep commands, results, and missing-check notes
+  outside the PR body unless the user asks for a Validation section.
+- In rare cases, include a brief essential note without a request if leaving it
+  out would prevent a safe merge or release, such as a breaking change or a
+  required migration step. Put it in the summary or changes when it fits; add a
+  separate section only if necessary. Routine risk or rollback notes do not qualify.
+- Add screenshots, recordings, and examples only when the user explicitly asks.
+- An existing repository PR template does not make extra sections mandatory by
+  itself. Omit unused headings, placeholders, and empty checklist items.
 
 ## Output Format
 
 - Title.
 - Summary.
-- Changes, unless the PR is a small single-concern change.
-- Validation, when known or worth calling out.
-- Risks, rollback, screenshots, examples, migrations, or checklist items only
-  when relevant.
+- Changes.
+- Extra sections only under the rules above.
 
 ## Safety Rules
 
