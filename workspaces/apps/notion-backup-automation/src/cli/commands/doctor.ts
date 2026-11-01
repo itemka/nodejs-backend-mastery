@@ -126,7 +126,7 @@ async function checkToken(tokens: OAuthTokenProvider): Promise<CheckResult> {
   } catch (error) {
     const fix =
       error instanceof IntegrationError && error.code === 'GOOGLE_AUTH_REQUIRED'
-        ? '. A Testing token expires after 7 days: run auth:google'
+        ? '. The token was revoked or has expired: run auth:google'
         : '';
 
     return { detail: `${describe(error)}${fix}`, name: 'google', status: 'fail' };

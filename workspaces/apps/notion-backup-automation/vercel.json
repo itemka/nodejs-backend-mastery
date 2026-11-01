@@ -22,6 +22,18 @@
   },
   "rewrites": [
     {
+      "source": "/",
+      "destination": "/api/home"
+    },
+    {
+      "source": "/privacy",
+      "destination": "/api/privacy"
+    },
+    {
+      "source": "/terms",
+      "destination": "/api/terms"
+    },
+    {
       "source": "/mcp",
       "destination": "/api/mcp"
     }

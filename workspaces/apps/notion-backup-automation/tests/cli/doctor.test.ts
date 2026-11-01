@@ -236,7 +236,7 @@ describe('doctor', () => {
     await expect(main(['doctor'], cli.context)).resolves.toBe(1);
 
     expect(cli.text()).toContain(
-      '✗ google          GOOGLE_AUTH_REQUIRED: Google rejected the refresh token (invalid_grant). A Testing token expires after 7 days: run auth:google',
+      '✗ google          GOOGLE_AUTH_REQUIRED: Google rejected the refresh token (invalid_grant). The token was revoked or has expired: run auth:google',
     );
     expect(cli.text()).toContain('- gmail           needs a working Google token');
   });

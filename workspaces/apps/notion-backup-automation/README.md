@@ -52,6 +52,7 @@ trigger). Structure: the [C4 model](../../../docs/architecture/workspace.dsl).
 | `POST /mcp` (→ `/api/mcp`)        | MCP client, `Bearer $MCP_AUTH_TOKEN`               | Seven `backup_*` tools. Publishes wakeups, never runs steps. |
 | `POST /api/integrations/telegram` | telegram-webhook-hub, `Bearer $TELEGRAM_HUB_TOKEN` | Status, retry, cancel and login help from Telegram.          |
 | `GET /api/health`                 | Public                                             | `{"ok":true,"version":"<short SHA>"}`, nothing else.         |
+| `GET /`, `/privacy`, `/terms`     | Public, also on previews                           | Fixed text for Google's Branding page. Read no config.       |
 
 The worker and the cron load Playwright and serverless Chromium. `/mcp` and the Telegram
 integration import `src/config/control-containers.ts` only, so they stay small;
@@ -578,8 +579,11 @@ All variables are in [.env.example](.env.example) with comments; defaults and va
 `GEMINI_API_KEY` is required by the worker and the cron while `AGENT_MODEL_PROVIDER=gemini`.
 The model, limits and diagnostics are documented under [Supervisor](#supervisor).
 
-While the Google OAuth app is in **Testing**, refresh tokens expire after 7 days: when `doctor`
-reports `GOOGLE_AUTH_REQUIRED`, run `auth:google` again and update Vercel.
+Check the Google OAuth app's status under Google Auth Platform → Audience. While it is **Testing**,
+refresh tokens expire after 7 days. Once it is **In production** and unverified, consent shows
+"Google hasn't verified this app" (Advanced, then continue), and a token lasts until it is revoked,
+your Google password changes, or it goes 6 months unused; monthly backups keep it active. When
+`doctor` reports `GOOGLE_AUTH_REQUIRED`, follow the Google login fix in [Recovery](#recovery).
 
 ## Deployment
 
