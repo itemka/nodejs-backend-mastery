@@ -70,7 +70,7 @@ describe('auth:google', () => {
     expect(text()).toContain('token    1//0g…xYz4');
     expect(text()).toContain('mailbox  a***@example.com');
     expect(text()).toContain('scopes   gmail.readonly, drive.file');
-    expect(text()).toContain('labelled "temporary, Testing, 2026-10-18"');
+    expect(text()).toContain('labelled "issued 2026-10-18"');
     expect(text()).not.toContain(fakeCredentials.refreshToken);
     expect(text()).not.toContain(fakeCredentials.accessToken);
     expect(text()).not.toContain('artsem@');
@@ -89,7 +89,7 @@ describe('auth:google', () => {
 
     await main(['auth:google'], context);
 
-    expect(text()).toContain('labelled "temporary, Testing, 2026-10-18"');
+    expect(text()).toContain('labelled "issued 2026-10-18"');
   });
 
   it('prints the token itself only with --print', async () => {

@@ -41,7 +41,10 @@ export async function runAuthGoogle(
   });
 
   context.print(ui.heading('Google consent: gmail.readonly and drive.file'));
-  context.print('Sign in as the test user that owns the Gmail and Drive data, and allow both.');
+  context.print('Sign in as the account that owns the Gmail and Drive data, and allow both.');
+  context.print('First check that Google Auth Platform, Audience says "In production".');
+  context.print('While it says "Testing", the new token expires after 7 days.');
+  context.print('On "Google hasn\'t verified this app", choose Advanced, then continue.');
 
   const grant = await authorizeOffline(client, { openBrowser: context.openBrowser });
 
@@ -64,13 +67,12 @@ export async function runAuthGoogle(
 
   context.print(ui.heading('Next'));
   context.print(
-    `  1. Copy the token into 1Password ("Notion Backup Agent"), labelled "temporary, Testing, ${today}".`,
+    `  1. Replace the token in 1Password ("Notion Backup Agent"), labelled "issued ${today}".`,
   );
   context.print('     Run with --print to show it, or read it from .env.local.');
   context.print(
-    '  2. Add it to Vercel as GOOGLE_REFRESH_TOKEN (Production, Sensitive) in Step 22.',
+    '  2. Replace GOOGLE_REFRESH_TOKEN in Vercel (Production, Sensitive), then Redeploy.',
   );
-  context.print('  While the OAuth app is in Testing, the token expires after 7 days.');
 
   return 0;
 }
