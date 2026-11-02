@@ -660,6 +660,8 @@ Build notes:
    acceptable). Set `AGENT_MODEL_PROVIDER=gemini` and the chosen `AGENT_MODEL_NAME` in
    Production and redeploy. Call `backup_health` with `checkAgent: true` from the MCP client;
    expect `agent.lastCheck.ok` to be `true`.
+8. After an acceptance backup ends as `COMPLETE`, set `AUTO_START_ENABLED=true` in Production and
+   **Redeploy**; expect `autoStartEnabled: true` from `backup_health`.
 
 ### Deployment Cleanup
 
