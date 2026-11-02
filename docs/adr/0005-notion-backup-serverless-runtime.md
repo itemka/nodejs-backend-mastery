@@ -71,16 +71,22 @@ Run the app as plain Vercel Hobby functions in `fra1`, with no framework and no 
   uses its retry budget, then reports. Telegram and Gemini are optional: a failed notification is
   only logged, and without the model an incident goes straight to the owner.
 
-Open when recorded (2026-10-30), to be resolved before this ADR is accepted:
+Open when recorded (2026-10-30), to be resolved before this ADR is accepted. Status on 2026-11-02:
 
-- **No full-size backup has run on this runtime.** The only real export in the transfer spike was
-  1 KB, and exports since 2026-10-18 hold 3 files against 198 on 2026-10-01; the cause is still
-  being confirmed. Download speed at full size is unmeasured: the 150 s target needs about 2 MB/s
-  from Notion's file host.
-- **The final Google token is not in place.** Publishing the unverified OAuth app is expected to
-  work under personal use; if Google refuses it, Testing tokens expire after 7 days and unattended
-  monthly runs are not possible.
-- **Auto-start is off** (`AUTO_START_ENABLED=false`), so no month has yet run by itself.
+- **Resolved: a real backup has run on this runtime.** Job `2026-10-r3` stored 190 files (7.9 MB)
+  on 2026-10-31, and the acceptance job `2026-11` stored 189 files on 2026-11-02 with the final
+  Google token. In both, the download took about 2 s and the whole transfer 7–8 s, too small a
+  sample to predict a ZIP near the 250 MiB limit. The 3-file exports came from Notion's "Include
+  private pages" toggle being off; the app now turns it on and checks it. Three measured export
+  emails took about 4 h 20 min to arrive and a fourth about 8 h 21 min, so a job usually sends the
+  late-email notice.
+- **Mostly resolved: the final Google token is in place.** Google published the OAuth app without
+  verification on 2026-11-01, once it had a home page, privacy policy, terms and an authorized
+  domain. The daily Google probe still passing after 2026-11-08 confirms the token has no 7-day
+  limit.
+- **Mostly resolved: auto-start is on** (`AUTO_START_ENABLED=true` since 2026-11-02, after the
+  acceptance job). No month has yet started by itself; the first automatic run is due on
+  2026-12-01.
 - **The fresh-session attack** that the [ADR process](./README.md#writing-an-adr) asks for has not
   been run.
 
