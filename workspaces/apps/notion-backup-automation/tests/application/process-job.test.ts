@@ -670,6 +670,30 @@ describe('ProcessJobUseCase: the export size check', () => {
       'export.size · no earlier backup to compare with',
     );
   });
+
+  it('marks a backup with nothing to compare with as the first, and its notice asks for a look (2026-11-03)', async () => {
+    const harness = backupHarness();
+
+    await harness.service.start();
+    await harness.drain();
+
+    const job = await storedJob(harness, '2026-10');
+
+    expect(job.result?.firstBackup).toBe(true);
+    expect(harness.sent).toContainEqual({
+      kind: 'success',
+      notification: expect.objectContaining({ firstBackup: true }) as unknown,
+    });
+    await expect(eventTexts(harness)).resolves.toContainEqual(
+      expect.stringMatching(/^✅ Notion backup completed · job 2026-10 · .* · First backup here/),
+    );
+  });
+
+  it('does not mark a backup that had an earlier one to compare with', async () => {
+    const { job } = await shrinkRun({ entryCount: 198, sizeBytes: 8_907_221 });
+
+    expect(job.result?.firstBackup).toBeUndefined();
+  });
 });
 
 describe('ProcessJobUseCase: duplicate and stale deliveries', () => {

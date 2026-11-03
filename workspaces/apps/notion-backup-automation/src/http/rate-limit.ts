@@ -14,6 +14,12 @@ export const rateLimits = {
   mcpCheckAgent: { limit: 5, windowSec: HOUR_SEC },
   /** `backup_process` per job: each call publishes a QStash message. */
   mcpProcess: { limit: 10, windowSec: HOUR_SEC },
+  /**
+   * `/oauth/google/reauth`: the fixed re-login link, open to anyone who has it. Each start stores
+   * a sign-in state for 15 minutes, so it counts per caller IP, and all callers share a ceiling.
+   */
+  oauthReauth: { limit: 10, windowSec: HOUR_SEC },
+  oauthReauthTotal: { limit: 100, windowSec: HOUR_SEC },
 } as const satisfies Record<string, RateLimit>;
 
 /** 429 `RATE_LIMITED`, with the seconds until the window ends. */

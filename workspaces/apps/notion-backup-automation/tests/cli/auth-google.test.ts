@@ -1,7 +1,11 @@
 import { readFile, stat, writeFile } from 'node:fs/promises';
 import { describe, expect, it } from 'vitest';
 
+import { GoogleRefreshTokenStore } from '../../src/adapters/google/refresh-token-store.js';
+import { keyPrefixFor } from '../../src/adapters/persistence/keys.js';
+import { RedisSecretStore } from '../../src/adapters/persistence/redis-secret-store.js';
 import { main } from '../../src/cli/main.js';
+import { createEnvelopeKey } from '../../src/shared/envelope-crypto.js';
 import { testCli } from '../support/cli-context.js';
 import {
   browserThatConsents,
@@ -159,5 +163,45 @@ describe('auth:google --pick-folders', () => {
     expect(text()).toContain(
       'Pick the configured root, or correct GOOGLE_DRIVE_BACKUP_ROOT_FOLDER_ID.',
     );
+  });
+});
+
+describe('auth:google and the stored token (Phase 13)', () => {
+  const storeEnv = {
+    ...clientEnv,
+    APP_ENCRYPTION_KEY: Buffer.alloc(32, 7).toString('base64'),
+    APP_ENV: 'prod',
+    UPSTASH_REDIS_REST_TOKEN: 'fake-redis-token',
+    UPSTASH_REDIS_REST_URL: 'https://redis.example',
+  };
+
+  it('also seals the token for APP_ENV, as the desktop client’s, so no redeploy is needed', async () => {
+    const { context, redis, text } = await setup(fakeGoogle(), storeEnv);
+
+    await expect(main(['auth:google'], context)).resolves.toBe(0);
+
+    const stored = await new GoogleRefreshTokenStore(
+      new RedisSecretStore({
+        appEnv: 'prod',
+        key: createEnvelopeKey(storeEnv.APP_ENCRYPTION_KEY),
+        keyPrefix: keyPrefixFor('prod'),
+        redis,
+      }),
+    ).read();
+
+    expect(stored).toMatchObject({ client: 'desktop', scopes: [GMAIL_SCOPE, DRIVE_SCOPE] });
+    expect(stored?.refreshToken.reveal()).toBe(fakeCredentials.refreshToken);
+    expect(text()).toContain('Saved to Redis for APP_ENV=prod (client: desktop)');
+    expect(text()).toContain('Nothing to redeploy');
+  });
+
+  it('says so when the Redis settings are missing, and still writes .env.local', async () => {
+    const { context, redis, text } = await setup();
+
+    await expect(main(['auth:google'], context)).resolves.toBe(0);
+
+    expect(redis.strings.size).toBe(0);
+    expect(text()).toContain('Not saved to Redis');
+    expect(text()).toContain('run again with APP_ENV=prod');
   });
 });

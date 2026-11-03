@@ -10,6 +10,7 @@ import {
   jobSummarySchema,
   jobView,
   jobViewSchema,
+  resultViewSchema,
 } from '../../src/mcp/views.js';
 import { TEST_TOKEN } from '../support/fixture-secrets.js';
 import { attentionJob, completeJob, retryableJob, waitingJob } from '../support/jobs.js';
@@ -108,6 +109,14 @@ describe('the view mappers', () => {
     });
   });
 
+  it('say when a backup was the first, so nothing checked its size (2026-11-03)', () => {
+    const job = completeJob();
+    const view = jobView({ ...job, result: { ...job.result!, firstBackup: true } }, []);
+
+    expect(view.result).toMatchObject({ firstBackup: true });
+    expect(resultViewSchema.parse(view.result)).toEqual(view.result);
+  });
+
   it('show what needs attention with the catalog’s text, also for a retrying job', () => {
     expect(jobView(attentionJob('GOOGLE_AUTH_REQUIRED'), []).attention).toMatchObject({
       code: 'GOOGLE_AUTH_REQUIRED',
@@ -151,7 +160,7 @@ describe('the view mappers', () => {
       driveRoot: { checkedAt: '2026-10-01T04:00:00.000Z', mode: 'existing', ok: true },
       heartbeat: { configured: true },
       notifications: defaultSettings.notifications,
-      qstash: { lastPingAt: '2026-10-01T03:00:00.000Z' },
+      qstash: { lastSmokeTestAt: '2026-10-01T03:00:00.000Z' },
     });
     expect(JSON.stringify(view)).not.toContain('nonce_secret');
   });
@@ -185,5 +194,30 @@ describe('healthSettingsFrom', () => {
       agent: { configured: true, provider: 'none' },
       notifications: { channels: ['console', 'telegram'], missing: [] },
     });
+  });
+});
+
+describe('attention.fixUrl (Phase 13)', () => {
+  const REAUTH = 'https://nba.example.vercel.app/oauth/google/reauth';
+
+  it('links the phone re-login for GOOGLE_AUTH_REQUIRED once the link exists', () => {
+    expect(
+      jobView(attentionJob('GOOGLE_AUTH_REQUIRED'), [], { googleReauthUrl: REAUTH }).attention,
+    ).toMatchObject({ code: 'GOOGLE_AUTH_REQUIRED', fixUrl: REAUTH });
+    expect(jobView(attentionJob('GOOGLE_AUTH_REQUIRED'), []).attention).not.toHaveProperty(
+      'fixUrl',
+    );
+    expect(
+      jobView(attentionJob('NOTION_SESSION_EXPIRED'), [], { googleReauthUrl: REAUTH }).attention,
+    ).not.toHaveProperty('fixUrl');
+  });
+
+  it('is the only URL a view may hold, even beside poisoned events', () => {
+    const view = jobView(attentionJob('GOOGLE_AUTH_REQUIRED'), poisonedEvents, {
+      googleReauthUrl: REAUTH,
+    });
+
+    expect(jobViewSchema.parse(view)).toEqual(view);
+    expect(JSON.stringify(view).match(/https?:\/\/[^\s"'<>]+/g)).toEqual([REAUTH]);
   });
 });

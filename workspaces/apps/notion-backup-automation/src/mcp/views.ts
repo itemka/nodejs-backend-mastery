@@ -36,6 +36,8 @@ export const resultViewSchema = z.object({
   driveFileId: z.string(),
   entryCount: z.number().int().optional(),
   fileName: z.string(),
+  /** Set when no earlier completed backup existed to compare its size with. */
+  firstBackup: z.literal(true).optional(),
   sha256: z.string(),
   /** Set when the backup is much smaller than the last completed one. */
   shrink: exportShrinkSchema.optional(),
@@ -45,6 +47,11 @@ export const resultViewSchema = z.object({
 /** Why the job waits or failed, in the catalog's static words. */
 export const attentionViewSchema = z.object({
   code: errorCodeSchema,
+  /**
+   * `GOOGLE_AUTH_REQUIRED` only, once the Web client exists: the fixed phone re-login link,
+   * `<APP_BASE_URL>/oauth/google/reauth`. Only the owner's Google account can finish it.
+   */
+  fixUrl: z.url().optional(),
   howToFix: z.string(),
   reason: z.string(),
   stage: stageSchema,
@@ -119,10 +126,22 @@ export const healthViewSchema = z.object({
     missing: z.array(z.string()),
   }),
   notionSession: healthSnapshotSchema.shape.notionSession,
-  qstash: z.object({ lastPingAt: timestamp.optional() }),
+  qstash: z.object({
+    /**
+     * When the last `smoke:qstash` ping reached the worker. Only that manual command sends one,
+     * so an old value says nothing about QStash's health; the wakeups of each job do.
+     */
+    lastSmokeTestAt: timestamp.optional(),
+  }),
 });
 
 export type HealthView = z.infer<typeof healthViewSchema>;
+
+/** What a job view may add beside the job's own facts. */
+export interface JobViewOptions {
+  /** `googleReauthUrl(env)`: the `fixUrl` of `GOOGLE_AUTH_REQUIRED`. */
+  readonly googleReauthUrl?: string | undefined;
+}
 
 /** The configuration `backup_health` reports beside the probe results. */
 export interface HealthSettings {
@@ -157,7 +176,10 @@ export function eventView(event: JobEvent): EventView {
  * cleaned before it is stored. An incident the supervisor is retrying stays on the job while it
  * works, but only a job that needs attention reports it.
  */
-export function attentionView(job: BackupJob): AttentionView | undefined {
+export function attentionView(
+  job: BackupJob,
+  options: JobViewOptions = {},
+): AttentionView | undefined {
   const incident = job.status === 'NEEDS_ATTENTION' ? job.incident : undefined;
   const source =
     incident ??
@@ -169,19 +191,25 @@ export function attentionView(job: BackupJob): AttentionView | undefined {
 
   const { description, howToFix } = describeError(source.code);
   const summary = incident?.supervisorSummary;
+  const fixUrl = source.code === 'GOOGLE_AUTH_REQUIRED' ? options.googleReauthUrl : undefined;
 
   return {
     code: source.code,
     howToFix,
     reason: description,
     stage: source.stage,
+    ...(fixUrl === undefined ? {} : { fixUrl }),
     ...(summary === undefined ? {} : { supervisorSummary: cleanText(summary) }),
   };
 }
 
 /** `backup_status`: the job and its newest events, oldest first. */
-export function jobView(job: BackupJob, events: readonly JobEvent[]): JobView {
-  const attention = attentionView(job);
+export function jobView(
+  job: BackupJob,
+  events: readonly JobEvent[],
+  options: JobViewOptions = {},
+): JobView {
+  const attention = attentionView(job, options);
   const stage = stageOf(job);
   const notBefore = isTerminal(job.status) ? undefined : job.schedule?.notBefore;
 
@@ -239,7 +267,7 @@ export function healthView(snapshot: HealthSnapshot, settings: HealthSettings): 
     autoStartEnabled: settings.autoStartEnabled,
     heartbeat: { configured: settings.heartbeatConfigured },
     notifications: settings.notifications,
-    qstash: qstashPing === undefined ? {} : { lastPingAt: qstashPing.receivedAt },
+    qstash: qstashPing === undefined ? {} : { lastSmokeTestAt: qstashPing.receivedAt },
     ...(cron === undefined ? {} : { lastCron: cron }),
     ...(driveRoot === undefined ? {} : { driveRoot }),
     ...(google === undefined ? {} : { google }),
@@ -291,5 +319,6 @@ function resultView(result: NonNullable<BackupJob['result']>): z.infer<typeof re
     sizeBytes: result.sizeBytes,
     ...(result.entryCount === undefined ? {} : { entryCount: result.entryCount }),
     ...(result.shrink === undefined ? {} : { shrink: result.shrink }),
+    ...(result.firstBackup === undefined ? {} : { firstBackup: result.firstBackup }),
   };
 }

@@ -4,8 +4,8 @@ import { describe, expect, it } from 'vitest';
 
 import { checkDriveAccess } from '../../src/adapters/drive/drive-access-check.js';
 import { GoogleApiClient } from '../../src/adapters/google/google-api-client.js';
-import { OAuthTokenProvider } from '../../src/adapters/google/token-provider.js';
 import { driveEnvSchema, loadEnv } from '../../src/config/env.js';
+import { createTokenProvider } from '../../src/config/google-containers.js';
 import { periodFor, yearOfPeriod } from '../../src/domain/period.js';
 
 /*
@@ -26,11 +26,8 @@ describe.runIf(enabled)('live Drive access (S6)', () => {
     const env = loadEnv(driveEnvSchema, process.env);
     const api = new GoogleApiClient({
       service: 'drive',
-      tokenProvider: new OAuthTokenProvider({
-        clientId: env.GOOGLE_CLIENT_ID,
-        clientSecret: env.GOOGLE_CLIENT_SECRET,
-        refreshToken: env.GOOGLE_REFRESH_TOKEN,
-      }),
+      // GOOGLE_REFRESH_TOKEN with the Desktop client; no Redis here.
+      tokenProvider: createTokenProvider(env, {}),
     });
     const year = yearOfPeriod(periodFor(new Date(), env.BACKUP_TIME_ZONE));
     const report = await checkDriveAccess({

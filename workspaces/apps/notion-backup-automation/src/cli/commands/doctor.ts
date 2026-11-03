@@ -5,7 +5,10 @@ import { EXPORT_EMAIL } from '../../adapters/gmail/export-email-parser.js';
 import { GmailApi } from '../../adapters/gmail/gmail-api.js';
 import { GmailExportEmailFinder } from '../../adapters/gmail/gmail-export-email-finder.js';
 import { shortScope } from '../../adapters/google/oauth-client.js';
-import type { OAuthTokenProvider } from '../../adapters/google/token-provider.js';
+import type {
+  GoogleTokenSource,
+  StoredTokenProvider,
+} from '../../adapters/google/token-provider.js';
 import { keyPrefixFor } from '../../adapters/persistence/keys.js';
 import { RedisSecretStore } from '../../adapters/persistence/redis-secret-store.js';
 import { TelegramApiError, TelegramClient } from '../../adapters/telegram/telegram-client.js';
@@ -114,23 +117,31 @@ async function checkGoogle(
   ];
 }
 
-async function checkToken(tokens: OAuthTokenProvider): Promise<CheckResult> {
+/** The token the worker uses: the stored envelope of `APP_ENV`, or `GOOGLE_REFRESH_TOKEN`. */
+async function checkToken(
+  tokens: Pick<StoredTokenProvider, 'grantedScopes' | 'source'>,
+): Promise<CheckResult> {
   try {
     const scopes = await tokens.grantedScopes();
+    const source = await tokens.source();
 
     return {
-      detail: `token refreshed, scopes ${scopes.map((scope) => shortScope(scope)).join(', ')}`,
+      detail: `token refreshed from ${sourceText(source)}, scopes ${scopes.map((scope) => shortScope(scope)).join(', ')}`,
       name: 'google',
       status: 'ok',
     };
   } catch (error) {
     const fix =
       error instanceof IntegrationError && error.code === 'GOOGLE_AUTH_REQUIRED'
-        ? '. The token was revoked or has expired: run auth:google'
+        ? '. Sign in again: run auth:google, or renew it from the phone (Fix login)'
         : '';
 
     return { detail: `${describe(error)}${fix}`, name: 'google', status: 'fail' };
   }
+}
+
+function sourceText({ client, stored }: GoogleTokenSource): string {
+  return stored ? `the stored envelope (${client} client)` : 'GOOGLE_REFRESH_TOKEN';
 }
 
 async function checkMailbox(gmail: GmailApi): Promise<CheckResult> {

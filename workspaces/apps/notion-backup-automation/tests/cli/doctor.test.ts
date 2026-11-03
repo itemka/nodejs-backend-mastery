@@ -1,12 +1,19 @@
 import { randomBytes } from 'node:crypto';
 import { describe, expect, it } from 'vitest';
 
+import { GoogleRefreshTokenStore } from '../../src/adapters/google/refresh-token-store.js';
 import { keyPrefixFor } from '../../src/adapters/persistence/keys.js';
 import { RedisSecretStore } from '../../src/adapters/persistence/redis-secret-store.js';
 import { main } from '../../src/cli/main.js';
 import type { EnvelopeMeta } from '../../src/shared/envelope-crypto.js';
 import { createEnvelopeKey } from '../../src/shared/envelope-crypto.js';
 import { testCli } from '../support/cli-context.js';
+import {
+  refreshWebTokenOnly,
+  WEB_CLIENT_ID,
+  WEB_CLIENT_SECRET,
+  WEB_REFRESH_TOKEN,
+} from '../support/fake-google-identity.js';
 import {
   DRIVE_SCOPE,
   fakeCredentials,
@@ -81,6 +88,75 @@ async function storeSession(cli: Awaited<ReturnType<typeof setup>>, meta: Envelo
   );
 }
 
+/** A phone re-login's token, as `/oauth/google/callback` stores it for `APP_ENV=dev`. */
+async function storeWebToken(cli: Awaited<ReturnType<typeof setup>>) {
+  await new GoogleRefreshTokenStore(
+    new RedisSecretStore({
+      appEnv: 'dev',
+      key: createEnvelopeKey(encryptionKey),
+      keyPrefix: keyPrefixFor('dev'),
+      redis: cli.redis,
+    }),
+  ).save({ client: 'web', refreshToken: WEB_REFRESH_TOKEN, scopes: [GMAIL_SCOPE, DRIVE_SCOPE] });
+}
+
+describe('doctor after a phone re-login (review, 2026-11-02)', () => {
+  const withWebClient = {
+    ...fullEnv,
+    GOOGLE_WEB_CLIENT_ID: WEB_CLIENT_ID,
+    GOOGLE_WEB_CLIENT_SECRET: WEB_CLIENT_SECRET,
+  };
+
+  it('tests the token the phone stored, not the expired GOOGLE_REFRESH_TOKEN', async () => {
+    const cli = await setup(refreshWebTokenOnly(healthyGoogle()), withWebClient);
+
+    await storeSession(cli);
+    await storeWebToken(cli);
+
+    await expect(main(['doctor'], cli.context)).resolves.toBe(0);
+    expect(cli.output).toContain(
+      '✓ google          token refreshed from the stored envelope (web client), scopes gmail.readonly, drive.file',
+    );
+    expect(cli.output).toContain(
+      '✓ drive root      root visible: "Full Workspace", canAddChildren no',
+    );
+  });
+
+  it('runs on the stored token alone, without GOOGLE_REFRESH_TOKEN (review, 2026-11-03)', async () => {
+    const { GOOGLE_REFRESH_TOKEN: _token, ...withoutToken } = withWebClient;
+    const cli = await setup(refreshWebTokenOnly(healthyGoogle()), withoutToken);
+
+    await storeSession(cli);
+    await storeWebToken(cli);
+
+    await expect(main(['doctor'], cli.context)).resolves.toBe(0);
+    expect(cli.output).toContain(
+      '✓ google          token refreshed from the stored envelope (web client), scopes gmail.readonly, drive.file',
+    );
+  });
+
+  it('names what is missing with neither a stored token nor GOOGLE_REFRESH_TOKEN', async () => {
+    const { GOOGLE_REFRESH_TOKEN: _token, ...withoutToken } = fullEnv;
+    const cli = await setup(healthyGoogle(), withoutToken);
+
+    await expect(main(['doctor'], cli.context)).resolves.toBe(1);
+    expect(cli.text()).toContain(
+      'GOOGLE_AUTH_REQUIRED: No Google refresh token: none is stored for APP_ENV, and GOOGLE_REFRESH_TOKEN is unset. Sign in again: run auth:google',
+    );
+  });
+
+  it('names the Web client it needs when .env.local lacks it', async () => {
+    const cli = await setup(refreshWebTokenOnly(healthyGoogle()));
+
+    await storeWebToken(cli);
+
+    await expect(main(['doctor'], cli.context)).resolves.toBe(1);
+    expect(cli.text()).toContain(
+      'CONFIG_INCOMPLETE: The stored Google refresh token needs the web OAuth client',
+    );
+  });
+});
+
 describe('doctor', () => {
   it('reports every dependency as healthy, with masked or content-free details', async () => {
     const cli = await setup();
@@ -90,7 +166,7 @@ describe('doctor', () => {
     await expect(main(['doctor'], cli.context)).resolves.toBe(0);
 
     expect(cli.output.slice(1)).toEqual([
-      '✓ google          token refreshed, scopes gmail.readonly, drive.file',
+      '✓ google          token refreshed from GOOGLE_REFRESH_TOKEN, scopes gmail.readonly, drive.file',
       '✓ gmail           mailbox a***@example.com',
       `✓ export email    ${exportReady.id}, received 2026-10-01T20:56:22.000Z; trusted, one allowed link`,
       '✓ drive root      root visible: "Full Workspace", canAddChildren no',
@@ -236,7 +312,7 @@ describe('doctor', () => {
     await expect(main(['doctor'], cli.context)).resolves.toBe(1);
 
     expect(cli.text()).toContain(
-      '✗ google          GOOGLE_AUTH_REQUIRED: Google rejected the refresh token (invalid_grant). The token was revoked or has expired: run auth:google',
+      '✗ google          GOOGLE_AUTH_REQUIRED: Google rejected the refresh token (invalid_grant). Sign in again: run auth:google, or renew it from the phone (Fix login)',
     );
     expect(cli.text()).toContain('- gmail           needs a working Google token');
   });
@@ -300,10 +376,10 @@ describe('doctor', () => {
     await expect(main(['doctor'], cli.context)).resolves.toBe(1);
 
     expect(cli.text()).toContain(
-      'google          Configuration incomplete: missing GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, GOOGLE_REFRESH_TOKEN in .env.local',
+      'google          Configuration incomplete: missing GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET in .env.local',
     );
     expect(cli.text()).toContain(
-      'drive root      Configuration incomplete: missing GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, GOOGLE_DRIVE_BACKUP_ROOT_FOLDER_ID, GOOGLE_REFRESH_TOKEN',
+      'drive root      Configuration incomplete: missing GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, GOOGLE_DRIVE_BACKUP_ROOT_FOLDER_ID',
     );
     expect(cli.text()).toContain(
       'redis           Configuration incomplete: missing APP_ENV, UPSTASH_REDIS_REST_TOKEN, UPSTASH_REDIS_REST_URL',

@@ -8,13 +8,21 @@ import {
   shortScope,
 } from '../../adapters/google/oauth-client.js';
 import { grantFoldersWithPicker } from '../../adapters/google/picker-grant.js';
+import { GoogleRefreshTokenStore } from '../../adapters/google/refresh-token-store.js';
 import { IntegrationError } from '../../application/integration-error.js';
-import { googleAuthEnvSchema, googlePickerEnvSchema, loadEnv } from '../../config/env.js';
+import type { AppEnv } from '../../config/env.js';
+import {
+  ConfigError,
+  googleAuthEnvSchema,
+  googlePickerEnvSchema,
+  loadEnv,
+  secretStoreEnvSchema,
+} from '../../config/env.js';
 import { localDateFor } from '../../domain/period.js';
 import { upsertEnvFile } from '../../shared/env-file.js';
 import { maskEmail, maskToken } from '../../shared/mask.js';
 import type { CliContext } from '../context.js';
-import { createGoogleApi, fetchOption } from '../context.js';
+import { createGoogleApi, createSecretStore, fetchOption } from '../context.js';
 
 export interface AuthGoogleOptions {
   pickFolders: boolean;
@@ -23,7 +31,9 @@ export interface AuthGoogleOptions {
 
 /**
  * `auth:google`: a loopback consent for `gmail.readonly` + `drive.file` that writes
- * `GOOGLE_REFRESH_TOKEN` into `.env.local`. Output shows the token only masked, unless `--print`.
+ * `GOOGLE_REFRESH_TOKEN` into `.env.local` and, when Redis and `APP_ENCRYPTION_KEY` are set, the
+ * `google-refresh-token` envelope of `APP_ENV`, which the deployed app reads without a redeploy.
+ * Output shows the token only masked, unless `--print`.
  */
 export async function runAuthGoogle(
   options: AuthGoogleOptions,
@@ -50,6 +60,8 @@ export async function runAuthGoogle(
 
   await upsertEnvFile(context.envFilePath, { GOOGLE_REFRESH_TOKEN: grant.refreshToken });
 
+  const storedFor = await storeEnvelope(grant, context);
+
   const mailbox = await maskedMailbox(grant.accessToken, context);
   const today = localDateFor(context.clock.now(), env.BACKUP_TIME_ZONE);
 
@@ -59,6 +71,14 @@ export async function runAuthGoogle(
   context.print(`  token    ${maskToken(grant.refreshToken)}`);
   context.print(`  mailbox  ${mailbox}`);
   context.print(`  scopes   ${grant.scopes.map((scope) => shortScope(scope)).join(', ')}`);
+
+  if (storedFor === undefined) {
+    context.print(
+      ui.warn('Not saved to Redis: set APP_ENV, the Upstash variables and APP_ENCRYPTION_KEY.'),
+    );
+  } else {
+    context.print(ui.ok(`Saved to Redis for APP_ENV=${storedFor} (client: desktop)`));
+  }
 
   if (options.print) {
     context.print(ui.warn('The refresh token. Paste it into 1Password, then clear the terminal:'));
@@ -71,10 +91,38 @@ export async function runAuthGoogle(
   );
   context.print('     Run with --print to show it, or read it from .env.local.');
   context.print(
-    '  2. Replace GOOGLE_REFRESH_TOKEN in Vercel (Production, Sensitive), then Redeploy.',
+    storedFor === 'prod'
+      ? '  2. Nothing to redeploy: the deployed app reads the new token from Redis.'
+      : '  2. For the deployed app, run again with APP_ENV=prod; it then needs no redeploy.',
   );
 
   return 0;
+}
+
+/** The `google-refresh-token` envelope of `APP_ENV`; undefined without the Redis settings. */
+async function storeEnvelope(
+  grant: { readonly refreshToken: string; readonly scopes: readonly string[] },
+  context: CliContext,
+): Promise<AppEnv | undefined> {
+  let env;
+
+  try {
+    env = loadEnv(secretStoreEnvSchema, context.env);
+  } catch (error) {
+    if (error instanceof ConfigError) {
+      return undefined;
+    }
+
+    throw error;
+  }
+
+  await new GoogleRefreshTokenStore(createSecretStore(context, env)).save({
+    client: 'desktop',
+    refreshToken: grant.refreshToken,
+    scopes: grant.scopes,
+  });
+
+  return env.APP_ENV;
 }
 
 /** S6 fallback 1: grant the backup folders to the app through the Picker. Saves nothing. */

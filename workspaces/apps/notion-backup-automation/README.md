@@ -45,18 +45,19 @@ trigger). Structure: the [C4 model](../../../docs/architecture/workspace.dsl).
 
 ## Functions
 
-| Function                          | Trigger and auth                                   | Does                                                         |
-| --------------------------------- | -------------------------------------------------- | ------------------------------------------------------------ |
-| `POST /api/jobs/process/[jobId]`  | QStash, `Upstash-Signature`                        | One tick of one job, or the `_ping` smoke test. 300 s.       |
-| `GET /api/cron/daily`             | Vercel Cron 04:00 UTC, `Bearer $CRON_SECRET`       | Auto-start, watchdog, health probes, login warnings. 300 s.  |
-| `POST /mcp` (→ `/api/mcp`)        | MCP client, `Bearer $MCP_AUTH_TOKEN`               | Seven `backup_*` tools. Publishes wakeups, never runs steps. |
-| `POST /api/integrations/telegram` | telegram-webhook-hub, `Bearer $TELEGRAM_HUB_TOKEN` | Status, retry, cancel and login help from Telegram.          |
-| `GET /api/health`                 | Public                                             | `{"ok":true,"version":"<short SHA>"}`, nothing else.         |
-| `GET /`, `/privacy`, `/terms`     | Public, also on previews                           | Fixed text for Google's Branding page. Read no config.       |
+| Function                          | Trigger and auth                                   | Does                                                              |
+| --------------------------------- | -------------------------------------------------- | ----------------------------------------------------------------- |
+| `POST /api/jobs/process/[jobId]`  | QStash, `Upstash-Signature`                        | One tick of one job, or the `_ping` smoke test. 300 s.            |
+| `GET /api/cron/daily`             | Vercel Cron 04:00 UTC, `Bearer $CRON_SECRET`       | Auto-start, watchdog, health probes, login warnings. 300 s.       |
+| `POST /mcp` (→ `/api/mcp`)        | MCP client, `Bearer $MCP_AUTH_TOKEN`               | Seven `backup_*` tools. Publishes wakeups, never runs steps.      |
+| `GET /oauth/google/*`             | Public link; only the owner's Google account saves | The phone Google re-login ([Phone Access](#phone-access)). 120 s. |
+| `POST /api/integrations/telegram` | telegram-webhook-hub, `Bearer $TELEGRAM_HUB_TOKEN` | Status, retry, cancel and login help from Telegram.               |
+| `GET /api/health`                 | Public                                             | `{"ok":true,"version":"<short SHA>"}`, nothing else.              |
+| `GET /`, `/privacy`, `/terms`     | Public, also on previews                           | Fixed text for Google's Branding page. Read no config.            |
 
-The worker and the cron load Playwright and serverless Chromium. `/mcp` and the Telegram
-integration import `src/config/control-containers.ts` only, so they stay small;
-`tests/api/browser-imports.test.ts` fails if either reaches the browser code again.
+The worker and the cron load Playwright and serverless Chromium. `/mcp`, `/oauth` and the
+Telegram integration never import the Notion adapters or `src/config/containers.ts`, so they stay
+small; `tests/api/browser-imports.test.ts` fails if any of them reaches the browser code again.
 
 ## Layout
 
@@ -113,13 +114,13 @@ stderr at `LOG_LEVEL` (default `warn`). `dev:*` commands require `APP_ENV=dev`.
 
 | Command                                   | Does                                                                                                                                                          |
 | ----------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `auth:google [--print]`                   | Google consent (loopback on `127.0.0.1`, PKCE) for `gmail.readonly` + `drive.file`. Writes `GOOGLE_REFRESH_TOKEN` to `.env.local`; `--print` shows it.        |
+| `auth:google [--print]`                   | Google consent (loopback on `127.0.0.1`, PKCE) for `gmail.readonly` + `drive.file`. Writes `.env.local` and the `APP_ENV` token envelope; `--print` shows it. |
 | `auth:google --pick-folders`              | Grants the app the Drive folders you pick in the Google Picker. Saves no token.                                                                               |
 | `auth:notion`                             | Opens Chrome on Notion's login; you sign in (MFA included). Saves the session encrypted to Redis for `APP_ENV`, re-checks it headless, resumes a waiting job. |
 | `drive:check [--year YYYY]`               | C1 root visible, C2 one year folder visible, C3/C4 create and delete a file in the root/year folder. Exits 0 when C1 and C3 pass.                             |
 | `drive:init`                              | Creates an app-owned `Full Workspace` root at the top of My Drive (fallback when picking fails).                                                              |
 | `doctor [--email-since YYYY-MM-DD]`       | Checks Google token and scopes, Gmail and the newest trusted export email, the Drive root, Redis, the Notion session, and the hub token. Exits 1 on failure.  |
-| `smoke:qstash`                            | Publishes a signed `_ping` to the worker at `APP_BASE_URL` and waits up to 2 min for its nonce in Redis.                                                      |
+| `smoke:qstash`                            | Publishes a signed `_ping` to the worker at `APP_BASE_URL` and waits up to 2 min for its nonce in Redis. Nothing else sends one.                              |
 | `telegram:setup --test`                   | Sends a test message with a Status button through the hub. Bot setup itself is the hub's CLI.                                                                 |
 | `dev:upload <file.zip>`                   | Uploads a file as today's backup into `_dev/<YYYY>/` with the real storage code. Idempotent by SHA-256.                                                       |
 | `dev:trigger [--dry-run] [--headed]`      | Requests a real export with the saved session; `--dry-run` stops at the dialog and cancels.                                                                   |
@@ -168,8 +169,8 @@ A job is `job:<period>` (`2026-10`; a forced one is `2026-10-r2`). It moves thro
   `MAX_STAGE_RETRIES` per stage, or 24 h of backoff for outage codes such as `DRIVE_UNAVAILABLE`.
 - Anything else goes to `NEEDS_ATTENTION`. Supervised codes wake after one minute for the
   [supervisor](#supervisor); other incidents wait for you: `backup_retry`, a Telegram button,
-  or a login fix. `auth:notion` resumes the job itself; after `auth:google` or a Drive grant,
-  the next cron probe that passes resumes it. Once an incident is handed to you, no further
+  or a login fix. `auth:notion` and the phone re-login for Google resume the job themselves;
+  after `auth:google` or a Drive grant, the next cron probe that passes resumes it. Once an incident is handed to you, no further
   supervisor wakeup is scheduled.
 - No email after `EMAIL_WAIT_TIMEOUT_HOURS` (48) stops the job with `EMAIL_TIMEOUT`, without a
   new export. The ⚠️ message offers Retry, which checks for the email once more, and Retry from
@@ -180,7 +181,10 @@ A job is `job:<period>` (`2026-10`; a forced one is `2026-10-r2`). It moves thro
 
 **Shrink check.** On `COMPLETE`, the backup is compared with the previous complete one. Below
 `EXPORT_SHRINK_RATIO` (0.5) of its file count or size, the job still completes, but the
-success message becomes a ⚠️ and an `export.shrunk` event is recorded.
+success message becomes a ⚠️ and an `export.shrunk` event is recorded. A backup with no earlier
+complete one to compare with, the first in an environment, is marked `firstBackup`: its ✅ says
+its size was not compared and asks you to open it once. Every other check passes for an export
+of the wrong scope, as `2026-10-r2` (3 files) showed.
 
 **Application methods** (`BackupApplicationService`), shared by MCP, Telegram and the cron:
 `start`, `process`, `retry`, `cancel`, `status`, `list`. `process`, `retry` and `cancel` hold a
@@ -405,10 +409,11 @@ content-free result, such as `{"ok":false,"probe":"google","code":"GOOGLE_AUTH_R
 | Needs attention       | ⚠️ stage, code, reason, fix, last 10 events      | Status · Retry · Retry from scratch · Cancel; Fix login if relevant |
 | Failed (lifetime)     | ❌ stage, code, reason                           | Status                                                              |
 | Export email late     | ⏳ attempt, time waited; the job keeps checking  | Status                                                              |
-| Login expiring / lost | 🔑 the date or "access is gone", and the fix     | Fix login                                                           |
+| Login expiring / lost | 🔑 the date or "access is gone", and the fix     | Fix login (for Google, a link to the re-login)                      |
+| Login renewed         | 🔑 "Google access renewed" after a re-login      | None                                                                |
 
 - Messages use allowlisted fields only, redacted and HTML-escaped; free text loses URLs. The
-  Drive link is the only URL, as a button.
+  only URLs are buttons: the Drive link, and Fix login's re-login link for Google.
 - An attention is sent once per job and code per 24 h; a lost-login warning once per service
   per 24 h (`notify:<key>`, `SET NX EX`). Each sent notification is recorded as a job event
   (login warnings, which belong to no job, in `health`), since Vercel Hobby keeps logs for an
@@ -422,13 +427,13 @@ content-free result, such as `{"ok":false,"probe":"google","code":"GOOGLE_AUTH_R
 **Telegram commands and buttons** arrive at `POST /api/integrations/telegram` from the hub,
 which already checked Telegram's secret and the owner chat:
 
-| You send or tap                     | The bot                                                                                               |
-| ----------------------------------- | ----------------------------------------------------------------------------------------------------- |
-| `/status`, `/backup_status`, Status | The job (given, else active, else latest) as `backup_status` shows it, with allowed buttons.          |
-| Retry                               | `backup_retry` from the failed stage, then removes the report's buttons.                              |
-| Retry from scratch, Cancel          | "Tap again to confirm" (single use, 10 min), then retry from `NOTION_TRIGGER` or cancel.              |
-| Fix login                           | The command to run: `auth:notion`, `auth:google` (then update Vercel and redeploy), or `drive:check`. |
-| Anything else                       | Short help. The bot cannot start a backup.                                                            |
+| You send or tap                     | The bot                                                                                                                           |
+| ----------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| `/status`, `/backup_status`, Status | The job (given, else active, else latest) as `backup_status` shows it, with allowed buttons.                                      |
+| Retry                               | `backup_retry` from the failed stage, then removes the report's buttons.                                                          |
+| Retry from scratch, Cancel          | "Tap again to confirm" (single use, 10 min), then retry from `NOTION_TRIGGER` or cancel.                                          |
+| Fix login                           | For Google, opens the phone re-login once the Web client exists; else replies with `auth:notion`, `auth:google` or `drive:check`. |
+| Anything else                       | Short help. The bot cannot start a backup.                                                                                        |
 
 - **Idempotent:** each `updateId` gets a 60 s processing lease and a 2-day completed receipt.
   A mutation saves its reply receipt before replying, so a redelivery replays the reply instead
@@ -472,20 +477,20 @@ IDs match, so a button could act on the prod job.
 ## MCP Server
 
 `POST /mcp` is a stateless Streamable HTTP MCP server (a new server per request). Checks, in
-order: `Authorization: Bearer $MCP_AUTH_TOKEN` (401), `Origin` must be absent or listed in
+order: `Authorization: Bearer $MCP_AUTH_TOKEN` (401; the scheme in any case), `Origin` must be absent or listed in
 `MCP_ALLOWED_ORIGINS` (403), `POST` only (405), 60 requests per hour (429 + `Retry-After`).
 A `subscriptions/listen` request is refused at once: no change event is ever sent, and a held
 stream would only run into the function's 30 s limit.
 
-| Tool             | Does                                                                                                                                        |
-| ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
-| `backup_start`   | Creates this month's job, or returns the existing one. `force` starts `<period>-r<N>`.                                                      |
-| `backup_status`  | One job (default: active, else latest), its result or incident, and 10 events.                                                              |
-| `backup_list`    | Newest jobs first (`limit` 1–24, default 12).                                                                                               |
-| `backup_process` | Wakes a job now with a new token; 10 calls per job per hour.                                                                                |
-| `backup_retry`   | Resumes a job that needs attention or waits to retry, from its stage or `fromStage`.                                                        |
-| `backup_cancel`  | Cancels a job that has not ended.                                                                                                           |
-| `backup_health`  | Stored probe results, last QStash ping and cron run, notification and agent settings; `checkAgent: true` runs one canned decision (5/hour). |
+| Tool             | Does                                                                                                                                                                                                    |
+| ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `backup_start`   | Creates this month's job, or returns the existing one. `force` starts `<period>-r<N>`.                                                                                                                  |
+| `backup_status`  | One job (default: active, else latest), its result or incident, and 10 events.                                                                                                                          |
+| `backup_list`    | Newest jobs first (`limit` 1–24, default 12).                                                                                                                                                           |
+| `backup_process` | Wakes a job now with a new token; 10 calls per job per hour.                                                                                                                                            |
+| `backup_retry`   | Resumes a job that needs attention or waits to retry, from its stage or `fromStage`.                                                                                                                    |
+| `backup_cancel`  | Cancels a job that has not ended.                                                                                                                                                                       |
+| `backup_health`  | Stored probe results, last cron run, last `smoke:qstash` delivery (`qstash.lastSmokeTestAt`, not a daily check), notification and agent settings; `checkAgent: true` runs one canned decision (5/hour). |
 
 Results carry `structuredContent` plus a text summary. Refusals are `isError: true` with
 `{ code, message }`: `ACTIVE_JOB_EXISTS`, `JOB_NOT_FOUND`, `INVALID_STATE`, `RATE_LIMITED`,
@@ -500,24 +505,85 @@ claude mcp add --transport http --scope user notion-backup https://<app>.vercel.
 ```
 
 Cursor and Codex use the same URL and header (Codex: `bearer_token_env_var =
-"NOTION_BACKUP_MCP_TOKEN"`).
+"NOTION_BACKUP_MCP_TOKEN"`). Claude on the web and the phone uses it as a connector header
+([Phone Access](#phone-access)).
+
+## Phone Access
+
+Two things work from a phone, with no Mac and no redeploy ([ADR 0006](../../../docs/adr/0006-notion-backup-phone-access.md)).
+
+**Claude on the phone.** `/mcp` is added on claude.ai as a custom connector that sends
+`MCP_AUTH_TOKEN` as a fixed header. Claude calls the server from Anthropic's cloud, so the
+connector works in the Claude phone app too (checked 2026-11-03).
+
+1. On claude.ai in a browser: Customize → Connectors → Add custom connector.
+2. Name it "Notion Backup", with the URL `https://<app>.vercel.app/mcp`.
+3. Authentication: **No sign-in**. Under **Request headers**, choose `authorization` and enter
+   `Bearer ` (with the space) followed by `MCP_AUTH_TOKEN` from 1Password. Click Add.
+4. Expect the seven `backup_*` tools: Claude allows the three read-only ones and asks before the
+   four that change a job.
+
+- Request headers are a beta for a limited set of accounts. Without them, Claude cannot reach
+  `/mcp`; Telegram's buttons still cover status, Retry, Cancel and Fix login.
+- Claude stores the value encrypted and never shows it again. It cannot be edited: to change it,
+  remove the connector and add it again.
+- One token, with no expiry, shared by every client: this connector, Claude Code, Cursor and
+  Codex. If it leaks, a caller can start, cancel and retry backups and read their status; no tool
+  returns Notion or Drive content. Removing the connector only stops Claude from sending it; a
+  copy keeps working until the token changes. After a leak, or if you are unsure: put a new
+  `MCP_AUTH_TOKEN` in 1Password and Vercel, Redeploy, then add the connector again and update
+  `NOTION_BACKUP_MCP_TOKEN` for the other clients.
+- ChatGPT's connectors need OAuth, which the app does not serve.
+
+**Google re-login by link.** It needs the Web OAuth client ([setup below](#web-client-setup));
+until that exists, `/oauth/google/*` answers 503 `CONFIG_INCOMPLETE` and Fix login replies with
+the command. `GET /oauth/google/reauth` is a fixed, non-secret link, 10 starts an hour per
+caller. Telegram's Fix login for Google opens it, and `backup_status` returns it as
+`attention.fixUrl` for `GOOGLE_AUTH_REQUIRED`. It runs a Google consent for `gmail.readonly` and
+`drive.file`. Only when the callback proves `OWNER_GOOGLE_EMAIL` and both scopes does it store the
+refresh token as the `secret:google-refresh-token` envelope (`client: web`), run the Google and
+Drive probes, resume a job waiting for the Google login, and send "🔑 Google access renewed". A
+job that another invocation holds at that moment is not resumed; the page says so, and the next
+daily cron resumes it. The renewal stands either way.
+
+The token provider reads that envelope first, refreshing with the client it names;
+`GOOGLE_REFRESH_TOKEN` is only the fallback while none is stored. `auth:google` writes the
+envelope too (`client: desktop`) for `APP_ENV`, so `APP_ENV=prod … auth:google` needs no redeploy
+either. The CLI's Google commands (`doctor`, `drive:check`, `drive:init`, `dev:upload`,
+`dev:download`) read the same envelope when `APP_ENV`, the Upstash variables and
+`APP_ENCRYPTION_KEY` are set, and `doctor` names the token it tested. To check a token the phone
+stored, add `GOOGLE_WEB_CLIENT_ID` and `GOOGLE_WEB_CLIENT_SECRET` to `.env.local`.
+
+### Web Client Setup
+
+1. Google Auth Platform → Clients → Create client → Web application, named "Notion Backup Agent
+   Web", with the authorized redirect URI `https://<app>.vercel.app/oauth/google/callback`.
+2. Store `GOOGLE_WEB_CLIENT_ID`, `GOOGLE_WEB_CLIENT_SECRET` and `OWNER_GOOGLE_EMAIL` (the account
+   that owns the Gmail and Drive data) in 1Password, then in Vercel Production as Sensitive
+   variables, and Redeploy.
+3. On your phone, open `https://<app>.vercel.app/oauth/google/reauth` and consent through
+   "Google hasn't verified this app"; expect "Done". `?probe=google` then passes.
+4. Remove `GOOGLE_REFRESH_TOKEN` from Vercel and Redeploy; `?probe=google` still passes, from the
+   envelope.
 
 ## State In Redis
 
 Keys start with `{nba:<APP_ENV>}:`, so `prod`, `dev` and `test` share one database without
 overlap; the hash tag keeps an environment in one slot for the Lua scripts.
 
-| Key                           | Content                                                              |
-| ----------------------------- | -------------------------------------------------------------------- |
-| `job:<jobId>`                 | Hash `{ v, data }`: compare-and-set version and job JSON             |
-| `jobs`                        | Sorted set of job IDs by `createdAt`                                 |
-| `active`                      | The one active job ID; cleared at a terminal status                  |
-| `lease:<jobId>`               | The worker holding the job (`SET NX PX`)                             |
-| `events:<jobId>`              | Newest 200 sanitized events                                          |
-| `email:<messageId>`           | The job that consumed this export email                              |
-| `secret:notion-storage-state` | AES-256-GCM envelope of the Notion session                           |
-| `health`                      | Last probe results, last cron run, `_ping` nonce, last login warning |
-| `notify:<key>`                | A notification that must not repeat yet (`SET NX EX`)                |
+| Key                           | Content                                                                  |
+| ----------------------------- | ------------------------------------------------------------------------ |
+| `job:<jobId>`                 | Hash `{ v, data }`: compare-and-set version and job JSON                 |
+| `jobs`                        | Sorted set of job IDs by `createdAt`                                     |
+| `active`                      | The one active job ID; cleared at a terminal status                      |
+| `lease:<jobId>`               | The worker holding the job (`SET NX PX`)                                 |
+| `events:<jobId>`              | Newest 200 sanitized events                                              |
+| `email:<messageId>`           | The job that consumed this export email                                  |
+| `secret:notion-storage-state` | AES-256-GCM envelope of the Notion session                               |
+| `secret:google-refresh-token` | AES-256-GCM envelope of the Google token; `meta.client` names its client |
+| `google-login:<hash>`         | A phone re-login's PKCE verifier for 15 min, under its state's SHA-256   |
+| `health`                      | Last probe results, last cron run, `_ping` nonce, last login warning     |
+| `notify:<key>`                | A notification that must not repeat yet (`SET NX EX`)                    |
 
 A normal job's ID is its period, so `job:<period>` also guards one normal job per month.
 
@@ -529,6 +595,7 @@ compares a secret, and answers with codes only:
 | Function                     | Caller check                                                               |
 | ---------------------------- | -------------------------------------------------------------------------- |
 | `/mcp`                       | Bearer token, `Origin` allowlist, 60 requests per hour                     |
+| `/oauth/google/*`            | Public link; saves only for the owner's Google account with both scopes    |
 | `/api/jobs/process/[jobId]`  | QStash signature over `APP_BASE_URL` + path + raw body                     |
 | `/api/cron/daily`, `?probe=` | `Bearer $CRON_SECRET`                                                      |
 | `/api/integrations/telegram` | The hub's own bearer token; the hub already checked Telegram and the owner |
@@ -543,8 +610,9 @@ no raw Gmail or Drive tool. The supervisor has only its [7 bounded actions](#sup
 
 **Secrets.** 1Password is the source of truth; the app never reads it at run time. Vercel holds
 them as Production-only Sensitive variables, and `.env.local` is gitignored with mode 0600. The
-Notion session is AES-256-GCM encrypted in Redis. The refresh token prints only with `--print`,
-and access tokens stay in memory.
+Notion session and the Google refresh token are AES-256-GCM encrypted in Redis. The refresh
+token prints only with `--print`, and Google access tokens stay in memory. A re-login's sign-in
+state is stored only as its SHA-256.
 
 **Data minimisation.** Signed download URLs are never stored, logged or returned. Every log
 line goes through `redactString` and `redact`, which remove URL queries and secret URL paths;
@@ -554,7 +622,8 @@ supervisor's context is content-free. Vercel runs keep no Playwright traces or s
 **Isolation and replay.** Redis keys carry an `APP_ENV` prefix, and dev uploads stay in `_dev/`.
 `AUTO_START_ENABLED` defaults to off. A redelivered wakeup carries a replaced schedule token and
 is a no-op; the lease and compare-and-set stop two workers from acting on one job. Telegram
-updates act once per `updateId`, and Cancel and Retry from scratch need a second tap.
+updates act once per `updateId`, and Cancel and Retry from scratch need a second tap. A
+re-login's sign-in state is single use, taken with `GETDEL`.
 
 **Supply chain.** CI runs Dependency Review and Gitleaks; run `pnpm run check:secrets` before a
 PR.
@@ -564,17 +633,18 @@ PR.
 All variables are in [.env.example](.env.example) with comments; defaults and validation are in
 `src/config/env.ts`. Groups:
 
-| Group         | Variables                                                                                                                                                                                                                              |
-| ------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Core          | `APP_ENV` (`prod`, `dev`, `test`), `LOG_LEVEL`                                                                                                                                                                                         |
-| Redis, crypto | `UPSTASH_REDIS_REST_URL`, `UPSTASH_REDIS_REST_TOKEN`, `APP_ENCRYPTION_KEY` (`openssl rand -base64 32`)                                                                                                                                 |
-| QStash        | `QSTASH_URL` (EU), `QSTASH_TOKEN`, `QSTASH_CURRENT_SIGNING_KEY`, `QSTASH_NEXT_SIGNING_KEY`, `APP_BASE_URL`                                                                                                                             |
-| Google        | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_REFRESH_TOKEN`, `GOOGLE_DRIVE_BACKUP_ROOT_FOLDER_ID`                                                                                                                               |
-| Notion        | `NOTION_WORKSPACE_URL`, `NOTION_WORKSPACE_NAME`                                                                                                                                                                                        |
-| Auth tokens   | `MCP_AUTH_TOKEN` (≥ 32 chars), `MCP_ALLOWED_ORIGINS`, `CRON_SECRET`                                                                                                                                                                    |
-| Notifications | `NOTIFIERS`, `TELEGRAM_HUB_URL`, `TELEGRAM_HUB_TOKEN` (≥ 32 chars), `TELEGRAM_INTEGRATION_ID`, `HEARTBEAT_PING_URL`                                                                                                                    |
-| Job policy    | `AUTO_START_ENABLED`, `BACKUP_TIME_ZONE`, `BACKUP_DAY_OF_MONTH`, `EMAIL_WAIT_TIMEOUT_HOURS`, `MAX_EXPORT_ATTEMPTS`, `MAX_STAGE_RETRIES`, `JOB_MAX_LIFETIME_HOURS`, `EXPORT_SHRINK_RATIO`, `LOGIN_WARNING_DAYS`, `WRITE_SHA256_SIDECAR` |
-| Supervisor    | `AGENT_MODEL_PROVIDER` (`gemini` default, or `none`), `GEMINI_API_KEY`, `AGENT_*` limits                                                                                                                                               |
+| Group          | Variables                                                                                                                                                                                                                              |
+| -------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Core           | `APP_ENV` (`prod`, `dev`, `test`), `LOG_LEVEL`                                                                                                                                                                                         |
+| Redis, crypto  | `UPSTASH_REDIS_REST_URL`, `UPSTASH_REDIS_REST_TOKEN`, `APP_ENCRYPTION_KEY` (`openssl rand -base64 32`)                                                                                                                                 |
+| QStash         | `QSTASH_URL` (EU), `QSTASH_TOKEN`, `QSTASH_CURRENT_SIGNING_KEY`, `QSTASH_NEXT_SIGNING_KEY`, `APP_BASE_URL`                                                                                                                             |
+| Google         | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_REFRESH_TOKEN` (fallback once the envelope exists), `GOOGLE_DRIVE_BACKUP_ROOT_FOLDER_ID`                                                                                           |
+| Phone re-login | `GOOGLE_WEB_CLIENT_ID`, `GOOGLE_WEB_CLIENT_SECRET`, `OWNER_GOOGLE_EMAIL` ([Web Client Setup](#web-client-setup))                                                                                                                       |
+| Notion         | `NOTION_WORKSPACE_URL`, `NOTION_WORKSPACE_NAME`                                                                                                                                                                                        |
+| Auth tokens    | `MCP_AUTH_TOKEN` (≥ 32 chars), `MCP_ALLOWED_ORIGINS`, `CRON_SECRET`                                                                                                                                                                    |
+| Notifications  | `NOTIFIERS`, `TELEGRAM_HUB_URL`, `TELEGRAM_HUB_TOKEN` (≥ 32 chars), `TELEGRAM_INTEGRATION_ID`, `HEARTBEAT_PING_URL`                                                                                                                    |
+| Job policy     | `AUTO_START_ENABLED`, `BACKUP_TIME_ZONE`, `BACKUP_DAY_OF_MONTH`, `EMAIL_WAIT_TIMEOUT_HOURS`, `MAX_EXPORT_ATTEMPTS`, `MAX_STAGE_RETRIES`, `JOB_MAX_LIFETIME_HOURS`, `EXPORT_SHRINK_RATIO`, `LOGIN_WARNING_DAYS`, `WRITE_SHA256_SIDECAR` |
+| Supervisor     | `AGENT_MODEL_PROVIDER` (`gemini` default, or `none`), `GEMINI_API_KEY`, `AGENT_*` limits                                                                                                                                               |
 
 `GEMINI_API_KEY` is required by the worker and the cron while `AGENT_MODEL_PROVIDER=gemini`.
 The model, limits and diagnostics are documented under [Supervisor](#supervisor).
@@ -739,14 +809,17 @@ repository root. The fixes:
 
 - **Notion login:** `APP_ENV=prod pnpm --filter notion-backup-automation auth:notion`. It saves
   the session and resumes the waiting job.
-- **Google login:** `pnpm --filter notion-backup-automation auth:google`, copy the new
-  `GOOGLE_REFRESH_TOKEN` to Vercel, and Redeploy. The next daily cron whose probe passes resumes
-  the job, or run `backup_retry`.
+- **Google login:** tap Fix login in the 🔑 or ⚠️ message (or open `attention.fixUrl`) and
+  consent on your phone: the token is saved, checked, and the waiting job resumes. Without the Web
+  client, or from the Mac: `APP_ENV=prod pnpm --filter notion-backup-automation auth:google`,
+  which stores the token for the deployed app with no redeploy; the next daily cron whose probe
+  passes resumes the job, or run `backup_retry`.
 - **Drive access:** `pnpm --filter notion-backup-automation cli drive:check`. If it reports a
   hidden folder, run `pnpm --filter notion-backup-automation auth:google --pick-folders` and pick
   it. The next daily cron whose probe passes resumes the job, or run `backup_retry`.
 
-The daily cron sends a 🔑 message with a Fix login button, which replies with the command:
+The daily cron sends a 🔑 message with a Fix login button: for Google, a link to the phone
+re-login once the Web client exists; otherwise it replies with the command.
 
 | Warning                      | What happened                                                                                 | What to do                                                                                  |
 | ---------------------------- | --------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------- |

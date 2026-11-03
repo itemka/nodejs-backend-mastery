@@ -14,9 +14,19 @@ export function secretEquals(value: string | null, secret: string): boolean {
   return timingSafeEqual(expected, actual);
 }
 
-/** Whether `Authorization` is exactly `Bearer <secret>`, compared as `secretEquals` does. */
+const BEARER_SCHEME = 'bearer ';
+
+/**
+ * Whether `Authorization` is `Bearer <secret>`, the token compared as `secretEquals` does. The
+ * scheme is case-insensitive (RFC 9110, section 11.1); the token is not.
+ */
 export function isBearer(header: string | null, secret: string): boolean {
-  return secretEquals(header, `Bearer ${secret}`);
+  const token =
+    header?.slice(0, BEARER_SCHEME.length).toLowerCase() === BEARER_SCHEME
+      ? header.slice(BEARER_SCHEME.length)
+      : '';
+
+  return secretEquals(token, secret);
 }
 
 /**

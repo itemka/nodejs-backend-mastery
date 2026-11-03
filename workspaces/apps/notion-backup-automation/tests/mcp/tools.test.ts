@@ -299,7 +299,7 @@ describe('the MCP tools', () => {
         exportDialog: 'ready',
         state: 'valid',
       },
-      qstash: { lastPingAt: '2026-10-01T03:00:00.000Z' },
+      qstash: { lastSmokeTestAt: '2026-10-01T03:00:00.000Z' },
     });
     expect(health.text).toMatch(/^Notion valid · Google not checked · Drive not checked/);
     expect(harness.trigger.clicks).toEqual([]);

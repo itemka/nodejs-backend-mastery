@@ -19,20 +19,24 @@ export interface OAuthClientOptions {
   clientSecret: string;
   /** Replaces `fetch` for the token endpoint (tests). */
   fetch?: typeof fetch;
+  /** The Web client's fixed redirect; the Desktop client's loopback one is set per consent. */
+  redirectUri?: string;
   /** gaxios retries of token requests; its default (3, with backoff) when unset. */
   retries?: number;
 }
 
-/** The Desktop client "Notion Backup Agent Local Auth". */
+/** The Desktop client "Notion Backup Agent Local Auth", or the Web client with its redirect. */
 export function createOAuthClient({
   clientId,
   clientSecret,
   fetch,
+  redirectUri,
   retries,
 }: OAuthClientOptions): OAuth2Client {
   return new OAuth2Client({
     clientId,
     clientSecret,
+    ...(redirectUri === undefined ? {} : { redirectUri }),
     transporterOptions: {
       ...(fetch === undefined ? {} : { fetchImplementation: fetch }),
       ...(retries === undefined

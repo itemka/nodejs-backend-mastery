@@ -8,10 +8,12 @@ import {
   googleApiEnvSchema,
   googleAuthEnvSchema,
   googlePickerEnvSchema,
+  googleReauthUrl,
   loadEnv,
   loadHealthEnv,
   mcpAuthEnvSchema,
   mcpEnvSchema,
+  oauthEnvSchema,
   persistenceEnvSchema,
   QSTASH_EU_URL,
   secretStoreEnvSchema,
@@ -329,11 +331,11 @@ describe('CLI env subsets', () => {
     expect(loadEnv(googleAuthEnvSchema, workerVars).BACKUP_TIME_ZONE).toBe('Europe/Warsaw');
   });
 
-  it('doctor needs the refresh token for Gmail, and the Picker needs the root', () => {
+  it('doctor needs the OAuth client, not GOOGLE_REFRESH_TOKEN, and the Picker needs the root', () => {
+    // The CLI can run on the token stored in Redis alone (review, 2026-11-03).
     expect(configError(() => loadEnv(googleApiEnvSchema, {})).missing).toEqual([
       'GOOGLE_CLIENT_ID',
       'GOOGLE_CLIENT_SECRET',
-      'GOOGLE_REFRESH_TOKEN',
     ]);
     expect(configError(() => loadEnv(googlePickerEnvSchema, {})).missing).toEqual([
       'GOOGLE_CLIENT_ID',
@@ -464,5 +466,50 @@ describe('the hub integration ID', () => {
     expect(telegramIntegrationId({ APP_ENV: 'prod', TELEGRAM_INTEGRATION_ID: 'nb-staging' })).toBe(
       'nb-staging',
     );
+  });
+});
+
+describe('Phase 13 configuration', () => {
+  const webVars = {
+    GOOGLE_WEB_CLIENT_ID: 'web-client.apps.googleusercontent.com',
+    GOOGLE_WEB_CLIENT_SECRET: 'web-secret-value-1234',
+    OWNER_GOOGLE_EMAIL: 'owner@example.com',
+  };
+
+  it('lets the worker run on the stored token, without GOOGLE_REFRESH_TOKEN', () => {
+    const { GOOGLE_REFRESH_TOKEN: _token, ...withoutToken } = workerVars;
+
+    expect(loadEnv(workerEnvSchema, withoutToken).GOOGLE_REFRESH_TOKEN).toBeUndefined();
+  });
+
+  it('fails /oauth closed without the Web client, the owner or the encryption key', () => {
+    const { APP_ENCRYPTION_KEY: _key, ...withoutKey } = workerVars;
+
+    expect(() => loadEnv(oauthEnvSchema, { ...workerVars, ...webVars })).not.toThrow();
+    expect(configError(() => loadEnv(oauthEnvSchema, withoutKey)).missing).toEqual([
+      'APP_ENCRYPTION_KEY',
+      'GOOGLE_WEB_CLIENT_ID',
+      'GOOGLE_WEB_CLIENT_SECRET',
+      'OWNER_GOOGLE_EMAIL',
+    ]);
+    expect(
+      configError(() =>
+        loadEnv(oauthEnvSchema, { ...workerVars, ...webVars, OWNER_GOOGLE_EMAIL: 'not-an-email' }),
+      ).invalid,
+    ).toEqual(['OWNER_GOOGLE_EMAIL']);
+  });
+
+  it('gives the re-login link only once the Web client is configured', () => {
+    const base = 'https://notion-backup-automation.vercel.app';
+
+    expect(googleReauthUrl({ APP_BASE_URL: base, GOOGLE_WEB_CLIENT_ID: 'id' })).toBe(
+      `${base}/oauth/google/reauth`,
+    );
+    expect(googleReauthUrl({ APP_BASE_URL: base, GOOGLE_WEB_CLIENT_ID: true })).toBe(
+      `${base}/oauth/google/reauth`,
+    );
+    expect(googleReauthUrl({ APP_BASE_URL: base, GOOGLE_WEB_CLIENT_ID: false })).toBeUndefined();
+    expect(googleReauthUrl({ APP_BASE_URL: base })).toBeUndefined();
+    expect(googleReauthUrl({ GOOGLE_WEB_CLIENT_ID: 'id' })).toBeUndefined();
   });
 });

@@ -1,8 +1,24 @@
 import { describe, expect, it } from 'vitest';
 
+import { GoogleRefreshTokenStore } from '../../src/adapters/google/refresh-token-store.js';
+import { keyPrefixFor } from '../../src/adapters/persistence/keys.js';
+import { RedisSecretStore } from '../../src/adapters/persistence/redis-secret-store.js';
 import { main } from '../../src/cli/main.js';
+import { createEnvelopeKey } from '../../src/shared/envelope-crypto.js';
 import { testCli } from '../support/cli-context.js';
-import { fakeCredentials, FakeGoogle, googleError } from '../support/fake-google.js';
+import {
+  refreshWebTokenOnly,
+  WEB_CLIENT_ID,
+  WEB_CLIENT_SECRET,
+  WEB_REFRESH_TOKEN,
+} from '../support/fake-google-identity.js';
+import {
+  DRIVE_SCOPE,
+  fakeCredentials,
+  FakeGoogle,
+  GMAIL_SCOPE,
+  googleError,
+} from '../support/fake-google.js';
 import { ManualClock } from '../support/manual-clock.js';
 
 const FILES = 'www.googleapis.com/drive/v3/files';
@@ -96,6 +112,42 @@ describe('drive:check', () => {
     expect(text()).toContain('year folder 2030');
   });
 
+  it('checks with the token a phone re-login stored, once Redis is set, with no GOOGLE_REFRESH_TOKEN (reviews, 2026-11-02 and 11-03)', async () => {
+    const encryptionKey = Buffer.alloc(32, 7).toString('base64');
+    const google = refreshWebTokenOnly(
+      fakeDrive({
+        rootVisible: true,
+        subfolders: ['2026'],
+        writableParents: ['root-folder-id', 'id-2026'],
+      }),
+    );
+    const { GOOGLE_REFRESH_TOKEN: _token, ...withoutToken } = env;
+    const { context, redis, text } = await testCli({
+      env: {
+        ...withoutToken,
+        APP_ENCRYPTION_KEY: encryptionKey,
+        APP_ENV: 'prod',
+        GOOGLE_WEB_CLIENT_ID: WEB_CLIENT_ID,
+        GOOGLE_WEB_CLIENT_SECRET: WEB_CLIENT_SECRET,
+        UPSTASH_REDIS_REST_TOKEN: 'fake-redis-token',
+        UPSTASH_REDIS_REST_URL: 'https://fake-redis.example',
+      },
+      fetch: google.fetch,
+    });
+
+    await new GoogleRefreshTokenStore(
+      new RedisSecretStore({
+        appEnv: 'prod',
+        key: createEnvelopeKey(encryptionKey),
+        keyPrefix: keyPrefixFor('prod'),
+        redis,
+      }),
+    ).save({ client: 'web', refreshToken: WEB_REFRESH_TOKEN, scopes: [GMAIL_SCOPE, DRIVE_SCOPE] });
+
+    await expect(main(['drive:check'], context)).resolves.toBe(0);
+    expect(text()).toContain('All checks pass');
+  });
+
   it('reports GOOGLE_AUTH_REQUIRED with its fix', async () => {
     const google = new FakeGoogle().onToken(() =>
       Response.json({ error: 'invalid_grant' }, { status: 400 }),
@@ -106,7 +158,7 @@ describe('drive:check', () => {
     expect(text()).toContain(
       '✗ GOOGLE_AUTH_REQUIRED: Google rejected the refresh token (invalid_grant)',
     );
-    expect(text()).toContain('Fix: Run auth:google');
+    expect(text()).toContain('Fix: Sign in with Google again');
   });
 });
 

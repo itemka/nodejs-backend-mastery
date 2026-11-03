@@ -106,9 +106,22 @@ const googleClientShape = {
   GOOGLE_CLIENT_SECRET: secret,
 };
 
+/** The Web client "Notion Backup Agent Web" (Phase 13): the phone re-login. */
+const googleWebClientShape = {
+  GOOGLE_WEB_CLIENT_ID: z.string(),
+  GOOGLE_WEB_CLIENT_SECRET: secret,
+};
+
+/**
+ * The CLI's Google calls. Once Redis is configured, the CLI reads the stored envelope first
+ * (`createTokenProvider` in `cli/context.ts`), so a token a phone re-login stored is enough:
+ * `GOOGLE_REFRESH_TOKEN` is only the bootstrap. The Web client refreshes a stored Web token.
+ */
 const googleApiShape = {
   ...googleClientShape,
-  GOOGLE_REFRESH_TOKEN: secret,
+  GOOGLE_REFRESH_TOKEN: secret.optional(),
+  GOOGLE_WEB_CLIENT_ID: googleWebClientShape.GOOGLE_WEB_CLIENT_ID.optional(),
+  GOOGLE_WEB_CLIENT_SECRET: googleWebClientShape.GOOGLE_WEB_CLIENT_SECRET.optional(),
 };
 
 /** The folder ID is interpolated into Drive queries, so it is limited to ID characters. */
@@ -116,7 +129,40 @@ const driveShape = {
   GOOGLE_DRIVE_BACKUP_ROOT_FOLDER_ID: z.string().regex(/^[\w-]+$/),
 };
 
-const googleShape = { ...googleApiShape, ...driveShape };
+/**
+ * The deployed token source (Phase 13): the `google-refresh-token` envelope in Redis first, with
+ * the client it names; `GOOGLE_REFRESH_TOKEN` and the Desktop client only while none is stored.
+ */
+const googleShape = {
+  ...googleClientShape,
+  ...driveShape,
+  GOOGLE_REFRESH_TOKEN: secret.optional(),
+  GOOGLE_WEB_CLIENT_ID: googleWebClientShape.GOOGLE_WEB_CLIENT_ID.optional(),
+  GOOGLE_WEB_CLIENT_SECRET: googleWebClientShape.GOOGLE_WEB_CLIENT_SECRET.optional(),
+};
+
+/** The only Google account that may finish a re-login. A mailbox address: never in docs or output. */
+const ownerShape = {
+  OWNER_GOOGLE_EMAIL: z.email(),
+};
+
+/** Where the phone re-login starts: a fixed, non-secret link that only the owner can finish. */
+export const GOOGLE_REAUTH_PATH = '/oauth/google/reauth';
+
+/**
+ * `<APP_BASE_URL>/oauth/google/reauth` once the Web client is configured, for Telegram's Fix
+ * login button and `backup_status`; undefined until then, so no link leads to a 503.
+ */
+export function googleReauthUrl(env: {
+  readonly APP_BASE_URL?: string | undefined;
+  readonly GOOGLE_WEB_CLIENT_ID?: boolean | string | undefined;
+}): string | undefined {
+  const configured = env.GOOGLE_WEB_CLIENT_ID !== undefined && env.GOOGLE_WEB_CLIENT_ID !== false;
+
+  return configured && env.APP_BASE_URL !== undefined
+    ? `${env.APP_BASE_URL}${GOOGLE_REAUTH_PATH}`
+    : undefined;
+}
 
 /** `markdown` is Notion's "Markdown & CSV", the format of the manual backups (Phase 0). */
 export const notionExportFormats = ['markdown'] as const;
@@ -307,6 +353,8 @@ export const mcpEnvSchema = z.object({
   ...agentShape,
   ...mcpAuthShape,
   AUTO_START_ENABLED: flag(false),
+  /** Whether `backup_status` may link the phone re-login (`googleReauthUrl`). */
+  GOOGLE_WEB_CLIENT_ID: present,
   HEARTBEAT_PING_URL: present,
   NOTIFIERS: notifyShape.NOTIFIERS,
   TELEGRAM_HUB_TOKEN: present,
@@ -325,6 +373,8 @@ export const telegramWebhookEnvSchema = z.object({
   ...policyShape,
   ...qstashPublishShape,
   ...telegramHubShape,
+  /** Whether Fix login for Google may link the phone re-login (`googleReauthUrl`). */
+  GOOGLE_WEB_CLIENT_ID: present,
 });
 
 const workerShape = {
@@ -395,7 +445,25 @@ export const cronEnvSchema = z
   })
   .superRefine(requireGeminiKey);
 
+/**
+ * `/oauth/google/*`, the phone re-login (Phase 13): the Web client's sign-in, its states in
+ * Redis, and what follows it: the Google and Drive probes, the resume of a waiting job, and the
+ * notices. It never builds a browser.
+ */
+export const oauthEnvSchema = z.object({
+  ...coreShape,
+  ...redisShape,
+  ...policyShape,
+  ...qstashPublishShape,
+  ...encryptionShape,
+  ...googleShape,
+  ...googleWebClientShape,
+  ...ownerShape,
+  ...notifyShape,
+});
+
 export type AgentEnv = z.output<typeof agentEnvSchema>;
+export type OAuthEnv = z.output<typeof oauthEnvSchema>;
 export type BackupEnv = z.output<typeof backupEnvSchema>;
 export type PersistenceEnv = z.output<typeof persistenceEnvSchema>;
 export type McpAuthEnv = z.output<typeof mcpAuthEnvSchema>;

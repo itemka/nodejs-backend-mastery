@@ -18,6 +18,8 @@ export function persistenceKeys(prefix: string) {
     active: `${prefix}active`,
     email: (messageId: string) => `${prefix}email:${messageId}`,
     events: (jobId: string) => `${prefix}events:${jobId}`,
+    /** A phone re-login's Google sign-in in flight, keyed by its state's SHA-256 (Phase 13). */
+    googleLogin: (stateHash: string) => `${prefix}google-login:${stateHash}`,
     health: `${prefix}health`,
     job: (jobId: string) => `${prefix}job:${jobId}`,
     jobs: `${prefix}jobs`,

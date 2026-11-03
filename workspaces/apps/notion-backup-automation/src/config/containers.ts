@@ -1,17 +1,6 @@
-import { DriveBackupStorage } from '../adapters/drive/drive-backup-storage.js';
-import { DriveHealthProbe } from '../adapters/drive/drive-health-probe.js';
-import { ResumableUploader } from '../adapters/drive/resumable-upload.js';
-import { GmailApi } from '../adapters/gmail/gmail-api.js';
 import { GmailExportEmailFinder } from '../adapters/gmail/gmail-export-email-finder.js';
-import { GoogleApiClient } from '../adapters/google/google-api-client.js';
-import { GoogleHealthProbe } from '../adapters/google/google-health-probe.js';
-import { OAuthTokenProvider } from '../adapters/google/token-provider.js';
 import { HttpHeartbeat, NoopHeartbeat } from '../adapters/heartbeat/http-heartbeat.js';
 import { NoopAgentModel } from '../adapters/llm/noop-agent-model.js';
-import type { NamedNotifier } from '../adapters/notifications/composite-notifier.js';
-import { CompositeNotifier } from '../adapters/notifications/composite-notifier.js';
-import { ConsoleNotifier } from '../adapters/notifications/console-notifier.js';
-import { TelegramNotifier } from '../adapters/notifications/telegram-notifier.js';
 import type { BrowserLauncher } from '../adapters/notion/browser-launcher.js';
 import { createBrowserLauncher } from '../adapters/notion/browser-launcher.js';
 import { PlaywrightNotionExportTrigger } from '../adapters/notion/notion-export-trigger.js';
@@ -28,7 +17,6 @@ import { RedisRateLimiter } from '../adapters/persistence/redis-rate-limiter.js'
 import type { StringCommands } from '../adapters/persistence/redis-secret-store.js';
 import { RedisSecretStore } from '../adapters/persistence/redis-secret-store.js';
 import { QStashSignatureVerifier } from '../adapters/qstash/qstash-signature-verifier.js';
-import { TelegramClient } from '../adapters/telegram/telegram-client.js';
 import { TmpExportTransfer } from '../adapters/transfer/export-transfer.js';
 import { HttpDownloader } from '../adapters/transfer/http-downloader.js';
 import type { AgentModel } from '../agent/agent-model.js';
@@ -44,7 +32,6 @@ import type {
   HealthStore,
   JobRepository,
   NotificationGate,
-  Notifier,
   NotionLoginInfo,
   Scheduler,
 } from '../application/ports.js';
@@ -63,6 +50,7 @@ import type { ControlDeps } from './control-containers.js';
 import {
   agentLimitsFrom,
   createAgentModel,
+  createNotifier,
   createQStashScheduler,
   policyFrom,
   runtimeLogger,
@@ -72,17 +60,20 @@ import {
   ConfigError,
   cronAuthEnvSchema,
   cronEnvSchema,
+  googleReauthUrl,
   loadEnv,
-  telegramIntegrationId,
   workerAuthEnvSchema,
   workerEnvSchema,
 } from './env.js';
+import { createGoogleServices } from './google-containers.js';
 
 export type { AgentEnv, ControlDeps, ControlEnv, ControlServices } from './control-containers.js';
+export type { NotifierEnv } from './control-containers.js';
 export {
   agentLimitsFrom,
   createAgentModel,
   createControlServices,
+  createNotifier,
   createQStashScheduler,
   policyFrom,
   runtimeLogger,
@@ -96,60 +87,6 @@ export {
  * `control-containers.ts`, whose exports this module repeats. Their entries import that module
  * directly, so their functions never trace Playwright or serverless Chromium.
  */
-
-export type NotifierEnv = Pick<
-  BackupEnv,
-  | 'APP_ENV'
-  | 'BACKUP_TIME_ZONE'
-  | 'NOTIFIERS'
-  | 'TELEGRAM_HUB_TOKEN'
-  | 'TELEGRAM_HUB_URL'
-  | 'TELEGRAM_INTEGRATION_ID'
->;
-
-/**
- * The notifiers `NOTIFIERS` lists, behind one `CompositeNotifier`. Telegram listed without its
- * two variables is left out with a warning: the app then notifies through the console only.
- */
-export function createNotifier(
-  env: NotifierEnv,
-  { fetch: fetchImpl, logger }: { fetch?: typeof globalThis.fetch; logger: Logger },
-): Notifier {
-  const notifiers: NamedNotifier[] = [];
-
-  if (env.NOTIFIERS.includes('console')) {
-    notifiers.push({ name: 'console', notifier: new ConsoleNotifier(logger) });
-  }
-
-  if (env.NOTIFIERS.includes('telegram')) {
-    const { TELEGRAM_HUB_TOKEN: token, TELEGRAM_HUB_URL: hubUrl } = env;
-
-    if (token === undefined || hubUrl === undefined) {
-      logger.warn('notify.telegram.unconfigured', {
-        missing: [
-          ...(token === undefined ? ['TELEGRAM_HUB_TOKEN'] : []),
-          ...(hubUrl === undefined ? ['TELEGRAM_HUB_URL'] : []),
-        ],
-      });
-    } else {
-      notifiers.push({
-        name: 'telegram',
-        notifier: new TelegramNotifier({
-          appEnv: env.APP_ENV,
-          client: new TelegramClient({
-            hubUrl,
-            integrationId: telegramIntegrationId(env),
-            token: new SecretValue(token),
-            ...(fetchImpl === undefined ? {} : { fetch: fetchImpl }),
-          }),
-          timeZone: env.BACKUP_TIME_ZONE,
-        }),
-      });
-    }
-  }
-
-  return new CompositeNotifier(notifiers, logger);
-}
 
 /** The Redis commands the stores use besides the job repository's scripts. */
 export type StoreRedis = CounterCommands & HashCommands & SetIfAbsentCommands & StringCommands;
@@ -166,6 +103,8 @@ export interface BackupServicesDeps {
   readonly clock?: Clock;
   /** Replaces `fetch` for Google, the download and Telegram (tests). */
   readonly fetch?: typeof fetch;
+  /** Turns Telegram's Fix login for Google into a link to the phone re-login (Phase 13). */
+  readonly googleReauthUrl?: string | undefined;
   readonly ids?: IdGenerator;
   /** `RedisJobRepository` on the same database, or the in-memory one. */
   readonly jobs: JobRepository;
@@ -205,26 +144,15 @@ export function createBackupServices(env: BackupEnv, deps: BackupServicesDeps): 
     keyPrefix,
     redis,
   });
-  const tokenProvider = new OAuthTokenProvider({
-    clientId: env.GOOGLE_CLIENT_ID,
-    clientSecret: env.GOOGLE_CLIENT_SECRET,
-    refreshToken: env.GOOGLE_REFRESH_TOKEN,
+  const google = createGoogleServices(env, {
+    devFolder,
+    ids,
+    logger,
+    secrets,
+    writeSidecar: env.WRITE_SHA256_SIDECAR,
     ...fetchOption,
   });
-  const gmail = new GmailApi(
-    new GoogleApiClient({ service: 'gmail', tokenProvider, ...fetchOption }),
-  );
-  const driveApi = new GoogleApiClient({ service: 'drive', tokenProvider, ...fetchOption });
-  const driveStorage = (dev: boolean) =>
-    new DriveBackupStorage({
-      api: driveApi,
-      devFolder: dev,
-      logger,
-      rootFolderId: env.GOOGLE_DRIVE_BACKUP_ROOT_FOLDER_ID,
-      uploader: new ResumableUploader({ tokenProvider, ...fetchOption }),
-      writeSidecar: env.WRITE_SHA256_SIDECAR,
-    });
-  const storage = driveStorage(devFolder);
+  const { gmail, storage } = google;
   const emails = new GmailExportEmailFinder({ gmail, logger });
   const gate = new RedisNotificationGate(redis, keyPrefix, clock);
   const health = new RedisHealthStore(redis, keyPrefix);
@@ -244,7 +172,11 @@ export function createBackupServices(env: BackupEnv, deps: BackupServicesDeps): 
     health,
     jobs,
     logger,
-    notifier: createNotifier(env, { logger, ...fetchOption }),
+    notifier: createNotifier(env, {
+      googleReauthUrl: deps.googleReauthUrl,
+      logger,
+      ...fetchOption,
+    }),
     policy,
   });
   const supervisor = new Supervisor({
@@ -290,17 +222,8 @@ export function createBackupServices(env: BackupEnv, deps: BackupServicesDeps): 
     timeZone: env.BACKUP_TIME_ZONE,
   });
 
-  const googleProbe = new GoogleHealthProbe({ gmail, tokens: tokenProvider });
-  const driveProbe = new DriveHealthProbe({
-    api: driveApi,
-    devStorage: devFolder ? storage : driveStorage(true),
-    ids,
-    logger,
-    storage,
-  });
   const probes: HealthProbes = {
-    drive: (period, signal) => driveProbe.run(period, signal),
-    google: (signal) => googleProbe.run(signal),
+    ...google.probes,
     notion: (signal) => trigger.probeExportDialog(signal),
   };
 
@@ -332,6 +255,7 @@ export function createRuntimeServices(env: WorkerEnv, deps: RuntimeDeps): Backup
   return createBackupServices(env, {
     ...(model === undefined ? {} : { agent: { limits: agentLimitsFrom(env), model } }),
     browserLauncher: deps.browserLauncher ?? createBrowserLauncher(),
+    googleReauthUrl: googleReauthUrl(env),
     jobs: new RedisJobRepository(deps.redis, keyPrefixFor(env.APP_ENV)),
     logger: deps.logger,
     redis: deps.redis,

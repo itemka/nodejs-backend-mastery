@@ -146,6 +146,16 @@ describe('successMessage', () => {
     expect(successMessage(adopted, options).html).toContain('Size: 8.9 MB\n');
   });
 
+  it('asks for a look at a first backup, whose size nothing was compared with (2026-11-03)', () => {
+    const message = successMessage({ ...success, firstBackup: true }, options);
+
+    expect(message.html).toContain(
+      'Size: 198 files (8.9 MB)\nFirst backup here, so its size was not compared with an earlier one: open it once to check it covers your workspace.\nPeriod: 2026-10',
+    );
+    expect(successMessage(success, options).html).not.toContain('First backup');
+    expectChatSafe(message);
+  });
+
   it('names the environment unless it is prod', () => {
     expect(successMessage(success, { ...options, appEnv: 'dev' }).html).toMatch(
       /^🧪 <i>dev<\/i> · ✅/,
@@ -503,5 +513,42 @@ describe('fixLoginMessage, confirmMessage, helpMessage and noticeMessage', () =>
       'a &lt;b&gt; [redacted] [link]',
     );
     expectChatSafe(helpMessage());
+  });
+});
+
+describe('Phase 13: the phone re-login', () => {
+  const REAUTH = 'https://nba.example.vercel.app/oauth/google/reauth';
+  const linked: MessageFormatOptions = { ...options, googleReauthUrl: REAUTH };
+  const lostGoogle = { howToFix: 'Tap Fix login.', kind: 'lost', service: 'google' } as const;
+
+  /** The chat rule with one more allowed URL: the fixed re-login link. */
+  function expectOnlyReauthLink(message: TelegramMessage): void {
+    for (const url of buttonsOf(message).join('\n').match(urlPattern) ?? []) {
+      expect(url).toBe(REAUTH);
+    }
+
+    expect(message.html).not.toMatch(urlPattern);
+  }
+
+  it('links Fix login for Google to the re-login once it exists, and only for Google', () => {
+    expect(buttonsOf(loginWarningMessage(lostGoogle, linked))).toEqual([`Fix login=${REAUTH}`]);
+    expect(buttonsOf(loginWarningMessage(lostGoogle, options))).toEqual(['Fix login=l:google']);
+    expect(buttonsOf(loginWarningMessage({ ...lostGoogle, service: 'notion' }, linked))).toEqual([
+      'Fix login=l:notion',
+    ]);
+    expect(
+      buttonsOf(attentionMessage({ ...attention, code: 'GOOGLE_AUTH_REQUIRED' }, linked)),
+    ).toContain(`Fix login=${REAUTH}`);
+    expectOnlyReauthLink(loginWarningMessage(lostGoogle, linked));
+  });
+
+  it('answers an old Fix login button with the command and the link', () => {
+    const message = fixLoginMessage('google', { appEnv: 'prod', googleReauthUrl: REAUTH });
+
+    expect(message.html).toContain(
+      '<code>APP_ENV=prod pnpm --filter notion-backup-automation auth:google</code>',
+    );
+    expect(buttonsOf(message)).toEqual([`Renew Google access=${REAUTH}`]);
+    expect(fixLoginMessage('google', { appEnv: 'prod' }).buttons).toBeUndefined();
   });
 });

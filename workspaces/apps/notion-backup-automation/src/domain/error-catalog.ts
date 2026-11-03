@@ -100,7 +100,7 @@ export const errorCatalog = {
   GOOGLE_AUTH_REQUIRED: {
     description: 'Google rejected the refresh token, or a required scope is missing.',
     howToFix:
-      'Run auth:google, update GOOGLE_REFRESH_TOKEN in Vercel and redeploy; the next daily cron resumes the job (or run backup_retry).',
+      'Sign in with Google again: open fixUrl on your phone (Fix login in Telegram), or run auth:google with APP_ENV set. The phone sign-in resumes the job; after auth:google, the next daily cron does (or run backup_retry).',
     retry: 'none',
     supervised: false,
   },
