@@ -2,6 +2,10 @@ import type { Redis } from '@upstash/redis';
 
 import { GeminiAgentModel } from '../adapters/llm/gemini-agent-model.js';
 import { NoopAgentModel } from '../adapters/llm/noop-agent-model.js';
+import type { NamedNotifier } from '../adapters/notifications/composite-notifier.js';
+import { CompositeNotifier } from '../adapters/notifications/composite-notifier.js';
+import { ConsoleNotifier } from '../adapters/notifications/console-notifier.js';
+import { TelegramNotifier } from '../adapters/notifications/telegram-notifier.js';
 import { keyPrefixFor } from '../adapters/persistence/keys.js';
 import { createRedisClient } from '../adapters/persistence/redis-client.js';
 import { RedisHealthStore } from '../adapters/persistence/redis-health-store.js';
@@ -16,7 +20,7 @@ import { runAgentCheck } from '../agent/agent-check.js';
 import type { AgentModel } from '../agent/agent-model.js';
 import type { AgentLimits } from '../agent/limits.js';
 import { BackupApplicationService } from '../application/backup-service.js';
-import type { HealthStore, RateLimiter } from '../application/ports.js';
+import type { HealthStore, Notifier, RateLimiter } from '../application/ports.js';
 import type { BackupPolicy } from '../domain/policy.js';
 import { handleMcpRequest } from '../http/mcp-handler.js';
 import { configIncomplete } from '../http/responses.js';
@@ -34,6 +38,7 @@ import { TelegramWebhook } from '../telegram/webhook.js';
 import type { AgentEnv, BackupEnv, McpAuthEnv, McpEnv, WorkerEnv } from './env.js';
 import {
   ConfigError,
+  googleReauthUrl,
   healthEnvSchema,
   loadEnv,
   mcpAuthEnvSchema,
@@ -130,6 +135,70 @@ export function agentCheckFor(
       modelId: agentModelId(env),
       timeoutMs: agentCheckTimeoutMs(env),
     });
+}
+
+export type NotifierEnv = Pick<
+  BackupEnv,
+  | 'APP_ENV'
+  | 'BACKUP_TIME_ZONE'
+  | 'NOTIFIERS'
+  | 'TELEGRAM_HUB_TOKEN'
+  | 'TELEGRAM_HUB_URL'
+  | 'TELEGRAM_INTEGRATION_ID'
+>;
+
+/**
+ * The notifiers `NOTIFIERS` lists, behind one `CompositeNotifier`. Telegram listed without its
+ * two variables is left out with a warning: the app then notifies through the console only.
+ */
+export function createNotifier(
+  env: NotifierEnv,
+  {
+    fetch: fetchImpl,
+    googleReauthUrl,
+    logger,
+  }: {
+    fetch?: typeof globalThis.fetch;
+    /** Turns Telegram's Fix login for Google into a link to the phone re-login. */
+    googleReauthUrl?: string | undefined;
+    logger: Logger;
+  },
+): Notifier {
+  const notifiers: NamedNotifier[] = [];
+
+  if (env.NOTIFIERS.includes('console')) {
+    notifiers.push({ name: 'console', notifier: new ConsoleNotifier(logger) });
+  }
+
+  if (env.NOTIFIERS.includes('telegram')) {
+    const { TELEGRAM_HUB_TOKEN: token, TELEGRAM_HUB_URL: hubUrl } = env;
+
+    if (token === undefined || hubUrl === undefined) {
+      logger.warn('notify.telegram.unconfigured', {
+        missing: [
+          ...(token === undefined ? ['TELEGRAM_HUB_TOKEN'] : []),
+          ...(hubUrl === undefined ? ['TELEGRAM_HUB_URL'] : []),
+        ],
+      });
+    } else {
+      notifiers.push({
+        name: 'telegram',
+        notifier: new TelegramNotifier({
+          appEnv: env.APP_ENV,
+          client: new TelegramClient({
+            hubUrl,
+            integrationId: telegramIntegrationId(env),
+            token: new SecretValue(token),
+            ...(fetchImpl === undefined ? {} : { fetch: fetchImpl }),
+          }),
+          timeZone: env.BACKUP_TIME_ZONE,
+          ...(googleReauthUrl === undefined ? {} : { googleReauthUrl }),
+        }),
+      });
+    }
+  }
+
+  return new CompositeNotifier(notifiers, logger);
 }
 
 /** What the deployed functions take from outside; `RuntimeDeps` adds the browser. */
@@ -265,6 +334,7 @@ export async function serveMcp(
               ...(overrides.fetch === undefined ? {} : { fetch: overrides.fetch }),
             }),
             clock,
+            googleReauthUrl: googleReauthUrl(env),
             health: control.health,
             limiter: control.limiter,
             logger,
@@ -314,6 +384,7 @@ export async function serveTelegramIntegration(
         overrides.redis ??
         createRedisClient({ token: env.UPSTASH_REDIS_REST_TOKEN, url: env.UPSTASH_REDIS_REST_URL });
       const control = createControlServices(env, { ...overrides, logger, redis });
+      const reauthUrl = googleReauthUrl(env);
 
       return new TelegramWebhook({
         client: new TelegramClient({
@@ -322,7 +393,11 @@ export async function serveTelegramIntegration(
           token: new SecretValue(env.TELEGRAM_HUB_TOKEN),
           ...(overrides.fetch === undefined ? {} : { fetch: overrides.fetch }),
         }),
-        format: { appEnv: env.APP_ENV, timeZone: env.BACKUP_TIME_ZONE },
+        format: {
+          appEnv: env.APP_ENV,
+          timeZone: env.BACKUP_TIME_ZONE,
+          ...(reauthUrl === undefined ? {} : { googleReauthUrl: reauthUrl }),
+        },
         ids: overrides.ids ?? randomIds,
         logger,
         policy: control.policy,

@@ -11,6 +11,7 @@ import {
   REQUIRED_SCOPES,
   shortScope,
 } from './oauth-client.js';
+import type { GoogleRefreshTokenStore, GoogleTokenClient } from './refresh-token-store.js';
 
 /** gaxios brands its errors with this symbol; `google-auth-library` does not export the class. */
 const gaxiosErrorBrand = Symbol.for('gaxios-gaxios-error');
@@ -106,6 +107,105 @@ export class OAuthTokenProvider implements GoogleTokenProvider {
 
   private grantedScopesSync(): string[] {
     return parseScopes(this.#client.credentials.scope);
+  }
+}
+
+export interface GoogleClientCredentials {
+  readonly clientId: string;
+  readonly clientSecret: string;
+}
+
+export interface StoredTokenProviderOptions {
+  /** The Desktop client of `auth:google` and, once created, the Web client of the re-login. */
+  readonly clients: Readonly<Partial<Record<GoogleTokenClient, GoogleClientCredentials>>>;
+  /** `GOOGLE_REFRESH_TOKEN`, refreshed with the Desktop client while no envelope is stored. */
+  readonly fallbackRefreshToken?: string;
+  readonly fetch?: typeof fetch;
+  readonly requiredScopes?: readonly string[];
+  readonly retries?: number;
+  /** Unset: `GOOGLE_REFRESH_TOKEN` alone, as the CLI runs without Redis. */
+  readonly store?: Pick<GoogleRefreshTokenStore, 'read'>;
+}
+
+/** The token a provider refreshes: the stored envelope's, or `GOOGLE_REFRESH_TOKEN`. */
+export interface GoogleTokenSource {
+  readonly client: GoogleTokenClient;
+  readonly stored: boolean;
+}
+
+interface ResolvedToken {
+  readonly provider: OAuthTokenProvider;
+  readonly source: GoogleTokenSource;
+}
+
+/**
+ * Phase 13's token source: the `google-refresh-token` envelope, written by the phone re-login
+ * or `auth:google`, refreshed with the client it names; `GOOGLE_REFRESH_TOKEN` with the Desktop
+ * client while none is stored. It is read once per instance, so one invocation uses one token;
+ * a failed read is tried again on the next call.
+ */
+export class StoredTokenProvider implements GoogleTokenProvider {
+  readonly #options: StoredTokenProviderOptions;
+  #resolved: Promise<ResolvedToken> | undefined;
+
+  constructor(options: StoredTokenProviderOptions) {
+    this.#options = options;
+  }
+
+  async getAccessToken(): Promise<string> {
+    const { provider } = await this.resolved();
+
+    return provider.getAccessToken();
+  }
+
+  async grantedScopes(): Promise<string[]> {
+    const { provider } = await this.resolved();
+
+    return provider.grantedScopes();
+  }
+
+  /** Which token this instance refreshes; `doctor` prints it. */
+  async source(): Promise<GoogleTokenSource> {
+    const { source } = await this.resolved();
+
+    return source;
+  }
+
+  private resolved(): Promise<ResolvedToken> {
+    this.#resolved ??= this.resolve().catch((error: unknown) => {
+      this.#resolved = undefined;
+
+      throw error;
+    });
+
+    return this.#resolved;
+  }
+
+  private async resolve(): Promise<ResolvedToken> {
+    const { clients, fallbackRefreshToken, store, ...options } = this.#options;
+    const stored = await store?.read();
+    const client = stored?.client ?? 'desktop';
+    const refreshToken = stored?.refreshToken.reveal() ?? fallbackRefreshToken;
+    const credentials = clients[client];
+
+    if (refreshToken === undefined) {
+      throw new IntegrationError(
+        'GOOGLE_AUTH_REQUIRED',
+        'No Google refresh token: none is stored for APP_ENV, and GOOGLE_REFRESH_TOKEN is unset',
+      );
+    }
+
+    if (credentials === undefined) {
+      throw new IntegrationError(
+        'CONFIG_INCOMPLETE',
+        `The stored Google refresh token needs the ${client} OAuth client`,
+      );
+    }
+
+    return {
+      provider: new OAuthTokenProvider({ ...options, ...credentials, refreshToken }),
+      source: { client, stored: stored !== undefined },
+    };
   }
 }
 

@@ -20,7 +20,7 @@ export const loginFixes: Readonly<Record<LoginService, string>> = {
   drive:
     'Run drive:check and restore the folder access; a waiting job resumes with the next daily cron.',
   google:
-    'Run auth:google, update GOOGLE_REFRESH_TOKEN in Vercel and redeploy; a waiting job resumes with the next daily cron.',
+    'Tap Fix login and sign in with Google, or run auth:google with APP_ENV=prod on your Mac. A waiting job resumes after the phone sign-in, or with the next daily cron.',
   notion: 'Run auth:notion on your Mac; a waiting job resumes by itself.',
 };
 

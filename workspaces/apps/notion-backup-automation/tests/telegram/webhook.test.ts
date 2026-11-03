@@ -303,8 +303,10 @@ describe('the Telegram webhook', () => {
     expect(notion).toContain(
       '<code>APP_ENV=prod pnpm --filter notion-backup-automation auth:notion</code>',
     );
-    expect(google).toContain('update GOOGLE_REFRESH_TOKEN in Vercel and redeploy');
-    expect(google).toContain('<code>pnpm --filter notion-backup-automation auth:google</code>');
+    expect(google).toContain('Tap Fix login and sign in with Google');
+    expect(google).toContain(
+      '<code>APP_ENV=prod pnpm --filter notion-backup-automation auth:google</code>',
+    );
     expect(drive).toContain('<code>pnpm --filter notion-backup-automation drive:check</code>');
     expect(replies(harness)).toHaveLength(3);
     expect(answers(harness)).toEqual([undefined, undefined, undefined, 'Unknown button']);

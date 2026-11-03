@@ -25,9 +25,9 @@ export class TelegramNotifier implements Notifier {
   private readonly client: Pick<TelegramClient, 'sendMessage'>;
   private readonly format: MessageFormatOptions;
 
-  constructor({ appEnv, client, timeZone }: TelegramNotifierOptions) {
+  constructor({ client, ...format }: TelegramNotifierOptions) {
     this.client = client;
-    this.format = { appEnv, timeZone };
+    this.format = format;
   }
 
   attention(notification: AttentionNotification): Promise<void> {

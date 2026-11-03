@@ -211,6 +211,7 @@ export class JobNotifications {
         sizeBytes: result.sizeBytes,
         ...(result.entryCount === undefined ? {} : { entryCount: result.entryCount }),
         ...(result.shrink === undefined ? {} : { shrink: result.shrink }),
+        ...(result.firstBackup === undefined ? {} : { firstBackup: result.firstBackup }),
       };
 
       await this.notifier.success(notification);

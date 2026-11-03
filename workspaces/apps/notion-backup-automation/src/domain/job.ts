@@ -142,6 +142,11 @@ export const backupResultSchema = z.object({
   driveFileId: z.string().regex(/^[\w-]+$/),
   entryCount: z.number().int().min(0).optional(),
   fileName: z.string().max(200),
+  /**
+   * Set when no earlier completed backup existed to compare its size with: the first one in this
+   * environment. A wrong-scope export would pass every other check, so the notice asks for a look.
+   */
+  firstBackup: z.literal(true).optional(),
   sha256: z.string().regex(/^[0-9a-f]{64}$/),
   /** Set when the backup is much smaller than the last completed one; it still completed. */
   shrink: exportShrinkSchema.optional(),

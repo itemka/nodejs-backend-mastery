@@ -3,6 +3,7 @@ import * as ui from '@workspaces/cli-output';
 import { keyPrefixFor } from '../../adapters/persistence/keys.js';
 import {
   describeShrink,
+  FIRST_BACKUP_NOTE,
   describeSize,
   formatDuration,
 } from '../../application/notification-text.js';
@@ -214,6 +215,10 @@ function printJob(job: BackupJob, context: CliContext): void {
 
     if (shrink !== undefined) {
       context.print(ui.warn(`  much smaller than the last backup: ${shrink}`));
+    }
+
+    if (job.result.firstBackup === true) {
+      context.print(ui.warn(`  ${FIRST_BACKUP_NOTE}`));
     }
   }
 }

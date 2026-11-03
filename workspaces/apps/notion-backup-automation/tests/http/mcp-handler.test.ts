@@ -123,6 +123,19 @@ describe('POST /mcp', () => {
     expect(tools).toHaveLength(7);
   });
 
+  it('takes the Bearer scheme in any case, as Claude sends the header verbatim (review, 2026-11-02)', async () => {
+    const harness = mcpHarness();
+
+    for (const scheme of ['bearer', 'BEARER']) {
+      const response = await handleMcpRequest(
+        post({ authorization: `${scheme} ${TEST_MCP_TOKEN}` }),
+        harness.deps,
+      );
+
+      expect(response.status, scheme).not.toBe(401);
+    }
+  });
+
   it('refuses subscriptions/listen at once, instead of holding a stream until the time limit', async () => {
     const harness = mcpHarness();
     const response = await harness.serve(

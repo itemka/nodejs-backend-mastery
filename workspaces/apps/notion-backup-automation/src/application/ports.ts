@@ -66,7 +66,7 @@ export interface JobRepository {
   update(jobId: string, expectedVersion: number, next: BackupJob): Promise<UpdateJobResult>;
 }
 
-export type SecretName = 'notion-storage-state';
+export type SecretName = 'google-refresh-token' | 'notion-storage-state';
 
 export interface StoredSecret {
   readonly createdAt: string;
@@ -325,6 +325,8 @@ export interface SuccessNotification {
   readonly durationMs: number;
   readonly entryCount?: number;
   readonly fileName: string;
+  /** Set when no earlier completed backup existed to compare its size with. */
+  readonly firstBackup?: true;
   /** The folder under the Drive root: `2026`, or `_dev/2026` for `APP_ENV=dev`. */
   readonly folder: string;
   readonly jobId: string;

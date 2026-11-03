@@ -75,6 +75,10 @@ export function describeShrink(
   return `${describeSize(backup)}; last backup (${shrink.previousJobId}) had ${previous}`;
 }
 
+/** What a first backup's notice adds: nothing checked its size, so look at it once. */
+export const FIRST_BACKUP_NOTE =
+  'First backup here, so its size was not compared with an earlier one: open it once to check it covers your workspace';
+
 export const serviceNames: Readonly<Record<LoginService, string>> = {
   drive: 'Google Drive folder',
   google: 'Google',
@@ -89,7 +93,9 @@ export function successText(notification: SuccessNotification): string {
     return `⚠️ Notion backup stored, but much smaller than the last one · job ${notification.jobId} · ${shrink} · ${location}`;
   }
 
-  return `✅ Notion backup completed · job ${notification.jobId} · ${describeSize(notification)} · ${location} · ${formatDuration(notification.durationMs)}`;
+  const first = notification.firstBackup === true ? ` · ${FIRST_BACKUP_NOTE}` : '';
+
+  return `✅ Notion backup completed · job ${notification.jobId} · ${describeSize(notification)} · ${location} · ${formatDuration(notification.durationMs)}${first}`;
 }
 
 export function failureText(notification: FailureNotification): string {

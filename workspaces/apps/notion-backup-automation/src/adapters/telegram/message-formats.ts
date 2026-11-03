@@ -1,6 +1,7 @@
 import { loginFixes } from '../../application/login-watch.js';
 import {
   describeShrink,
+  FIRST_BACKUP_NOTE,
   describeSize,
   formatDuration,
   serviceNames,
@@ -54,6 +55,11 @@ const actionOfLetter: ReadonlyMap<string, ButtonAction> = new Map(
 export interface MessageFormatOptions {
   /** Messages from another environment than `prod` carry its name, so a dev run never reads as a real backup. */
   readonly appEnv: AppEnv;
+  /**
+   * `<APP_BASE_URL>/oauth/google/reauth` once the Web client exists (Phase 13): Fix login for
+   * Google opens it instead of replying with `auth:google`.
+   */
+  readonly googleReauthUrl?: string;
   /** The time zone of the event times. */
   readonly timeZone: string;
 }
@@ -141,6 +147,7 @@ export function successMessage(
     html: lines(
       `${envTag(options)}✅ <b>Notion backup stored</b>`,
       `Size: ${safe(describeSize(notification))}`,
+      ...(notification.firstBackup === true ? [`${FIRST_BACKUP_NOTE}.`] : []),
       ...details,
       `Took: ${formatDuration(notification.durationMs)}`,
     ),
@@ -190,7 +197,12 @@ export function attentionMessage(
   return {
     buttons: [
       [statusButton(notification.jobId), button('Retry', 'retry', notification.jobId)],
-      ...retryButtons(notification.jobId, notification.code, notification.retryFromScratch),
+      ...retryButtons(
+        notification.jobId,
+        notification.code,
+        notification.retryFromScratch,
+        options,
+      ),
     ],
     html,
   };
@@ -216,7 +228,7 @@ export function loginWarningMessage(
   options: MessageFormatOptions,
 ): TelegramMessage {
   const service = serviceNames[notification.service];
-  const fixLogin = [[button('Fix login', 'fixLogin', notification.service)]];
+  const fixLogin = [[fixLoginButton(notification.service, options)]];
 
   switch (notification.kind) {
     case 'expiring': {
@@ -310,7 +322,7 @@ export function statusMessage(view: JobView, options: StatusFormatOptions): Tele
     html = withEvents(parts, events);
   }
 
-  return { html, ...statusButtons(view, options.retryFromScratch) };
+  return { html, ...statusButtons(view, options) };
 }
 
 const loginCommands: Readonly<Record<LoginService, string>> = {
@@ -319,15 +331,23 @@ const loginCommands: Readonly<Record<LoginService, string>> = {
   notion: 'auth:notion',
 };
 
-/** The reply to the Fix login button: the command to run on your Mac. */
+/**
+ * The reply to the Fix login button: the command to run on your Mac, and for Google the phone
+ * re-login link once it exists (a report sent before then still carries the old button).
+ */
 export function fixLoginMessage(
   service: LoginService,
-  options: Pick<MessageFormatOptions, 'appEnv'>,
+  options: Pick<MessageFormatOptions, 'appEnv' | 'googleReauthUrl'>,
 ): TelegramMessage {
-  const prefix = service === 'notion' ? `APP_ENV=${options.appEnv} ` : '';
+  const prefix = service === 'drive' ? '' : `APP_ENV=${options.appEnv} `;
   const command = `${prefix}pnpm --filter notion-backup-automation ${loginCommands[service]}`;
+  const link =
+    service === 'google' && options.googleReauthUrl !== undefined
+      ? { buttons: [[{ text: 'Renew Google access', url: options.googleReauthUrl }]] }
+      : {};
 
   return {
+    ...link,
     html: lines(
       `🔑 <b>Fix the ${serviceNames[service]} ${service === 'drive' ? 'access' : 'login'}</b>`,
       safe(loginFixes[service]),
@@ -391,6 +411,7 @@ function retryButtons(
   jobId: string,
   code: ErrorCode,
   retryFromScratch: boolean,
+  options: Pick<MessageFormatOptions, 'googleReauthUrl'>,
 ): TelegramButton[][] {
   const login = loginServiceOf[code];
   const rows: TelegramButton[][] = [
@@ -401,14 +422,27 @@ function retryButtons(
   ];
 
   if (login !== undefined) {
-    rows.push([button('Fix login', 'fixLogin', login)]);
+    rows.push([fixLoginButton(login, options)]);
   }
 
   return rows;
 }
 
+/** A link to the phone re-login for Google once it exists; otherwise the button that replies. */
+function fixLoginButton(
+  service: LoginService,
+  { googleReauthUrl }: Pick<MessageFormatOptions, 'googleReauthUrl'>,
+): TelegramButton {
+  return service === 'google' && googleReauthUrl !== undefined
+    ? { text: 'Fix login', url: googleReauthUrl }
+    : button('Fix login', 'fixLogin', service);
+}
+
 /** Open in Drive once stored; Retry and Cancel while it waits; Status and Cancel while it runs. */
-function statusButtons(view: JobView, retryFromScratch: boolean): Pick<TelegramMessage, 'buttons'> {
+function statusButtons(
+  view: JobView,
+  options: Pick<StatusFormatOptions, 'googleReauthUrl' | 'retryFromScratch'>,
+): Pick<TelegramMessage, 'buttons'> {
   const { attention, jobId, result, status } = view;
 
   if (status === 'COMPLETE' && result !== undefined) {
@@ -425,7 +459,7 @@ function statusButtons(view: JobView, retryFromScratch: boolean): Pick<TelegramM
         [statusButton(jobId), button('Retry', 'retry', jobId)],
         ...(attention === undefined
           ? [[button('Cancel', 'cancel', jobId)]]
-          : retryButtons(jobId, attention.code, retryFromScratch)),
+          : retryButtons(jobId, attention.code, options.retryFromScratch, options)),
       ],
     };
   }

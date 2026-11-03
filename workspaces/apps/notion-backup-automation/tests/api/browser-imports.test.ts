@@ -77,7 +77,7 @@ function browserCode({ files, packages }: ReturnType<typeof traceEntry>): string
 }
 
 describe('browser imports', () => {
-  it.each(['api/mcp.ts', 'api/integrations/telegram.ts'])(
+  it.each(['api/mcp.ts', 'api/integrations/telegram.ts', 'api/oauth/[action].ts'])(
     '%s never reaches Playwright or serverless Chromium',
     (entry) => {
       expect(browserCode(traceEntry(entry))).toEqual([]);

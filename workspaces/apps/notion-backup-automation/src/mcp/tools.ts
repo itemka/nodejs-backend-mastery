@@ -34,6 +34,8 @@ export interface BackupToolDeps {
   /** One canned supervisor decision on the configured model (`checkAgent`). */
   readonly agentCheck: () => Promise<AgentCheckResult>;
   readonly clock: Clock;
+  /** The phone re-login link `backup_status` gives for `GOOGLE_AUTH_REQUIRED`, once it exists. */
+  readonly googleReauthUrl?: string | undefined;
   readonly health: Pick<HealthStore, 'read' | 'write'>;
   readonly limiter: RateLimiter;
   readonly logger: Logger;
@@ -146,7 +148,7 @@ export function registerBackupTools(server: McpServer, deps: BackupToolDeps): vo
     ({ jobId }) =>
       run('backup_status', deps, async () => {
         const { events, job } = await service.status(jobId);
-        const view = jobView(job, events);
+        const view = jobView(job, events, { googleReauthUrl: deps.googleReauthUrl });
 
         return {
           output: view,
@@ -277,7 +279,7 @@ export function registerBackupTools(server: McpServer, deps: BackupToolDeps): vo
     {
       annotations: { readOnlyHint: true },
       description:
-        'The last results of the daily probes (Notion session and export dialog, Google token and scopes, Drive folder), the last QStash ping and cron run, and the agent, notification, heartbeat and auto-start settings. Reads stored results; it starts no browser. checkAgent: true also runs one canned, content-free supervisor decision on the configured model (at most 20 s, 5 per hour) and reports it as agent.lastCheck.',
+        'The last results of the daily probes (Notion session and export dialog, Google token and scopes, Drive folder), the last cron run, when the manual smoke:qstash test last reached the worker (not a daily check), and the agent, notification, heartbeat and auto-start settings. Reads stored results; it starts no browser. checkAgent: true also runs one canned, content-free supervisor decision on the configured model (at most 20 s, 5 per hour) and reports it as agent.lastCheck.',
       inputSchema: z.object({
         checkAgent: z
           .boolean()

@@ -697,7 +697,8 @@ export class ProcessJobUseCase {
 
   /**
    * The export size check, at the transition to COMPLETE: the newest earlier COMPLETE job is the
-   * baseline. A shrunk backup still completes; its result records the shrink.
+   * baseline. A shrunk backup still completes; its result records the shrink. Without a baseline,
+   * the result records `firstBackup`, so its notice asks for a look (`2026-10-r2`, 2026-11-03).
    */
   private async checkExportSize(
     job: BackupJob,
@@ -719,7 +720,10 @@ export class ProcessJobUseCase {
       .find((other) => other.id !== job.id && other.status === 'COMPLETE');
 
     if (previous?.result === undefined) {
-      return { note: 'export.size · no earlier backup to compare with', result };
+      return {
+        note: 'export.size · no earlier backup to compare with',
+        result: { ...result, firstBackup: true },
+      };
     }
 
     const shrink = compareWithPrevious(

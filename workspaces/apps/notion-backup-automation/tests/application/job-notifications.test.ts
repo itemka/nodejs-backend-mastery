@@ -146,6 +146,20 @@ describe('JobNotifications', () => {
     );
   });
 
+  it('passes a first backup on, and its event says the size was not compared (2026-11-03)', async () => {
+    const { deliveries, jobs, notifications } = setup();
+    const job = completeJob();
+
+    await notifications.success(valid({ ...job, result: { ...job.result!, firstBackup: true } }));
+
+    expect(deliveries[0]?.notification).toMatchObject({ firstBackup: true });
+    const [event] = await jobs.listEvents('2026-10', { limit: 1 });
+
+    expect(event?.text).toMatch(
+      / · First backup here, so its size was not compared with an earlier one: open it once to check it covers your workspace$/,
+    );
+  });
+
   it('sends attention with the fix and the recent events, once per job and code per 24 h', async () => {
     const { clock, deliveries, jobs, notifications } = setup();
     const job = attentionJob('NOTION_SESSION_EXPIRED');

@@ -463,7 +463,7 @@ export class TelegramWebhook {
     const { events, job } = found;
 
     await this.reply(
-      statusMessage(jobView(job, events), {
+      statusMessage(jobView(job, events, { googleReauthUrl: this.format.googleReauthUrl }), {
         ...this.format,
         retryFromScratch: job.exportAttempt < this.policy.maxExportAttempts,
       }),

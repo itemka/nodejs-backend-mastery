@@ -59,9 +59,18 @@ describe('isBearer', () => {
   it('accepts exactly "Bearer <secret>"', () => {
     expect(isBearer(`Bearer ${SECRET}`, SECRET)).toBe(true);
 
-    for (const header of [null, '', SECRET, `bearer ${SECRET}`, `Bearer ${SECRET} `, 'Bearer x']) {
+    for (const header of [null, '', SECRET, `Bearer ${SECRET} `, `Bearer  ${SECRET}`, 'Bearer x']) {
       expect(isBearer(header, SECRET)).toBe(false);
     }
+  });
+
+  it('takes the scheme in any case, but not the secret (review, 2026-11-02)', () => {
+    for (const scheme of ['bearer', 'BEARER', 'bEaReR']) {
+      expect(isBearer(`${scheme} ${SECRET}`, SECRET)).toBe(true);
+    }
+
+    expect(isBearer(`Bearer ${SECRET.toUpperCase()}`, SECRET.toLowerCase())).toBe(false);
+    expect(isBearer(`Basic ${SECRET}`, SECRET)).toBe(false);
   });
 });
 

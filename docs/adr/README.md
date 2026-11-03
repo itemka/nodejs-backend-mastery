@@ -12,6 +12,7 @@ choices. Keep each ADR short, evidence-based, and linked from this index.
 | 0003   | [AI-agent surface promotion bar](./0003-ai-agent-surface-promotion-bar.md)     | Accepted | 2026-07-19 |
 | 0004   | [Path-scoped Claude rules (pilot)](./0004-path-scoped-claude-rules.md)         | Proposed | 2026-09-17 |
 | 0005   | [Notion backup serverless runtime](./0005-notion-backup-serverless-runtime.md) | Proposed | 2026-10-01 |
+| 0006   | [Notion backup phone access](./0006-notion-backup-phone-access.md)             | Proposed | 2026-11-03 |
 
 ## When An ADR Is Required
 
