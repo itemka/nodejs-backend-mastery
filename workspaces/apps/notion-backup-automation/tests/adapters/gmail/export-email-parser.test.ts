@@ -232,6 +232,92 @@ describe('checkExportEmail', () => {
     ).toBe('authentication');
   });
 
+  it('accepts a quoted signature prefix in Gmail’s verdict', () => {
+    const quoted = withHeader(
+      fixture,
+      'Authentication-Results',
+      gmailVerdict(
+        `${notionDkim.replace('header.b=fixture', 'header.b="fixture"')}; ${notionDmarc}`,
+      ),
+    );
+
+    expect(checkExportEmail(toGmailMessage(quoted), fresh)).toBeUndefined();
+  });
+
+  // The sender controls the envelope address Gmail writes into smtp.mailfrom and its SPF comment.
+  // The trailing space keeps the closing quote out of the injected header.from value.
+  const injected = `${notionDkim}; ${notionDmarc} `;
+  const attackerDkim = 'dkim=pass header.i=@evil.example header.s=s1 header.b=evil';
+
+  it.each([
+    [
+      'a quoted smtp.mailfrom, with no DMARC result of Gmail’s',
+      `${attackerDkim}; spf=pass smtp.mailfrom="x; ${injected}"@evil.example`,
+    ],
+    [
+      'a quoted smtp.mailfrom, beside Gmail’s DMARC fail',
+      `${attackerDkim}; spf=pass smtp.mailfrom="x; ${injected}"@evil.example; dmarc=fail header.from=mail.notion.com`,
+    ],
+    [
+      'an escaped quote inside smtp.mailfrom',
+      String.raw`${attackerDkim}; spf=pass smtp.mailfrom="x\"; ${injected}"@evil.example`,
+    ],
+    [
+      'the SPF comment',
+      `${attackerDkim}; spf=pass (google.com: domain of x; ${injected} designates 192.0.2.1) smtp.mailfrom=x@evil.example`,
+    ],
+  ])('ignores a Notion pass injected through %s', (_case, results) => {
+    const spoof = withHeader(fixture, 'Authentication-Results', gmailVerdict(results));
+
+    expect(checkExportEmail(toGmailMessage(spoof), fresh)).toBe('authentication');
+  });
+
+  it.each([
+    ['two DMARC passes', `${notionDkim}; ${notionDmarc}; ${notionDmarc}`],
+    [
+      'a DMARC fail before a pass',
+      `${notionDkim}; dmarc=fail header.from=mail.notion.com; ${notionDmarc}`,
+    ],
+    [
+      'a DMARC fail after a pass',
+      `${notionDkim}; ${notionDmarc}; dmarc=fail header.from=mail.notion.com`,
+    ],
+    [
+      'a DMARC pass for another domain beside',
+      `${notionDkim}; ${notionDmarc}; dmarc=pass header.from=evil.example`,
+    ],
+    [
+      'a DMARC version beside',
+      `${notionDkim}; ${notionDmarc}; dmarc/1=fail header.from=mail.notion.com`,
+    ],
+  ])("rejects Gmail's verdict with %s", (_case, results) => {
+    const doubled = withHeader(fixture, 'Authentication-Results', gmailVerdict(results));
+
+    expect(checkExportEmail(toGmailMessage(doubled), fresh)).toBe('authentication');
+  });
+
+  it('rejects a second Notion DKIM pass that no signature backs', () => {
+    const unbound = withHeader(
+      fixture,
+      'Authentication-Results',
+      gmailVerdict(
+        `${notionDkim}; ${notionDkim.replace('header.b=fixture', 'header.b=unbound')}; ${notionDmarc}`,
+      ),
+    );
+
+    expect(checkExportEmail(toGmailMessage(unbound), fresh)).toBe('authentication');
+  });
+
+  it("rejects Gmail's verdict when it does not parse", () => {
+    const malformed = withHeader(
+      fixture,
+      'Authentication-Results',
+      gmailVerdict(`${notionDkim}; ${notionDmarc}; spf=pass smtp.mailfrom="x@evil.example`),
+    );
+
+    expect(checkExportEmail(toGmailMessage(malformed), fresh)).toBe('authentication');
+  });
+
   it('rejects an email without Authentication-Results', () => {
     expect(
       checkExportEmail(toGmailMessage(withHeader(fixture, 'Authentication-Results')), fresh),
@@ -259,27 +345,90 @@ describe('checkExportEmail', () => {
 
 describe('parseAuthenticationResults', () => {
   it('parses methods, results and properties, and drops comments', () => {
-    const { authservId, results } = parseAuthenticationResults(
-      'MX.Google.com 1; DKIM=Pass (good (nested) signature) header.i=@mail.notion.com header.s=pic; spf=pass (google.com: domain of x designates y) smtp.mailfrom="bounce+a@mail.notion.com"',
-    );
+    expect(
+      parseAuthenticationResults(
+        'MX.Google.com 1; DKIM=Pass (good (nested) signature) header.i=@mail.notion.com header.s=pic; spf=pass (google.com: domain of x designates y) smtp.mailfrom="bounce+a@mail.notion.com"',
+      ),
+    ).toEqual({
+      authservId: 'mx.google.com',
+      results: [
+        {
+          method: 'dkim',
+          properties: { 'header.i': '@mail.notion.com', 'header.s': 'pic' },
+          result: 'pass',
+        },
+        {
+          method: 'spf',
+          properties: { 'smtp.mailfrom': 'bounce+a@mail.notion.com' },
+          result: 'pass',
+        },
+      ],
+    });
+  });
 
-    expect(authservId).toBe('mx.google.com');
-    expect(results).toEqual([
-      {
-        method: 'dkim',
-        properties: { 'header.i': '@mail.notion.com', 'header.s': 'pic' },
-        result: 'pass',
-      },
+  it('skips a "none" section', () => {
+    expect(parseAuthenticationResults('mx.google.com; none')).toEqual({
+      authservId: 'mx.google.com',
+      results: [],
+    });
+  });
+
+  it('keeps a quoted value whole, with its ";", "=", "(" and escaped quotes', () => {
+    expect(
+      parseAuthenticationResults(
+        String.raw`mx.google.com; spf=pass smtp.mailfrom="a; dkim=pass (x) \"q\"@evil.example"; dmarc=fail header.from=mail.notion.com`,
+      )?.results,
+    ).toEqual([
       {
         method: 'spf',
-        properties: { 'smtp.mailfrom': 'bounce+a@mail.notion.com' },
+        properties: { 'smtp.mailfrom': 'a; dkim=pass (x) "q"@evil.example' },
         result: 'pass',
       },
+      { method: 'dmarc', properties: { 'header.from': 'mail.notion.com' }, result: 'fail' },
     ]);
   });
 
-  it('skips sections without a method result', () => {
-    expect(parseAuthenticationResults('mx.google.com; none').results).toEqual([]);
+  it('reads a ";" or quote inside a comment, and an escaped ")", as comment text', () => {
+    expect(
+      parseAuthenticationResults(
+        String.raw`mx.google.com; dmarc=fail (p=REJECT; "x \) ; dmarc=pass header.from=mail.notion.com (y)) header.from=mail.notion.com`,
+      )?.results,
+    ).toEqual([
+      { method: 'dmarc', properties: { 'header.from': 'mail.notion.com' }, result: 'fail' },
+    ]);
+  });
+
+  it('joins a quoted local part, its domain and an unquoted "=" into one value', () => {
+    expect(
+      parseAuthenticationResults(
+        'mx.google.com; spf=pass smtp.mailfrom="a b"@x.example header.b=ab=c; DMARC/1=Pass',
+      )?.results,
+    ).toEqual([
+      {
+        method: 'spf',
+        properties: { 'header.b': 'ab=c', 'smtp.mailfrom': 'a b@x.example' },
+        result: 'pass',
+      },
+      { method: 'dmarc', properties: {}, result: 'pass' },
+    ]);
+  });
+
+  it.each([
+    ['an unterminated quoted string', 'mx.google.com; spf=pass smtp.mailfrom="a; dkim=pass'],
+    ['an unterminated comment', 'mx.google.com; dkim=pass (a (b) header.i=@mail.notion.com'],
+    ['a stray ")"', 'mx.google.com; dkim=pass header.i=@mail.notion.com)'],
+    [String.raw`a stray "\"`, String.raw`mx.google.com; dkim=pass header.i=\@mail.notion.com`],
+    ['a section without a result', 'mx.google.com; dkim header.i=@mail.notion.com'],
+    ['a property without a value', 'mx.google.com; dkim=pass header.i= header.s=pic'],
+    ['a quoted method', 'mx.google.com; "dkim"=pass'],
+    [
+      'a property repeated within one result',
+      'mx.google.com; dkim=pass header.i=@evil.example header.i=@mail.notion.com',
+    ],
+    ['anything but a version after the authserv-id', 'mx.google.com dkim=pass; spf=pass'],
+    ['no authserv-id', '; dkim=pass'],
+  ])('rejects %s', (_case, value) => {
+    expect(parseAuthenticationResults(value)).toBeUndefined();
   });
 });
 
