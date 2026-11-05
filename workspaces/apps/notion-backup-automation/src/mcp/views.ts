@@ -125,6 +125,8 @@ export const healthViewSchema = z.object({
     /** Variables a listed channel lacks. */
     missing: z.array(z.string()),
   }),
+  /** The last automatic Notion login (Phase 14): when, why, and how it ended. */
+  notionLogin: healthSnapshotSchema.shape.notionLogin,
   notionSession: healthSnapshotSchema.shape.notionSession,
   qstash: z.object({
     /**
@@ -260,7 +262,7 @@ export function jobSummary(job: BackupJob): JobSummary {
 
 /** `backup_health`: the probes' last results and the configuration that decides what runs. */
 export function healthView(snapshot: HealthSnapshot, settings: HealthSettings): HealthView {
-  const { agentCheck, cron, driveRoot, google, notionSession, qstashPing } = snapshot;
+  const { agentCheck, cron, driveRoot, google, notionLogin, notionSession, qstashPing } = snapshot;
 
   return {
     agent: { ...settings.agent, ...(agentCheck === undefined ? {} : { lastCheck: agentCheck }) },
@@ -271,6 +273,7 @@ export function healthView(snapshot: HealthSnapshot, settings: HealthSettings): 
     ...(cron === undefined ? {} : { lastCron: cron }),
     ...(driveRoot === undefined ? {} : { driveRoot }),
     ...(google === undefined ? {} : { google }),
+    ...(notionLogin === undefined ? {} : { notionLogin }),
     ...(notionSession === undefined ? {} : { notionSession }),
   };
 }

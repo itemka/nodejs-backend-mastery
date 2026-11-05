@@ -1,5 +1,6 @@
 import { StateSchemaInvalidError } from '../adapters/persistence/job-codec.js';
 import type { SignatureVerifier } from '../adapters/qstash/qstash-signature-verifier.js';
+import type { NotionAutoLogin } from '../application/notion-auto-login.js';
 import type { HealthStore } from '../application/ports.js';
 import type { ProcessJobUseCase, TickResult } from '../application/process-job.js';
 import { ConfigError } from '../config/env.js';
@@ -22,6 +23,11 @@ export interface WorkerHandlerDeps {
   readonly health: Pick<HealthStore, 'write'>;
   readonly logger: Logger;
   /**
+   * The automatic Notion login, built only for a `_notion-login` delivery; like the tick, it
+   * needs the whole worker configuration and throws `ConfigError` while it is incomplete.
+   */
+  readonly notionLogin: () => Pick<NotionAutoLogin, 'run'>;
+  /**
    * The tick, built only for a wakeup: it needs the whole backup configuration, which a `_ping`
    * does not. Throws `ConfigError` while that configuration is incomplete.
    */
@@ -32,7 +38,8 @@ export interface WorkerHandlerDeps {
 /**
  * `POST /api/jobs/process/[jobId]`: one signed QStash delivery. The response tells QStash what
  * to do next (S3):
- * - 200: done, waiting, a recorded failure, a stale token or an ended job; nothing to retry;
+ * - 200: done, waiting, a recorded failure, a stale token or an ended job, or a `_notion-login`
+ *   whatever its outcome; nothing to retry;
  * - 401: no genuine signature; QStash retries, then gives up;
  * - 489: genuine but impossible (an unknown job, a body that names another job, a record that
  *   fails its schema); straight to the DLQ;
@@ -78,21 +85,23 @@ export async function handleWorkerRequest(
       return jsonResponse(200, { outcome: 'ping' });
     }
 
-    let useCase: Pick<ProcessJobUseCase, 'execute'>;
+    if (delivery.kind === 'notion_login') {
+      const login = build(deps.notionLogin, logger);
 
-    try {
-      useCase = deps.processJob();
-    } catch (error) {
-      if (error instanceof ConfigError) {
-        logger.error('worker.config_incomplete', {
-          invalid: error.invalid,
-          missing: error.missing,
-        });
-
+      if (login === undefined) {
         return configIncomplete();
       }
 
-      throw error;
+      // Always 200: the outcome is reported to you, and a redelivery would only be a duplicate.
+      const result = await login.run(delivery.request);
+
+      return jsonResponse(200, { outcome: result.outcome, ...pickFailure(result) });
+    }
+
+    const useCase = build(deps.processJob, logger);
+
+    if (useCase === undefined) {
+      return configIncomplete();
     }
 
     return tickResponse(await useCase.execute(delivery.request), logger);
@@ -107,6 +116,25 @@ export async function handleWorkerRequest(
 
     return errorResponse(500, 'WORKER_FAILED');
   }
+}
+
+/** Builds a use case; undefined, logged, while the worker configuration is incomplete. */
+function build<T>(factory: () => T, logger: Logger): T | undefined {
+  try {
+    return factory();
+  } catch (error) {
+    if (error instanceof ConfigError) {
+      logger.error('worker.config_incomplete', { invalid: error.invalid, missing: error.missing });
+
+      return undefined;
+    }
+
+    throw error;
+  }
+}
+
+function pickFailure(result: { readonly failure?: string }): { readonly failure?: string } {
+  return result.failure === undefined ? {} : { failure: result.failure };
 }
 
 function tickResponse(result: TickResult, logger: Logger): Response {

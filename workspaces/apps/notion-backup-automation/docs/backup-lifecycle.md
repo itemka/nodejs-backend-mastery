@@ -148,9 +148,15 @@ flowchart TD
   Rearm --> Probes["Probe in parallel: Google and Drive daily;<br/>Notion on Mondays, 2 days before the backup day,<br/>or while a job waits for its login"]
   Probes -->|a probe passes| Resume[Resume a job waiting<br/>for that login]
   Probes -->|a login newly gone| Lost[🔑 access is gone]
+  Probes -->|Notion signed out,<br/>automatic login on| Queue[Queue _notion-login,<br/>one a day; lost only if<br/>refused or not queued]
   Resume --> Warn
-  Lost --> Warn["🔑 Notion session expiry:<br/>30, 7, 1 days, once each"]
-  Warn --> Beat{Any sub-step threw?}
+  Lost --> Warn
+  Queue --> Warn{"Notion session expires within<br/>30, 7 or 1 days?"}
+  Warn -->|automatic login on| Renew[Queue _notion-login;<br/>warn only if refused]
+  Warn -->|off, or refused| Expiry["🔑 expiry warning,<br/>once per threshold"]
+  Warn -->|no| Beat
+  Renew --> Beat
+  Expiry --> Beat{Any sub-step threw?}
   Beat -->|no| Ok([Heartbeat ping])
   Beat -->|yes| Fail([Heartbeat /fail])
 ```

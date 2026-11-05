@@ -1,8 +1,13 @@
 import { Client } from '@upstash/qstash';
 
-import type { Scheduler, Wakeup } from '../../application/ports.js';
+import type {
+  NotionLoginQueue,
+  NotionLoginRequest,
+  Scheduler,
+  Wakeup,
+} from '../../application/ports.js';
 import type { AppEnv } from '../../config/env.js';
-import { PING_JOB_ID } from '../../domain/naming.js';
+import { NOTION_LOGIN_JOB_ID, PING_JOB_ID } from '../../domain/naming.js';
 import type { Logger } from '../../shared/logger.js';
 
 /** QStash's own retries of a failed delivery; business retries are job state. */
@@ -19,6 +24,13 @@ export interface PingMessage {
   readonly nonce: string;
 }
 
+/** The body of an automatic Notion login request (Phase 14). */
+export interface NotionLoginMessage {
+  readonly attempt: string;
+  readonly jobId: typeof NOTION_LOGIN_JOB_ID;
+  readonly trigger: NotionLoginRequest['trigger'];
+}
+
 /** The body of a wakeup. */
 export interface WakeupMessage {
   readonly jobId: string;
@@ -28,7 +40,7 @@ export interface WakeupMessage {
 
 /** The publish request this adapter sends; `@upstash/qstash`'s `Client` accepts it. */
 export interface QStashPublishRequest {
-  readonly body: PingMessage | WakeupMessage;
+  readonly body: NotionLoginMessage | PingMessage | WakeupMessage;
   readonly deduplicationId: string;
   readonly delay?: number;
   readonly flowControl: { readonly key: string; readonly parallelism: number };
@@ -83,7 +95,7 @@ export interface QStashSchedulerOptions {
  * `delaySec`. The deduplication ID `<jobId>.<token>` makes a retried publish deliver once, and
  * flow control runs one delivery per environment at a time.
  */
-export class QStashScheduler implements Scheduler {
+export class QStashScheduler implements NotionLoginQueue, Scheduler {
   private readonly api: QStashApi;
   private readonly appBaseUrl: string;
   private readonly flowControlKey: string;
@@ -106,6 +118,14 @@ export class QStashScheduler implements Scheduler {
     }
   }
 
+  /** An automatic Notion login, to the worker's reserved path `_notion-login`, now. */
+  async enqueueNotionLogin({ attempt, trigger }: NotionLoginRequest): Promise<void> {
+    await this.publish(
+      { attempt, jobId: NOTION_LOGIN_JOB_ID, trigger },
+      { deduplicationId: `${NOTION_LOGIN_JOB_ID}.${attempt}` },
+    );
+  }
+
   /** The smoke test's signed `_ping`, to the worker's reserved path; the nonce comes back in Redis. */
   async ping(nonce: string): Promise<{ readonly messageId: string }> {
     return this.publish(
@@ -122,7 +142,7 @@ export class QStashScheduler implements Scheduler {
   }
 
   private async publish(
-    body: PingMessage | WakeupMessage,
+    body: NotionLoginMessage | PingMessage | WakeupMessage,
     options: { readonly deduplicationId: string; readonly delay?: number },
   ): Promise<{ readonly messageId: string }> {
     try {

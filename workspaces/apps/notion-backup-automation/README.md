@@ -214,6 +214,33 @@ install chromium`). Use "Continue with email" if Google sign-in refuses the wind
   Each step waits up to 30 s; downloads are refused in the browser.
 - **Rolling refresh.** When Notion rotates cookies during a run, the session is saved again
   (best effort, never throws).
+- **Automatic login** (Phase 14, `NOTION_AUTO_LOGIN_ENABLED=true`, off by default). When the
+  session is gone or expires within `LOGIN_WARNING_DAYS`, the worker signs in again with
+  Notion's email code, as spike S7 proved it on Vercel: a fresh headless context with the saved
+  browser identity, `OWNER_GOOGLE_EMAIL` (only if it is the Gmail profile's address), then the
+  code from the newest trusted login email in Gmail, Enter, the session gate, and the save as
+  `auth:notion` does it. Never Google sign-in, a password or a 2FA secret. The login email must
+  pass the export email's kind of checks for `notify@updates.notion.com` (Gmail's DKIM and DMARC
+  pass for `updates.notion.com`, the signed type `sendTemporaryPassword`, received after the
+  request); the code is never logged or stored, and the email's magic link is never read.
+  Until the code is in, every navigation of the page off a Notion host over HTTPS is blocked, and nothing is typed off Notion. Two trusted login emails in
+  the window stop the attempt as `email_ambiguous`: someone else asked Notion for a code for
+  your address. At most one attempt per 24 h, 120 s each, no retry within an attempt; a
+  challenge or a password prompt stops it. Each login makes Notion send "A new device logged
+  into your account". Turn it on in one environment only: environments share the mailbox but
+  not the daily limit.
+  - **Triggers:** a Notion probe (daily or `?probe=notion`) that finds the session signed out; a
+    tick that records `NOTION_SESSION_EXPIRED` (the job still waits for you, as before); and the
+    daily cron once the session expires within the warning days. Each hands the login to the
+    worker's reserved ID `_notion-login`, so it runs within the worker's 300 s.
+  - **Outcome:** renewed, the job waiting for the Notion login resumes and Telegram gets "Notion
+    login renewed, valid until …". Failed, a session found gone sends "Notion access is gone"
+    with the `auth:notion` fix, and an expiring one the expiry warning it stood in for (or "access is gone" if the session expired meanwhile).
+    `backup_health` shows the last attempt as `notionLogin` (`outcome`, `trigger`, `failure`).
+  - **Identity:** every session save also keeps the browser identity (user agent, locale, time
+    zone, viewport) as its own encrypted `secret:notion-browser-identity`, and a passing Notion
+    probe writes it for a session saved before Phase 14, so a login can replay it after the
+    session itself is gone.
 - **On Vercel** the browser is `@sparticuz/chromium` (headless, `--single-process`). It starts
   through a `/bin/sh` wrapper with `ulimit -c 0`, and `core.*` files in `/tmp` are deleted, since
   a crash dump could contain the session.
@@ -374,6 +401,11 @@ Responses carry codes only, since QStash keeps failed bodies in its DLQ:
 
 The reserved job ID `_ping` only records the delivery's nonce in `health` (used by
 `smoke:qstash`); it needs the signing keys, `APP_BASE_URL` and Redis, not the backup config.
+The reserved job ID `_notion-login` runs one [automatic Notion login](#notion-session-and-export)
+from the body `{ jobId, attempt, trigger }` (deduplication ID `_notion-login.<attempt>`). It runs
+only while that attempt holds the day's `notion-login:attempt` (otherwise `stale`), and only once
+(`notify:notion-login:run:<attempt>`); the worker answers `200` with its outcome whether it
+renewed the session or not.
 
 **Daily cron** (04:00 UTC; dates use `BACKUP_TIME_ZONE`, default `Europe/Warsaw`):
 
@@ -387,14 +419,21 @@ The reserved job ID `_ping` only records the delivery's nonce in `health` (used 
    cancelled) on Mondays, two days before `BACKUP_DAY_OF_MONTH`, and while a job waits for the
    Notion login. Results go to `health`.
 5. A probe that newly fails sends one 🔑 "access is gone"; a probe that passes resumes a job
-   waiting for that login, as `backup_retry` would.
+   waiting for that login, as `backup_retry` would. With the automatic login on, a Notion
+   session found signed out queues the login instead; "access is gone" follows if it fails, or
+   if the day's attempt is already spent.
 6. Warn 30, 7 and 1 days (`LOGIN_WARNING_DAYS`) before the Notion session expires, once each.
+   With the automatic login on, the cron renews the session first, and the warning goes out only
+   if the renewal fails or cannot be queued.
 7. Ping `HEARTBEAT_PING_URL`, or `<url>/fail` if a sub-step threw. healthchecks.io (period and
    grace 1 day) alerts after 2 silent days.
 
 A sub-step that throws is logged and skipped; the run then answers 500 with a report naming it.
 Vercel Cron does not retry. `?probe=notion|google|drive` runs one probe and returns its
-content-free result, such as `{"ok":false,"probe":"google","code":"GOOGLE_AUTH_REQUIRED"}`.
+content-free result, such as `{"ok":false,"probe":"google","code":"GOOGLE_AUTH_REQUIRED"}`. With
+the automatic login on, a Notion session found signed out adds `notionLogin`: `queued`, or
+`refused` (an attempt within 24 h) and `failed` (not queued), which also send "Notion access is
+gone".
 
 ## Notifications And Telegram
 
@@ -571,19 +610,21 @@ stored, add `GOOGLE_WEB_CLIENT_ID` and `GOOGLE_WEB_CLIENT_SECRET` to `.env.local
 Keys start with `{nba:<APP_ENV>}:`, so `prod`, `dev` and `test` share one database without
 overlap; the hash tag keeps an environment in one slot for the Lua scripts.
 
-| Key                           | Content                                                                  |
-| ----------------------------- | ------------------------------------------------------------------------ |
-| `job:<jobId>`                 | Hash `{ v, data }`: compare-and-set version and job JSON                 |
-| `jobs`                        | Sorted set of job IDs by `createdAt`                                     |
-| `active`                      | The one active job ID; cleared at a terminal status                      |
-| `lease:<jobId>`               | The worker holding the job (`SET NX PX`)                                 |
-| `events:<jobId>`              | Newest 200 sanitized events                                              |
-| `email:<messageId>`           | The job that consumed this export email                                  |
-| `secret:notion-storage-state` | AES-256-GCM envelope of the Notion session                               |
-| `secret:google-refresh-token` | AES-256-GCM envelope of the Google token; `meta.client` names its client |
-| `google-login:<hash>`         | A phone re-login's PKCE verifier for 15 min, under its state's SHA-256   |
-| `health`                      | Last probe results, last cron run, `_ping` nonce, last login warning     |
-| `notify:<key>`                | A notification that must not repeat yet (`SET NX EX`)                    |
+| Key                              | Content                                                                                                               |
+| -------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
+| `job:<jobId>`                    | Hash `{ v, data }`: compare-and-set version and job JSON                                                              |
+| `jobs`                           | Sorted set of job IDs by `createdAt`                                                                                  |
+| `active`                         | The one active job ID; cleared at a terminal status                                                                   |
+| `lease:<jobId>`                  | The worker holding the job (`SET NX PX`)                                                                              |
+| `events:<jobId>`                 | Newest 200 sanitized events                                                                                           |
+| `email:<messageId>`              | The job that consumed this export email                                                                               |
+| `secret:notion-storage-state`    | AES-256-GCM envelope of the Notion session                                                                            |
+| `secret:notion-browser-identity` | AES-256-GCM envelope of the session's browser identity (Phase 14)                                                     |
+| `secret:google-refresh-token`    | AES-256-GCM envelope of the Google token; `meta.client` names its client                                              |
+| `google-login:<hash>`            | A phone re-login's PKCE verifier for 15 min, under its state's SHA-256                                                |
+| `health`                         | Last probe results, last cron run, `_ping` nonce, last login warning and automatic login                              |
+| `notify:<key>`                   | A notification that must not repeat yet (`SET NX EX`); also `notion-login:run:<attempt>`, an automatic login that ran |
+| `notion-login:attempt`           | The ID of the day's one automatic Notion login, for 24 h; the worker runs only that attempt                           |
 
 A normal job's ID is its period, so `job:<period>` also guards one normal job per month.
 
@@ -614,6 +655,16 @@ Notion session and the Google refresh token are AES-256-GCM encrypted in Redis. 
 token prints only with `--print`, and Google access tokens stay in memory. A re-login's sign-in
 state is stored only as its SHA-256.
 
+**Automatic Notion login.** Off unless `NOTION_AUTO_LOGIN_ENABLED=true`. Gmail access already
+equals Notion access through the email code, so it opens no new way into the account. The code
+is a `SecretValue` that leaves only into Notion's code field; it is never logged, stored, sent to
+Telegram or given to the supervisor, which never starts a login; a failed page action is
+rethrown as static text, since Playwright's own errors quote what was filled. The login email
+must pass Gmail's own DKIM and DMARC verdicts for `updates.notion.com`, a second one stops the
+attempt, and only `OWNER_GOOGLE_EMAIL`, when it is the Gmail profile's address, is typed, on a
+Notion host only. One attempt per 24 h, tied to the worker delivery by its ID; no retry after a
+challenge.
+
 **Data minimisation.** Signed download URLs are never stored, logged or returned. Every log
 line goes through `redactString` and `redact`, which remove URL queries and secret URL paths;
 `tests/shared` covers them. MCP views and Telegram messages use allowlisted fields, and the
@@ -640,7 +691,7 @@ All variables are in [.env.example](.env.example) with comments; defaults and va
 | QStash         | `QSTASH_URL` (EU), `QSTASH_TOKEN`, `QSTASH_CURRENT_SIGNING_KEY`, `QSTASH_NEXT_SIGNING_KEY`, `APP_BASE_URL`                                                                                                                             |
 | Google         | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_REFRESH_TOKEN` (fallback once the envelope exists), `GOOGLE_DRIVE_BACKUP_ROOT_FOLDER_ID`                                                                                           |
 | Phone re-login | `GOOGLE_WEB_CLIENT_ID`, `GOOGLE_WEB_CLIENT_SECRET`, `OWNER_GOOGLE_EMAIL` ([Web Client Setup](#web-client-setup))                                                                                                                       |
-| Notion         | `NOTION_WORKSPACE_URL`, `NOTION_WORKSPACE_NAME`                                                                                                                                                                                        |
+| Notion         | `NOTION_WORKSPACE_URL`, `NOTION_WORKSPACE_NAME`, `NOTION_AUTO_LOGIN_ENABLED` (default `false`; needs `OWNER_GOOGLE_EMAIL`)                                                                                                             |
 | Auth tokens    | `MCP_AUTH_TOKEN` (≥ 32 chars), `MCP_ALLOWED_ORIGINS`, `CRON_SECRET`                                                                                                                                                                    |
 | Notifications  | `NOTIFIERS`, `TELEGRAM_HUB_URL`, `TELEGRAM_HUB_TOKEN` (≥ 32 chars), `TELEGRAM_INTEGRATION_ID`, `HEARTBEAT_PING_URL`                                                                                                                    |
 | Job policy     | `AUTO_START_ENABLED`, `BACKUP_TIME_ZONE`, `BACKUP_DAY_OF_MONTH`, `EMAIL_WAIT_TIMEOUT_HOURS`, `MAX_EXPORT_ATTEMPTS`, `MAX_STAGE_RETRIES`, `JOB_MAX_LIFETIME_HOURS`, `EXPORT_SHRINK_RATIO`, `LOGIN_WARNING_DAYS`, `WRITE_SHA256_SIDECAR` |
@@ -802,13 +853,37 @@ Complete these checks after deploying both apps, following the hub's
 Real backups start only through `backup_start`, or through the cron once
 `AUTO_START_ENABLED=true`.
 
+### Automatic Notion Login Drill
+
+Deploy with `NOTION_AUTO_LOGIN_ENABLED` unset, then set it to `true` (Production) and Redeploy.
+`OWNER_GOOGLE_EMAIL` must already be set (Phase 13). With `CRON_SECRET` from 1Password, call
+`curl -s -H "Authorization: Bearer $CRON_SECRET" "https://<app>.vercel.app/api/cron/daily?probe=notion"`
+at each probe step:
+
+1. Probe → `"notionSession":"valid"`. This also keeps the browser identity the login replays.
+2. Upstash console → `notion-backup-state` → Data Browser: delete
+   `{nba:prod}:secret:notion-storage-state`.
+3. Probe → `"code":"NOTION_SESSION_EXPIRED"` and `"notionLogin":"queued"`. Within about two
+   minutes Telegram shows "🔑 Notion login renewed, valid until <a year ahead>", and
+   `backup_health` shows `notionLogin.outcome: "renewed"`. A "new device" email from Notion
+   arrives as well.
+4. Probe → `"notionSession":"valid"`.
+5. Delete the key again, then probe → `"notionLogin":"refused"`, Telegram "🔑 Notion access is
+   gone", and no login runs (one a day). Restore the session with `auth:notion`, or probe again
+   after 24 h, which queues a new login.
+
+A `notionLogin.outcome: "failed"` names its `failure`; Vercel keeps the details for an hour under
+`notion.login.*` and `gmail.login_email.*`.
+
 ## Recovery
 
 Find the code with `backup_status`, or in the ⚠️ Telegram message. Run the commands from the
 repository root. The fixes:
 
 - **Notion login:** `APP_ENV=prod pnpm --filter notion-backup-automation auth:notion`. It saves
-  the session and resumes the waiting job.
+  the session and resumes the waiting job. With the automatic login on, the app first tries it
+  itself, once a day; you need `auth:notion` only after "Notion access is gone" or an expiry
+  warning, which it sends when that fails.
 - **Google login:** tap Fix login in the 🔑 or ⚠️ message (or open `attention.fixUrl`) and
   consent on your phone: the token is saved, checked, and the waiting job resumes. Without the Web
   client, or from the Mac: `APP_ENV=prod pnpm --filter notion-backup-automation auth:google`,

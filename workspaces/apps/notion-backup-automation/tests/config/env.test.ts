@@ -201,6 +201,25 @@ describe('loadEnv', () => {
     ).not.toThrow();
   });
 
+  it('keeps the automatic Notion login off by default, and needs the owner’s address for it', () => {
+    expect(loadEnv(workerEnvSchema, workerVars)).toMatchObject({
+      LOGIN_WARNING_DAYS: [30, 7, 1],
+      NOTION_AUTO_LOGIN_ENABLED: false,
+    });
+    expect(
+      configError(() =>
+        loadEnv(workerEnvSchema, { ...workerVars, NOTION_AUTO_LOGIN_ENABLED: 'true' }),
+      ).missing,
+    ).toEqual(['OWNER_GOOGLE_EMAIL']);
+    expect(
+      loadEnv(workerEnvSchema, {
+        ...workerVars,
+        NOTION_AUTO_LOGIN_ENABLED: 'true',
+        OWNER_GOOGLE_EMAIL: 'user@example.com',
+      }).NOTION_AUTO_LOGIN_ENABLED,
+    ).toBe(true);
+  });
+
   it('names missing variables, and treats an empty value as missing', () => {
     const error = configError(() =>
       loadEnv(cronEnvSchema, { ...cronVars, APP_ENCRYPTION_KEY: '', CRON_SECRET: undefined }),

@@ -1,6 +1,7 @@
 import { z } from 'zod';
 
 import { errorCodeSchema } from '../domain/error-catalog.js';
+import { notionLoginFailures } from './notion-login-error.js';
 
 const timestamp = z.iso.datetime();
 
@@ -52,7 +53,20 @@ export const healthSnapshotSchema = z.object({
       service: z.enum(['drive', 'google', 'notion']),
     })
     .optional(),
-  /** `exportDialog` once the probe got past the session gate. */
+  /** The last automatic Notion login (Phase 14): when, why, and how it ended. */
+  notionLogin: z
+    .object({
+      at: timestamp,
+      durationMs: z.number().int().min(0),
+      failure: z.enum(notionLoginFailures).optional(),
+      outcome: z.enum(['renewed', 'failed']),
+      trigger: z.enum(['expired', 'expiring']),
+    })
+    .optional(),
+  /**
+   * `exportDialog` once the probe got past the session gate; an automatic login records `valid`
+   * without it.
+   */
   notionSession: z
     .object({
       authCookieExpiresAt: timestamp.optional(),

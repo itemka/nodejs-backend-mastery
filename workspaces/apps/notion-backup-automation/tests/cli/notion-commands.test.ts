@@ -191,7 +191,11 @@ describe('auth:notion', () => {
 
     await expect(main(['auth:notion'], cli.context)).resolves.toBe(0);
     expect(browser.launches).toEqual([{ headless: false }, { headless: true }]);
-    expect(cli.redis.strings.size).toBe(1);
+    // The session, and the identity's own copy for an automatic login (Phase 14).
+    expect([...cli.redis.strings.keys()].toSorted()).toEqual([
+      '{nba:dev}:secret:notion-browser-identity',
+      '{nba:dev}:secret:notion-storage-state',
+    ]);
     expect(cli.text()).toContain('file_token matches file.notion.com');
     expect(cli.text()).toContain('authenticated');
     expect(cli.text()).not.toContain('f'.repeat(40));

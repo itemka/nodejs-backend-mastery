@@ -1,8 +1,10 @@
 import { GmailExportEmailFinder } from '../adapters/gmail/gmail-export-email-finder.js';
+import { GmailLoginCodeFinder } from '../adapters/gmail/gmail-login-code-finder.js';
 import { HttpHeartbeat, NoopHeartbeat } from '../adapters/heartbeat/http-heartbeat.js';
 import { NoopAgentModel } from '../adapters/llm/noop-agent-model.js';
 import type { BrowserLauncher } from '../adapters/notion/browser-launcher.js';
 import { createBrowserLauncher } from '../adapters/notion/browser-launcher.js';
+import { PlaywrightNotionEmailLogin } from '../adapters/notion/notion-email-login.js';
 import { PlaywrightNotionExportTrigger } from '../adapters/notion/notion-export-trigger.js';
 import { NotionSessionStore } from '../adapters/notion/notion-session.js';
 import { keyPrefixFor } from '../adapters/persistence/keys.js';
@@ -12,6 +14,7 @@ import { RedisHealthStore } from '../adapters/persistence/redis-health-store.js'
 import { RedisJobRepository } from '../adapters/persistence/redis-job-repository.js';
 import type { SetIfAbsentCommands } from '../adapters/persistence/redis-notification-gate.js';
 import { RedisNotificationGate } from '../adapters/persistence/redis-notification-gate.js';
+import { RedisNotionLoginSlot } from '../adapters/persistence/redis-notion-login-slot.js';
 import type { CounterCommands } from '../adapters/persistence/redis-rate-limiter.js';
 import { RedisRateLimiter } from '../adapters/persistence/redis-rate-limiter.js';
 import type { StringCommands } from '../adapters/persistence/redis-secret-store.js';
@@ -27,12 +30,14 @@ import { BackupApplicationService } from '../application/backup-service.js';
 import { DailyMaintenance } from '../application/daily-maintenance.js';
 import { JobNotifications } from '../application/job-notifications.js';
 import { LoginWarnings } from '../application/login-watch.js';
+import { NotionAutoLogin, NotionLoginRequests } from '../application/notion-auto-login.js';
 import type {
   HealthProbes,
   HealthStore,
   JobRepository,
   NotificationGate,
   NotionLoginInfo,
+  NotionLoginQueue,
   Scheduler,
 } from '../application/ports.js';
 import { ProcessJobUseCase } from '../application/process-job.js';
@@ -109,12 +114,18 @@ export interface BackupServicesDeps {
   /** `RedisJobRepository` on the same database, or the in-memory one. */
   readonly jobs: JobRepository;
   readonly logger: Logger;
+  /** Where an automatic Notion login is queued: QStash in the worker and the cron; none locally. */
+  readonly loginQueue?: NotionLoginQueue;
   readonly redis: StoreRedis;
   /** QStash in the worker; `dev:tick` publishes nothing. */
   readonly scheduler: Scheduler;
 }
 
 export interface BackupServices {
+  /** The worker's `_notion-login`: one automatic Notion login (Phase 14). */
+  readonly autoLogin: NotionAutoLogin;
+  /** Asks for an automatic Notion login, at most one a day. */
+  readonly autoLoginRequests: NotionLoginRequests;
   /** Marks notifications and login warnings as sent. */
   readonly gate: NotificationGate;
   readonly health: HealthStore;
@@ -126,6 +137,8 @@ export interface BackupServices {
   readonly probes: HealthProbes;
   readonly processJob: ProcessJobUseCase;
   readonly service: BackupApplicationService;
+  /** The login warnings at `LOGIN_WARNING_DAYS`. */
+  readonly warnings: LoginWarnings;
 }
 
 /** The tick and the application methods, with every adapter they use, for `APP_ENV`. */
@@ -179,6 +192,22 @@ export function createBackupServices(env: BackupEnv, deps: BackupServicesDeps): 
     }),
     policy,
   });
+  const autoLoginEnabled = env.NOTION_AUTO_LOGIN_ENABLED && env.OWNER_GOOGLE_EMAIL !== undefined;
+  const loginSlot = new RedisNotionLoginSlot(redis, keyPrefix);
+  const autoLoginRequests = new NotionLoginRequests({
+    enabled: autoLoginEnabled,
+    ids,
+    logger,
+    queue: deps.loginQueue,
+    slot: loginSlot,
+  });
+  const warnings = new LoginWarnings({
+    clock,
+    gate,
+    logger,
+    notifications,
+    warningDays: env.LOGIN_WARNING_DAYS,
+  });
   const supervisor = new Supervisor({
     clock,
     limiter: new RedisRateLimiter(redis, keyPrefix, clock),
@@ -197,6 +226,7 @@ export function createBackupServices(env: BackupEnv, deps: BackupServicesDeps): 
     jobs,
     logger,
     notifications,
+    notionLogin: autoLoginRequests,
     policy,
     scheduler,
     storage,
@@ -226,8 +256,34 @@ export function createBackupServices(env: BackupEnv, deps: BackupServicesDeps): 
     ...google.probes,
     notion: (signal) => trigger.probeExportDialog(signal),
   };
+  const workspace = { name: env.NOTION_WORKSPACE_NAME, url: env.NOTION_WORKSPACE_URL };
+  const autoLogin = new NotionAutoLogin({
+    clock,
+    enabled: autoLoginEnabled,
+    gate,
+    health,
+    jobs,
+    logger,
+    login: new PlaywrightNotionEmailLogin({
+      clock,
+      codes: new GmailLoginCodeFinder({ gmail, logger }),
+      launcher: browserLauncher,
+      logger,
+      // Required by the env schema once the login is on; unused while it is off.
+      ownerEmail: env.OWNER_GOOGLE_EMAIL ?? '',
+      sessions,
+      workspace,
+    }),
+    notifications,
+    service,
+    sessionInfo: sessions,
+    slot: loginSlot,
+    warnings,
+  });
 
   return {
+    autoLogin,
+    autoLoginRequests,
     gate,
     health,
     jobs,
@@ -236,6 +292,7 @@ export function createBackupServices(env: BackupEnv, deps: BackupServicesDeps): 
     probes,
     processJob,
     service,
+    warnings,
   };
 }
 
@@ -251,6 +308,7 @@ export interface RuntimeDeps extends ControlDeps {
 export function createRuntimeServices(env: WorkerEnv, deps: RuntimeDeps): BackupServices {
   const fetchOption = deps.fetch === undefined ? {} : { fetch: deps.fetch };
   const model = createAgentModel(env, { logger: deps.logger, ...fetchOption });
+  const scheduler = createQStashScheduler(env, deps);
 
   return createBackupServices(env, {
     ...(model === undefined ? {} : { agent: { limits: agentLimitsFrom(env), model } }),
@@ -258,8 +316,9 @@ export function createRuntimeServices(env: WorkerEnv, deps: RuntimeDeps): Backup
     googleReauthUrl: googleReauthUrl(env),
     jobs: new RedisJobRepository(deps.redis, keyPrefixFor(env.APP_ENV)),
     logger: deps.logger,
+    loginQueue: scheduler,
     redis: deps.redis,
-    scheduler: createQStashScheduler(env, deps),
+    scheduler,
     ...(deps.clock === undefined ? {} : { clock: deps.clock }),
     ...(deps.fetch === undefined ? {} : { fetch: deps.fetch }),
     ...(deps.ids === undefined ? {} : { ids: deps.ids }),
@@ -300,6 +359,9 @@ export async function serveWorker(
     clock: overrides.clock ?? systemClock,
     health: new RedisHealthStore(redis, keyPrefixFor(auth.APP_ENV)),
     logger,
+    notionLogin: () =>
+      createRuntimeServices(loadEnv(workerEnvSchema, source), { ...overrides, logger, redis })
+        .autoLogin,
     processJob: () =>
       createRuntimeServices(loadEnv(workerEnvSchema, source), { ...overrides, logger, redis })
         .processJob,
@@ -320,6 +382,7 @@ export function createDailyMaintenance(
   const { logger } = deps;
 
   return new DailyMaintenance({
+    autoLogin: services.autoLoginRequests,
     autoStart: { dayOfMonth: env.BACKUP_DAY_OF_MONTH, enabled: env.AUTO_START_ENABLED },
     clock,
     health: services.health,
@@ -338,13 +401,7 @@ export function createDailyMaintenance(
     probes: services.probes,
     service: services.service,
     timeZone: env.BACKUP_TIME_ZONE,
-    warnings: new LoginWarnings({
-      clock,
-      gate: services.gate,
-      logger,
-      notifications: services.notifications,
-      warningDays: env.LOGIN_WARNING_DAYS,
-    }),
+    warnings: services.warnings,
   });
 }
 

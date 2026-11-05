@@ -231,6 +231,49 @@ describe('NotionSessionStore', () => {
     expect(header).toBe('file_token=file_token-value-that-must-stay-secret');
   });
 
+  it('keeps the identity apart, so a login can replay it once the session is gone', async () => {
+    const redis = new FakeRedis();
+    const sessions = new NotionSessionStore({ secrets: secretStore(redis) });
+
+    await expect(sessions.identity()).resolves.toBeUndefined();
+    await sessions.save(captureSession(BROWSER_STATE, FINGERPRINT, NOW));
+    await expect(sessions.identity()).resolves.toEqual(FINGERPRINT);
+
+    redis.strings.delete('{nba:dev}:secret:notion-storage-state');
+
+    await expect(sessions.identity()).resolves.toEqual(FINGERPRINT);
+    expect(redis.strings.get('{nba:dev}:secret:notion-browser-identity')).not.toContain(
+      FINGERPRINT.userAgent,
+    );
+  });
+
+  it('reads the identity from a session saved before its copy existed', async () => {
+    const redis = new FakeRedis();
+
+    await secretStore(redis).put(
+      'notion-storage-state',
+      JSON.stringify(captureSession(BROWSER_STATE, FINGERPRINT, NOW).storageState),
+      sessionMeta(captureSession(BROWSER_STATE, FINGERPRINT, NOW)),
+    );
+
+    await expect(
+      new NotionSessionStore({ secrets: secretStore(redis) }).identity(),
+    ).resolves.toEqual(FINGERPRINT);
+    expect(redis.strings.has('{nba:dev}:secret:notion-browser-identity')).toBe(false);
+  });
+
+  it('has no identity when its copy was sealed with another key', async () => {
+    const redis = new FakeRedis();
+
+    await new NotionSessionStore({ secrets: secretStore(redis, otherKey) }).rememberIdentity(
+      FINGERPRINT,
+    );
+
+    await expect(
+      new NotionSessionStore({ secrets: secretStore(redis) }).identity(),
+    ).resolves.toBeUndefined();
+  });
+
   it('reports a missing session as NOTION_SESSION_EXPIRED', async () => {
     const sessions = new NotionSessionStore({ secrets: secretStore(new FakeRedis()) });
 

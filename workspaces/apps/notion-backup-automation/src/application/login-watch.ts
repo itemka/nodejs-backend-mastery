@@ -86,6 +86,14 @@ export interface LoginWarningsOptions {
   readonly warningDays: readonly number[];
 }
 
+/** Where an unexpired sign-in stands against the warning days. */
+interface ExpiryDue {
+  readonly daysLeft: number;
+  readonly leftMs: number;
+  /** The nearest warning threshold reached, in days. */
+  readonly nearest: number;
+}
+
 /** The daily cron's login warnings. */
 export class LoginWarnings {
   private readonly clock: Clock;
@@ -118,6 +126,42 @@ export class LoginWarnings {
    * threshold sent.
    */
   async notionExpiring(expiresAt?: string): Promise<number | undefined> {
+    const due = this.expiryDue(expiresAt);
+
+    if (
+      expiresAt === undefined ||
+      due === undefined ||
+      !(await this.gate.claim(
+        `warning:notion:${expiresAt}:${due.nearest}`,
+        Math.ceil((due.leftMs + DAY_MS) / 1000),
+      ))
+    ) {
+      return undefined;
+    }
+
+    const { daysLeft, nearest } = due;
+
+    await this.notifications.loginWarning({
+      daysLeft,
+      expiresAt,
+      howToFix: loginFixes.notion,
+      kind: 'expiring',
+      service: 'notion',
+    });
+    this.logger.info('login.expiring', { daysLeft, threshold: nearest });
+
+    return nearest;
+  }
+
+  /**
+   * Whether the Notion sign-in is within the warning days, whether or not a warning was sent:
+   * the daily cron renews it ahead of time then (Phase 14). Returns the nearest threshold.
+   */
+  notionExpiryDue(expiresAt?: string): number | undefined {
+    return this.expiryDue(expiresAt)?.nearest;
+  }
+
+  private expiryDue(expiresAt: string | undefined): ExpiryDue | undefined {
     if (expiresAt === undefined) {
       return undefined;
     }
@@ -133,25 +177,6 @@ export class LoginWarnings {
     // Sorted ascending, so the first threshold reached is the nearest one.
     const nearest = this.warningDays.find((days) => daysLeft <= days);
 
-    if (
-      nearest === undefined ||
-      !(await this.gate.claim(
-        `warning:notion:${expiresAt}:${nearest}`,
-        Math.ceil((leftMs + DAY_MS) / 1000),
-      ))
-    ) {
-      return undefined;
-    }
-
-    await this.notifications.loginWarning({
-      daysLeft,
-      expiresAt,
-      howToFix: loginFixes.notion,
-      kind: 'expiring',
-      service: 'notion',
-    });
-    this.logger.info('login.expiring', { daysLeft, threshold: nearest });
-
-    return nearest;
+    return nearest === undefined ? undefined : { daysLeft, leftMs, nearest };
   }
 }

@@ -40,8 +40,12 @@ export interface PlaywrightNotionExportTriggerOptions {
   readonly launcher: BrowserLauncher;
   /** Step names, durations and outcomes only: never a URL, cookie or page content. */
   readonly logger: Logger;
-  /** `save` keeps the session rolling: after a passed gate, changed cookies are saved again. */
-  readonly sessions: Pick<NotionSessionStore, 'load' | 'save'>;
+  /**
+   * `save` keeps the session rolling: after a passed gate, changed cookies are saved again.
+   * `rememberIdentity`, when given, keeps a passing probe's identity for an automatic login.
+   */
+  readonly sessions: Pick<NotionSessionStore, 'load' | 'save'> &
+    Partial<Pick<NotionSessionStore, 'rememberIdentity'>>;
   readonly stepTimeoutMs?: number;
   readonly workspace: { readonly name: string; readonly url: string };
 }
@@ -77,7 +81,7 @@ export class PlaywrightNotionExportTrigger implements NotionExportTrigger {
   private readonly headless: boolean;
   private readonly launcher: BrowserLauncher;
   private readonly logger: Logger;
-  private readonly sessions: Pick<NotionSessionStore, 'load' | 'save'>;
+  private readonly sessions: PlaywrightNotionExportTriggerOptions['sessions'];
   private readonly stepTimeoutMs: number;
   private readonly workspace: { readonly name: string; readonly url: string };
 
@@ -130,6 +134,8 @@ export class PlaywrightNotionExportTrigger implements NotionExportTrigger {
         'The saved Notion session has no unexpired file_token cookie for file.notion.com',
       );
     }
+
+    await this.rememberIdentity(session);
 
     return {
       exportDialog,
@@ -347,6 +353,18 @@ export class PlaywrightNotionExportTrigger implements NotionExportTrigger {
     } finally {
       signal?.removeEventListener('abort', onAbort);
       await closeBrowser(browser);
+    }
+  }
+
+  /**
+   * Keeps a copy of the identity apart from the session, so an automatic login can replay it
+   * once the session is gone; a session saved before Phase 14 has none yet. Best effort.
+   */
+  private async rememberIdentity(session: NotionSession): Promise<void> {
+    try {
+      await this.sessions.rememberIdentity?.(session.fingerprint);
+    } catch (error) {
+      this.logger.warn('notion.identity.save_failed', { error: errorName(error) });
     }
   }
 

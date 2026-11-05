@@ -56,6 +56,7 @@ import { IntegrationError } from './integration-error.js';
 import type { JobNotifications } from './job-notifications.js';
 import { JobConflictError, JobStore } from './job-store.js';
 import { describeSize } from './notification-text.js';
+import type { NotionLoginRequests } from './notion-auto-login.js';
 import type {
   BackupStorage,
   ExportEmailFinder,
@@ -129,6 +130,11 @@ export interface ProcessJobOptions {
   readonly jobs: JobRepository;
   readonly logger: Logger;
   readonly notifications: Pick<JobNotifications, 'attention' | 'failure' | 'lateEmail' | 'success'>;
+  /**
+   * Asks for the automatic Notion login when a tick finds the session gone (Phase 14); the job
+   * waits for you as before, and the login's success resumes it.
+   */
+  readonly notionLogin?: Pick<NotionLoginRequests, 'request'>;
   readonly policy: BackupPolicy;
   readonly scheduler: Scheduler;
   readonly storage: Pick<BackupStorage, 'findExisting'>;
@@ -229,6 +235,7 @@ export class ProcessJobUseCase {
     JobNotifications,
     'attention' | 'failure' | 'lateEmail' | 'success'
   >;
+  private readonly notionLogin: Pick<NotionLoginRequests, 'request'> | undefined;
   private readonly policy: BackupPolicy;
   private readonly scheduler: Scheduler;
   private readonly storage: Pick<BackupStorage, 'findExisting'>;
@@ -248,6 +255,7 @@ export class ProcessJobUseCase {
     this.jobs = options.jobs;
     this.logger = options.logger;
     this.notifications = options.notifications;
+    this.notionLogin = options.notionLogin;
     this.policy = options.policy;
     this.scheduler = options.scheduler;
     this.storage = options.storage;
@@ -1095,8 +1103,30 @@ export class ProcessJobUseCase {
       await this.notifications.failure(job);
     } else if (job.status === 'NEEDS_ATTENTION' && job.incident?.state === 'awaiting_user') {
       await this.notifications.attention(job, job.incident.supervisorSummary);
+
+      if (job.incident.code === 'NOTION_SESSION_EXPIRED') {
+        await this.requestNotionLogin(job.id);
+      }
     } else if (isEmailLate(job, this.clock.now())) {
       await this.notifications.lateEmail(job);
+    }
+  }
+
+  /**
+   * The automatic Notion login, at most one a day: a repeat notify of the same incident is
+   * refused by its gate. Best effort, like a notification: it never fails the tick.
+   */
+  private async requestNotionLogin(jobId: string): Promise<void> {
+    if (this.notionLogin === undefined) {
+      return;
+    }
+
+    try {
+      const outcome = await this.notionLogin.request('expired');
+
+      this.logger.info('job.notion_login', { jobId, outcome });
+    } catch (error) {
+      this.logger.warn('job.notion_login.failed', { error, jobId });
     }
   }
 

@@ -13,6 +13,7 @@ import { Supervisor } from '../../src/agent/supervisor.js';
 import { BackupApplicationService } from '../../src/application/backup-service.js';
 import type { IntegrationError } from '../../src/application/integration-error.js';
 import { JobNotifications } from '../../src/application/job-notifications.js';
+import type { NotionLoginRequests } from '../../src/application/notion-auto-login.js';
 import type {
   BackupQuery,
   CreateJobResult,
@@ -588,6 +589,8 @@ export interface HarnessOptions {
   exportShrinkRatio?: number;
   /** The supervisor's model; `NoopAgentModel` (provider `none`) by default. */
   model?: AgentModel;
+  /** The automatic Notion login's requests, for the tick's reactive trigger (Phase 14). */
+  notionLogin?: Pick<NotionLoginRequests, 'request'>;
   policy?: BackupPolicy;
   start?: string;
 }
@@ -669,6 +672,7 @@ export function backupHarness(options: HarnessOptions = {}) {
     transfer,
     trigger,
     ...(options.budgetsMs === undefined ? {} : { budgetsMs: options.budgetsMs }),
+    ...(options.notionLogin === undefined ? {} : { notionLogin: options.notionLogin }),
   });
   const service = new BackupApplicationService({
     clock,

@@ -88,7 +88,7 @@ export function checkExportEmail(
   const gmailVerdict = headerValues(headers, 'Authentication-Results')[0];
 
   return gmailVerdict !== undefined &&
-    isTrustedByGmail(gmailVerdict, headerValues(headers, 'DKIM-Signature'))
+    isTrustedByGmail(gmailVerdict, headerValues(headers, 'DKIM-Signature'), EXPORT_EMAIL)
     ? undefined
     : 'authentication';
 }
@@ -192,8 +192,24 @@ export function parseAuthenticationResults(value: string): AuthenticationResults
   return { authservId: (head.trim().split(' ')[0] ?? '').toLowerCase(), results };
 }
 
-/** Gmail's verdict: a DKIM pass for Notion's identity and a DMARC pass for its `From` domain. */
-function isTrustedByGmail(value: string, signatures: readonly string[]): boolean {
+/** A sender Gmail must have authenticated: its DKIM identity and its DMARC `From` domain. */
+export interface TrustedSender {
+  /** Gmail's own `Authentication-Results` must report a DKIM pass for this identity… */
+  readonly dkimIdentity: string;
+  /** …and a DMARC pass for this `From` domain, which also signs the email. */
+  readonly dmarcFromDomain: string;
+}
+
+/**
+ * Gmail's verdict, from its own (topmost) `Authentication-Results` value: a DKIM pass for the
+ * sender's identity, whose verified signature covers From, To, Subject and X-Feedback-Id, and a
+ * DMARC pass for its `From` domain.
+ */
+export function isTrustedByGmail(
+  value: string,
+  signatures: readonly string[],
+  sender: TrustedSender,
+): boolean {
   const { authservId, results } = parseAuthenticationResults(value);
 
   if (authservId !== EXPORT_EMAIL.gmailAuthservId) {
@@ -204,14 +220,14 @@ function isTrustedByGmail(value: string, signatures: readonly string[]): boolean
     (result) =>
       result.method === 'dkim' &&
       result.result === 'pass' &&
-      result.properties['header.i']?.toLowerCase() === EXPORT_EMAIL.dkimIdentity &&
-      hasSignedTrustHeaders(result, signatures),
+      result.properties['header.i']?.toLowerCase() === sender.dkimIdentity &&
+      hasSignedTrustHeaders(result, signatures, sender),
   );
   const dmarc = results.some(
     ({ method, properties, result }) =>
       method === 'dmarc' &&
       result === 'pass' &&
-      properties['header.from']?.toLowerCase() === EXPORT_EMAIL.dmarcFromDomain,
+      properties['header.from']?.toLowerCase() === sender.dmarcFromDomain,
   );
 
   return dkim && dmarc;
@@ -221,6 +237,7 @@ function isTrustedByGmail(value: string, signatures: readonly string[]): boolean
 function hasSignedTrustHeaders(
   result: AuthenticationResult,
   signatures: readonly string[],
+  sender: TrustedSender,
 ): boolean {
   const prefix = result.properties['header.b'];
   const selector = result.properties['header.s'];
@@ -255,8 +272,8 @@ function hasSignedTrustHeaders(
 
   return (
     prefix.length >= Math.min(minimumPrefixLength, signature.length) &&
-    domain === EXPORT_EMAIL.dmarcFromDomain &&
-    identity === EXPORT_EMAIL.dkimIdentity &&
+    domain === sender.dmarcFromDomain &&
+    identity === sender.dkimIdentity &&
     tags.get('s')?.toLowerCase() === selector.toLowerCase() &&
     ['from', 'to', 'subject', 'x-feedback-id'].every((name) => signedHeaders.has(name))
   );
@@ -284,14 +301,17 @@ function dkimTags(value: string): Map<string, string> | undefined {
   return tags;
 }
 
-function headerValues(headers: readonly { name: string; value: string }[], name: string): string[] {
+export function headerValues(
+  headers: readonly { name: string; value: string }[],
+  name: string,
+): string[] {
   const wanted = name.toLowerCase();
 
   return headers.filter((header) => header.name.toLowerCase() === wanted).map(({ value }) => value);
 }
 
 /** A single mailbox address, lowercased; undefined for zero, several or malformed. */
-function singleAddress(values: readonly string[]): string | undefined {
+export function singleAddress(values: readonly string[]): string | undefined {
   if (values.length !== 1) {
     return undefined;
   }

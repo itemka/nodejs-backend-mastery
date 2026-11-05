@@ -59,6 +59,9 @@ async function setup(signingKey?: string) {
             // The worker's logs are not under test here.
           },
         }),
+        notionLogin: () => {
+          throw new Error('A ping never runs a login');
+        },
         processJob: () => {
           throw new Error('A ping never runs a tick');
         },

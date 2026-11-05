@@ -4,6 +4,8 @@ import { StateSchemaInvalidError } from '../../src/adapters/persistence/job-code
 import { keyPrefixFor } from '../../src/adapters/persistence/keys.js';
 import { RedisHealthStore } from '../../src/adapters/persistence/redis-health-store.js';
 import { QStashSignatureVerifier } from '../../src/adapters/qstash/qstash-signature-verifier.js';
+import type { NotionAutoLogin } from '../../src/application/notion-auto-login.js';
+import type { NotionLoginRequest } from '../../src/application/ports.js';
 import type { ProcessJobUseCase } from '../../src/application/process-job.js';
 import { ConfigError } from '../../src/config/env.js';
 import type { WorkerHandlerDeps } from '../../src/http/worker-handler.js';
@@ -16,7 +18,10 @@ import { signedDelivery, TEST_BASE_URL, TEST_SIGNING_KEYS } from '../support/qst
 
 const PATH = '/api/jobs/process/2026-10';
 
-function setup(processJob?: () => Pick<ProcessJobUseCase, 'execute'>) {
+function setup(
+  processJob?: () => Pick<ProcessJobUseCase, 'execute'>,
+  notionLogin?: () => Pick<NotionAutoLogin, 'run'>,
+) {
   const harness = backupHarness();
   const redis = new FakeRedis();
   const logs: string[] = [];
@@ -26,6 +31,11 @@ function setup(processJob?: () => Pick<ProcessJobUseCase, 'execute'>) {
     clock: harness.clock,
     health: new RedisHealthStore(redis, keyPrefixFor('test')),
     logger: createLogger({ sink: (_level, line) => logs.push(line) }),
+    notionLogin:
+      notionLogin ??
+      (() => {
+        throw new Error('This test runs no login');
+      }),
     processJob: () => {
       built += 1;
 
@@ -88,6 +98,52 @@ describe('handleWorkerRequest', () => {
     expect(redis.strings.size).toBe(0);
     await expect(harness.memory.list({ limit: 10 })).resolves.toEqual([]);
     expect(built()).toBe(0);
+  });
+
+  it('runs a signed _notion-login once and answers 200 with its outcome, failed or not', async () => {
+    const runs: NotionLoginRequest[] = [];
+    const { built, deps } = setup(undefined, () => ({
+      run: (request) => {
+        runs.push(request);
+
+        return Promise.resolve({ failure: 'challenge', outcome: 'failed' });
+      },
+    }));
+    const message = { attempt: TEST_TOKEN, jobId: '_notion-login', trigger: 'expired' };
+    const response = await handleWorkerRequest(
+      signedDelivery('/api/jobs/process/_notion-login', message),
+      deps,
+    );
+
+    expect(response.status).toBe(200);
+    await expect(body(response)).resolves.toEqual({ failure: 'challenge', outcome: 'failed' });
+    expect(runs).toEqual([{ attempt: TEST_TOKEN, trigger: 'expired' }]);
+    expect(built()).toBe(0);
+  });
+
+  it('answers 489 for a _notion-login body the app never sends, and 503 while unconfigured', async () => {
+    const { deps } = setup(undefined, () => {
+      throw new ConfigError(['OWNER_GOOGLE_EMAIL'], []);
+    });
+    const path = '/api/jobs/process/_notion-login';
+    const invalid = [
+      { attempt: TEST_TOKEN, jobId: '_notion-login', trigger: 'always' },
+      { attempt: 'short', jobId: '_notion-login', trigger: 'expired' },
+      { attempt: TEST_TOKEN, extra: 1, jobId: '_notion-login', trigger: 'expired' },
+    ];
+
+    for (const message of invalid) {
+      await expect(
+        handleWorkerRequest(signedDelivery(path, message), deps).then((r) => r.status),
+      ).resolves.toBe(489);
+    }
+
+    const unconfigured = await handleWorkerRequest(
+      signedDelivery(path, { attempt: TEST_TOKEN, jobId: '_notion-login', trigger: 'expired' }),
+      deps,
+    );
+
+    expect(unconfigured.status).toBe(503);
   });
 
   it('answers 401 without a genuine signature for this URL and body', async () => {

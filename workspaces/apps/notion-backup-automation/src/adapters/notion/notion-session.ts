@@ -24,6 +24,9 @@ const FILE_HOST_URL = new URL(`https://${NOTION_FILE.host}${NOTION_FILE.pathPref
 
 const SECRET_NAME = 'notion-storage-state';
 
+/** The identity's own copy, which outlives the session (Phase 14). */
+const IDENTITY_SECRET_NAME = 'notion-browser-identity';
+
 /** A host or cookie domain (a leading dot is ignored) of Notion's. */
 export function isNotionHost(hostOrDomain: string): boolean {
   return notionHostPattern.test(hostOrDomain.toLowerCase().replace(/^\./, ''));
@@ -254,7 +257,46 @@ export class NotionSessionStore implements NotionLoginInfo {
     };
   }
 
+  /**
+   * The browser identity a new login replays: the saved session's, or, once that cannot be read,
+   * the copy every save keeps apart. Undefined when neither exists or opens.
+   */
+  async identity(): Promise<BrowserFingerprint | undefined> {
+    try {
+      const session = await this.load();
+
+      return session.fingerprint;
+    } catch (error) {
+      if (!(error instanceof IntegrationError)) {
+        throw error;
+      }
+    }
+
+    let stored: StoredSecret | undefined;
+
+    try {
+      stored = await this.secrets.get(IDENTITY_SECRET_NAME);
+    } catch (error) {
+      if (error instanceof EnvelopeError) {
+        return undefined;
+      }
+
+      throw error;
+    }
+
+    const identity = browserFingerprintSchema.safeParse(parseJson(stored?.value ?? ''));
+
+    return identity.success ? identity.data : undefined;
+  }
+
+  /** Keeps the identity apart from the session, so a login can replay it after the session. */
+  async rememberIdentity(fingerprint: BrowserFingerprint): Promise<void> {
+    await this.secrets.put(IDENTITY_SECRET_NAME, JSON.stringify(fingerprint));
+  }
+
+  /** Saves the identity's copy first: a session is never saved without it. */
   async save(session: CapturedSession): Promise<void> {
+    await this.rememberIdentity(session.fingerprint);
     await this.secrets.put(SECRET_NAME, JSON.stringify(session.storageState), sessionMeta(session));
   }
 }
