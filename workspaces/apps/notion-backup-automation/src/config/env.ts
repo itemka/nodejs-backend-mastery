@@ -146,6 +146,28 @@ const ownerShape = {
   OWNER_GOOGLE_EMAIL: z.email(),
 };
 
+/** Days before the Notion sign-in expires on which one warning each is sent. */
+const warningDays = z.coerce.number().int().min(1).max(90);
+
+/**
+ * The login warnings and the automatic Notion login (Phase 14), off by default. The login types
+ * `OWNER_GOOGLE_EMAIL`, so it is required once the login is on.
+ */
+const loginShape = {
+  LOGIN_WARNING_DAYS: commaList(warningDays, ['30', '7', '1']),
+  NOTION_AUTO_LOGIN_ENABLED: flag(false),
+  OWNER_GOOGLE_EMAIL: ownerShape.OWNER_GOOGLE_EMAIL.optional(),
+};
+
+const requireOwnerForAutoLogin = (
+  env: { NOTION_AUTO_LOGIN_ENABLED: boolean; OWNER_GOOGLE_EMAIL?: string | undefined },
+  context: z.RefinementCtx,
+) => {
+  if (env.NOTION_AUTO_LOGIN_ENABLED && env.OWNER_GOOGLE_EMAIL === undefined) {
+    context.addIssue({ code: 'custom', message: 'Required', path: ['OWNER_GOOGLE_EMAIL'] });
+  }
+};
+
 /** Where the phone re-login starts: a fixed, non-secret link that only the owner can finish. */
 export const GOOGLE_REAUTH_PATH = '/oauth/google/reauth';
 
@@ -309,16 +331,19 @@ export const devUploadEnvSchema = z.object({
  * The backup itself, without scheduling or the agent: what `createBackupServices` wires, and
  * all `dev:tick` needs. The worker and cron schemas include it.
  */
-export const backupEnvSchema = z.object({
-  ...coreShape,
-  ...redisShape,
-  ...policyShape,
-  ...googleShape,
-  ...notionShape,
-  ...encryptionShape,
-  ...transferShape,
-  ...notifyShape,
-});
+export const backupEnvSchema = z
+  .object({
+    ...coreShape,
+    ...redisShape,
+    ...policyShape,
+    ...googleShape,
+    ...notionShape,
+    ...encryptionShape,
+    ...transferShape,
+    ...notifyShape,
+    ...loginShape,
+  })
+  .superRefine(requireOwnerForAutoLogin);
 
 /** A backup test notification, sent through the hub. */
 export const telegramChatEnvSchema = z.object({
@@ -389,6 +414,7 @@ const workerShape = {
   ...agentShape,
   ...transferShape,
   ...notifyShape,
+  ...loginShape,
 };
 
 /**
@@ -403,8 +429,11 @@ export const workerAuthEnvSchema = z.object({
   APP_BASE_URL: qstashPublishShape.APP_BASE_URL,
 });
 
-/** `/api/jobs/process/[jobId]`: one tick of one job. */
-export const workerEnvSchema = z.object(workerShape).superRefine(requireGeminiKey);
+/** `/api/jobs/process/[jobId]`: one tick of one job, or one automatic Notion login. */
+export const workerEnvSchema = z
+  .object(workerShape)
+  .superRefine(requireGeminiKey)
+  .superRefine(requireOwnerForAutoLogin);
 
 /** `smoke:qstash`: publishes a signed `_ping` and reads its nonce back from Redis. */
 export const qstashSmokeEnvSchema = z.object({
@@ -429,9 +458,6 @@ export const loginResumeEnvSchema = z.object({
 /** The cron's own authentication, checked before anything else is configured or run. */
 export const cronAuthEnvSchema = z.object({ CRON_SECRET: secret });
 
-/** Days before the Notion sign-in expires on which one warning each is sent. */
-const warningDays = z.coerce.number().int().min(1).max(90);
-
 /** `/api/cron/daily`: the worker's needs plus the cron secret and the auto-start settings. */
 export const cronEnvSchema = z
   .object({
@@ -441,9 +467,9 @@ export const cronEnvSchema = z
     CRON_SECRET: secret,
     /** healthchecks.io's ping URL; unset, the heartbeat is off. */
     HEARTBEAT_PING_URL: httpsUrl.optional(),
-    LOGIN_WARNING_DAYS: commaList(warningDays, ['30', '7', '1']),
   })
-  .superRefine(requireGeminiKey);
+  .superRefine(requireGeminiKey)
+  .superRefine(requireOwnerForAutoLogin);
 
 /**
  * `/oauth/google/*`, the phone re-login (Phase 13): the Web client's sign-in, its states in

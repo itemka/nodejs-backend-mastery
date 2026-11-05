@@ -173,6 +173,19 @@ describe('LoginWarnings', () => {
     expect(sent).toEqual([]);
   });
 
+  it('tells whether the expiry is within the warning days, without sending or claiming', async () => {
+    const { clock, sent, warnings } = warningsSetup();
+    const expiresAt = inDays(clock, 5);
+
+    expect(warnings.notionExpiryDue()).toBeUndefined();
+    expect(warnings.notionExpiryDue(inDays(clock, 31))).toBeUndefined();
+    expect(warnings.notionExpiryDue(inDays(clock, -1))).toBeUndefined();
+    expect(warnings.notionExpiryDue(expiresAt)).toBe(7);
+    expect(warnings.notionExpiryDue(expiresAt)).toBe(7);
+    expect(sent).toEqual([]);
+    await expect(warnings.notionExpiring(expiresAt)).resolves.toBe(7);
+  });
+
   it('sends one warning, the nearest threshold, after missed days', async () => {
     const { clock, sent, warnings } = warningsSetup();
     const expiresAt = inDays(clock, 5);

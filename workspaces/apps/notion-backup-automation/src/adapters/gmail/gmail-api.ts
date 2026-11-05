@@ -22,19 +22,23 @@ export class GmailApi {
     this.client = client;
   }
 
-  /** `users.messages.get` with `format=full`: headers and body parts. */
-  getMessage(messageId: string): Promise<GmailMessage> {
+  /**
+   * `users.messages.get` with `format=full`: headers and body parts. An aborted `signal` cancels
+   * the request and its retries, as for every call here.
+   */
+  getMessage(messageId: string, signal?: AbortSignal): Promise<GmailMessage> {
     const id = gmailMessageIdSchema.parse(messageId);
 
     return this.client.json(gmailMessageSchema, {
       query: { format: 'full' },
+      signal,
       url: `${GMAIL_USER_URL}/messages/${id}`,
     });
   }
 
   /** `users.getProfile`. The address is personal data: show it only masked. */
-  getProfile(): Promise<GmailProfile> {
-    return this.client.json(gmailProfileSchema, { url: `${GMAIL_USER_URL}/profile` });
+  getProfile(signal?: AbortSignal): Promise<GmailProfile> {
+    return this.client.json(gmailProfileSchema, { signal, url: `${GMAIL_USER_URL}/profile` });
   }
 
   /** One `users.messages.list` page; the caller follows `nextPageToken`. */
@@ -42,9 +46,11 @@ export class GmailApi {
     query: string,
     maxResults: number,
     pageToken?: string,
+    signal?: AbortSignal,
   ): Promise<GmailMessageIdsPage> {
     const list = await this.client.json(gmailMessageListSchema, {
       query: { maxResults, pageToken, q: query },
+      signal,
       url: `${GMAIL_USER_URL}/messages`,
     });
 

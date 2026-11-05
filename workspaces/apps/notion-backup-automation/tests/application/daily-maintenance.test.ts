@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
+import { InMemoryNotionLoginSlot } from '../../src/adapters/persistence/redis-notion-login-slot.js';
 import type { ProbeName } from '../../src/application/daily-maintenance.js';
 import {
   DailyMaintenance,
@@ -8,7 +9,8 @@ import {
 } from '../../src/application/daily-maintenance.js';
 import { IntegrationError } from '../../src/application/integration-error.js';
 import { LoginWarnings } from '../../src/application/login-watch.js';
-import type { HealthProbes, Heartbeat } from '../../src/application/ports.js';
+import { NotionLoginRequests } from '../../src/application/notion-auto-login.js';
+import type { NotionLoginRequest, HealthProbes, Heartbeat } from '../../src/application/ports.js';
 import type { ErrorCode } from '../../src/domain/error-catalog.js';
 import { backupHarness, storedJob } from '../support/backup-harness.js';
 import { TEST_TOKEN } from '../support/fixture-secrets.js';
@@ -51,6 +53,7 @@ function fakeProbes(script: ProbeScript, calls: ProbeName[]): HealthProbes {
 }
 
 interface SetupOptions {
+  autoLogin?: Pick<NotionLoginRequests, 'request'>;
   autoStart?: boolean;
   dayOfMonth?: number;
   heartbeatThrows?: boolean;
@@ -82,6 +85,7 @@ function setup(options: SetupOptions = {}) {
     },
   };
   const maintenance = new DailyMaintenance({
+    ...(options.autoLogin === undefined ? {} : { autoLogin: options.autoLogin }),
     autoStart: { dayOfMonth: options.dayOfMonth ?? 1, enabled: options.autoStart ?? false },
     clock: harness.clock,
     health: harness.health,
@@ -512,6 +516,117 @@ describe('DailyMaintenance.probe', () => {
       ok: false,
       probe: 'drive',
     });
+  });
+});
+
+/** `setup`, with the login's requests on the same gate and a queue that records them. */
+function withLogin(options: SetupOptions = {}) {
+  const queued: NotionLoginRequest[] = [];
+  const holder: { requests?: NotionLoginRequests } = {};
+  const autoLogin: Pick<NotionLoginRequests, 'request'> = {
+    request: (trigger) => {
+      if (holder.requests === undefined) {
+        throw new Error('Not wired');
+      }
+
+      return holder.requests.request(trigger);
+    },
+  };
+  const context = setup({ ...options, autoLogin });
+
+  holder.requests = new NotionLoginRequests({
+    enabled: true,
+    ids: context.harness.ids,
+    logger: context.harness.logger,
+    queue: {
+      enqueueNotionLogin: (request) => {
+        queued.push(request);
+
+        return Promise.resolve();
+      },
+    },
+    slot: new InMemoryNotionLoginSlot(context.harness.clock),
+  });
+
+  return { ...context, queued };
+}
+
+describe('automatic Notion login (Phase 14)', () => {
+  it('asks for the login when a probe finds the session gone, and holds back lost', async () => {
+    const { harness, maintenance, queued } = withLogin({
+      probes: { notion: 'NOTION_SESSION_EXPIRED' },
+    });
+
+    await waitingFor(harness, 'NOTION_SESSION_EXPIRED');
+
+    await expect(maintenance.run()).resolves.toMatchObject({
+      notionLogin: 'queued',
+      probes: { notion: 'NOTION_SESSION_EXPIRED' },
+      resumed: [],
+    });
+    expect(queued).toEqual([expect.objectContaining({ trigger: 'expired' })]);
+    expect(loginWarnings(harness)).toEqual([]);
+  });
+
+  it('sends lost once the day’s login is spent, even for a session gone before', async () => {
+    const { harness, maintenance, queued } = withLogin({
+      probes: { notion: 'NOTION_SESSION_EXPIRED' },
+    });
+
+    await waitingFor(harness, 'NOTION_SESSION_EXPIRED');
+    await maintenance.run();
+    harness.clock.advance(23 * 60 * 60 * 1000);
+
+    await expect(maintenance.run()).resolves.toMatchObject({ notionLogin: 'refused' });
+    expect(queued).toHaveLength(1);
+    expect(loginWarnings(harness)).toEqual([
+      expect.objectContaining({ kind: 'lost', service: 'notion' }),
+    ]);
+  });
+
+  it('renews ahead of time instead of the expiry warning, and warns once it is refused', async () => {
+    const { harness, maintenance, queued } = withLogin({
+      notionExpiresAt: '2026-10-25T00:00:00.000Z',
+    });
+
+    await expect(maintenance.run()).resolves.toMatchObject({ notionLogin: 'queued' });
+    expect(queued).toEqual([expect.objectContaining({ trigger: 'expiring' })]);
+    expect(loginWarnings(harness)).toEqual([]);
+
+    const report = await maintenance.run();
+
+    expect(report).toMatchObject({ notionLogin: 'refused', warnedDays: 30 });
+    expect(loginWarnings(harness)).toEqual([
+      expect.objectContaining({ kind: 'expiring', service: 'notion' }),
+    ]);
+  });
+
+  it('?probe=notion asks for the login, then sends lost when the day’s is spent', async () => {
+    const { harness, maintenance, queued } = withLogin({
+      probes: { notion: 'NOTION_SESSION_EXPIRED' },
+    });
+
+    await expect(maintenance.probe('notion')).resolves.toEqual({
+      code: 'NOTION_SESSION_EXPIRED',
+      notionLogin: 'queued',
+      notionSession: 'expired',
+      ok: false,
+      probe: 'notion',
+    });
+    expect(loginWarnings(harness)).toEqual([]);
+
+    await expect(maintenance.probe('notion')).resolves.toMatchObject({ notionLogin: 'refused' });
+    expect(queued).toHaveLength(1);
+    expect(loginWarnings(harness)).toEqual([
+      expect.objectContaining({ kind: 'lost', service: 'notion' }),
+    ]);
+  });
+
+  it('leaves another Notion failure to the warnings: a login would not fix it', async () => {
+    const { maintenance, queued } = withLogin({ probes: { notion: 'NOTION_WRONG_WORKSPACE' } });
+
+    await expect(maintenance.probe('notion')).resolves.not.toHaveProperty('notionLogin');
+    expect(queued).toEqual([]);
   });
 });
 

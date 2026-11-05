@@ -7,10 +7,10 @@ import { pause, systemSleep } from '../../shared/sleep.js';
 export const NOTION_LOGIN_URL = 'https://app.notion.com/login';
 
 /** Notion's app shell; the login page has neither element (S2). */
-const APP_SHELL = '[class*="notion-sidebar"], .notion-frame';
+export const APP_SHELL = '[class*="notion-sidebar"], .notion-frame';
 
 /** CAPTCHA and bot-check widgets: Cloudflare (Turnstile and its interstitial), hCaptcha, reCAPTCHA. */
-const CHALLENGE = [
+export const CHALLENGE = [
   'iframe[src*="challenges.cloudflare.com"]',
   'iframe[src*="hcaptcha.com"]',
   'iframe[src*="recaptcha"]',
@@ -19,7 +19,8 @@ const CHALLENGE = [
 ].join(', ');
 
 /** The titles of interstitial verification pages. */
-const challengeTitle = /just a moment|attention required|verify (?:that )?you are (?:a )?human/i;
+export const challengeTitle =
+  /just a moment|attention required|verify (?:that )?you are (?:a )?human/i;
 
 const loginPath = /^\/login(?:\/|$)/;
 

@@ -66,7 +66,14 @@ export interface JobRepository {
   update(jobId: string, expectedVersion: number, next: BackupJob): Promise<UpdateJobResult>;
 }
 
-export type SecretName = 'google-refresh-token' | 'notion-storage-state';
+/**
+ * - `notion-browser-identity`: the signed-in browser's fingerprint, kept apart from the session
+ *   so an automatic login can replay it after the session itself is gone (Phase 14).
+ */
+export type SecretName =
+  | 'google-refresh-token'
+  | 'notion-browser-identity'
+  | 'notion-storage-state';
 
 export interface StoredSecret {
   readonly createdAt: string;
@@ -429,6 +436,68 @@ export interface RateLimiter {
 export interface NotionLoginInfo {
   /** The earliest sign-in cookie expiry; undefined when none is recorded or no session is saved. */
   authCookieExpiresAt(): Promise<string | undefined>;
+}
+
+export interface LoginCodeRequest {
+  /** When the login page was asked for a code; an earlier email answers an earlier request. */
+  readonly requestedAt: Date;
+  readonly signal?: AbortSignal;
+}
+
+/**
+ * Notion's login-code email in Gmail (Phase 14). Failures throw `NotionLoginError`
+ * (`email_missing`, `code_unrecognized`) or Gmail's own `IntegrationError`.
+ */
+export interface LoginCodeFinder {
+  /** The Gmail profile's address, lowercased. */
+  mailbox(signal?: AbortSignal): Promise<string>;
+  /** Polls for the newest trusted login email after `requestedAt`; the code is never logged. */
+  waitForCode(request: LoginCodeRequest): Promise<SecretValue<string>>;
+}
+
+/** A new Notion session, saved: its earliest sign-in cookie expiry, when it has one. */
+export interface RenewedNotionSession {
+  readonly authCookieExpiresAt?: string;
+}
+
+/**
+ * One email-code Notion login in a new headless browser that replays the saved identity: the
+ * login page, the code from Gmail, the session gate, then the save. Never Google sign-in, a
+ * password or a 2FA secret. Failures throw `NotionLoginError`; the saved session is left as it
+ * was unless the new one passed every check.
+ */
+export interface NotionEmailLogin {
+  renewSession(signal: AbortSignal): Promise<RenewedNotionSession>;
+}
+
+/**
+ * Why a login was asked for:
+ * - `expired`: a probe or a tick found the session gone; a failure sends `lost`;
+ * - `expiring`: the sign-in expires within the warning days; a failure sends that warning.
+ */
+export type NotionLoginTrigger = 'expired' | 'expiring';
+
+export interface NotionLoginRequest {
+  /** A random ID: the worker runs each attempt once, however often QStash delivers it. */
+  readonly attempt: string;
+  readonly trigger: NotionLoginTrigger;
+}
+
+/**
+ * The day's one automatic Notion login (`notion-login:attempt`): claimed with the attempt's ID
+ * before the publish, so the worker runs only the attempt that holds it.
+ */
+export interface NotionLoginSlot {
+  /** Claims the slot for `attempt` for `ttlSec`; false while another attempt holds it. */
+  claim(attempt: string, ttlSec: number): Promise<boolean>;
+  /** Whether `attempt` holds the slot now. */
+  holds(attempt: string): Promise<boolean>;
+}
+
+/** Hands a login to the worker (`_notion-login`), so it runs within the worker's 300 s. */
+export interface NotionLoginQueue {
+  /** Throws when the request may not have been published. */
+  enqueueNotionLogin(request: NotionLoginRequest): Promise<void>;
 }
 
 /** The Notion probe passed: signed in, export dialog reached, saved file cookie unexpired. */

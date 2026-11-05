@@ -88,7 +88,7 @@ export function checkExportEmail(
   const gmailVerdict = headerValues(headers, 'Authentication-Results')[0];
 
   return gmailVerdict !== undefined &&
-    isTrustedByGmail(gmailVerdict, headerValues(headers, 'DKIM-Signature'))
+    isTrustedByGmail(gmailVerdict, headerValues(headers, 'DKIM-Signature'), EXPORT_EMAIL)
     ? undefined
     : 'authentication';
 }
@@ -195,12 +195,25 @@ export function parseAuthenticationResults(value: string): AuthenticationResults
   return { authservId: authservId.text.toLowerCase(), results };
 }
 
+/** A sender Gmail must have authenticated: its DKIM identity and its DMARC `From` domain. */
+export interface TrustedSender {
+  /** Gmail's own `Authentication-Results` must report a DKIM pass for this identity… */
+  readonly dkimIdentity: string;
+  /** …and a DMARC pass for this `From` domain, which also signs the email. */
+  readonly dmarcFromDomain: string;
+}
+
 /**
- * Gmail's verdict: every DKIM pass for Notion's identity is bound to one verified signature, and
- * Gmail reported exactly one DMARC result, a pass for Notion's `From` domain. A second DMARC
- * result, passing or not, means part of the header is not Gmail's.
+ * Gmail's verdict, from its own (topmost) `Authentication-Results` value: every DKIM pass for the
+ * sender's identity is bound to one verified signature that covers From, To, Subject and
+ * X-Feedback-Id, and Gmail reported exactly one DMARC result, a pass for the sender's `From`
+ * domain. A second DMARC result, passing or not, means part of the header is not Gmail's.
  */
-function isTrustedByGmail(value: string, signatures: readonly string[]): boolean {
+export function isTrustedByGmail(
+  value: string,
+  signatures: readonly string[],
+  sender: TrustedSender,
+): boolean {
   const verdict = parseAuthenticationResults(value);
 
   if (verdict?.authservId !== EXPORT_EMAIL.gmailAuthservId) {
@@ -211,17 +224,17 @@ function isTrustedByGmail(value: string, signatures: readonly string[]): boolean
     ({ method, properties, result }) =>
       method === 'dkim' &&
       result === 'pass' &&
-      properties['header.i']?.toLowerCase() === EXPORT_EMAIL.dkimIdentity,
+      properties['header.i']?.toLowerCase() === sender.dkimIdentity,
   );
   const dmarc = verdict.results.filter(({ method }) => method === 'dmarc');
   const [onlyDmarc] = dmarc;
 
   return (
     dkim.length > 0 &&
-    dkim.every((result) => hasSignedTrustHeaders(result, signatures)) &&
+    dkim.every((result) => hasSignedTrustHeaders(result, signatures, sender)) &&
     dmarc.length === 1 &&
     onlyDmarc?.result === 'pass' &&
-    onlyDmarc.properties['header.from']?.toLowerCase() === EXPORT_EMAIL.dmarcFromDomain
+    onlyDmarc.properties['header.from']?.toLowerCase() === sender.dmarcFromDomain
   );
 }
 
@@ -430,6 +443,7 @@ function resultInfo(tokens: readonly AuthResToken[]): AuthenticationResult | und
 function hasSignedTrustHeaders(
   result: AuthenticationResult,
   signatures: readonly string[],
+  sender: TrustedSender,
 ): boolean {
   const prefix = result.properties['header.b'];
   const selector = result.properties['header.s'];
@@ -464,8 +478,8 @@ function hasSignedTrustHeaders(
 
   return (
     prefix.length >= Math.min(minimumPrefixLength, signature.length) &&
-    domain === EXPORT_EMAIL.dmarcFromDomain &&
-    identity === EXPORT_EMAIL.dkimIdentity &&
+    domain === sender.dmarcFromDomain &&
+    identity === sender.dkimIdentity &&
     tags.get('s')?.toLowerCase() === selector.toLowerCase() &&
     ['from', 'to', 'subject', 'x-feedback-id'].every((name) => signedHeaders.has(name))
   );
@@ -493,14 +507,17 @@ function dkimTags(value: string): Map<string, string> | undefined {
   return tags;
 }
 
-function headerValues(headers: readonly { name: string; value: string }[], name: string): string[] {
+export function headerValues(
+  headers: readonly { name: string; value: string }[],
+  name: string,
+): string[] {
   const wanted = name.toLowerCase();
 
   return headers.filter((header) => header.name.toLowerCase() === wanted).map(({ value }) => value);
 }
 
 /** A single mailbox address, lowercased; undefined for zero, several or malformed. */
-function singleAddress(values: readonly string[]): string | undefined {
+export function singleAddress(values: readonly string[]): string | undefined {
   if (values.length !== 1) {
     return undefined;
   }

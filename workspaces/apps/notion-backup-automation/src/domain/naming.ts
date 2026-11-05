@@ -5,7 +5,7 @@ import { yearOfPeriod } from './period.js';
 
 /**
  * A job ID: the period for the normal job (`2026-10`), or `<period>-r<N>` with N ≥ 2 for a
- * forced one (`2026-10-r2`). The reserved worker ID `_ping` never matches.
+ * forced one (`2026-10-r2`). The reserved worker IDs `_ping` and `_notion-login` never match.
  */
 export const jobIdSchema = z.string().regex(/^\d{4}-(0[1-9]|1[0-2])(-r([2-9]|[1-9]\d+))?$/);
 
@@ -15,6 +15,9 @@ export type JobKind = z.infer<typeof jobKindSchema>;
 
 /** The reserved worker path ID for the QStash smoke test (Step 20). It is never a job. */
 export const PING_JOB_ID = '_ping';
+
+/** The reserved worker path ID for an automatic Notion login (Phase 14). It is never a job. */
+export const NOTION_LOGIN_JOB_ID = '_notion-login';
 
 /** The app-created folder inside the Drive root for `APP_ENV=dev` and the smoke tests. */
 export const DEV_FOLDER_NAME = '_dev';

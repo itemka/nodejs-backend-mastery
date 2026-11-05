@@ -63,3 +63,25 @@ flowchart LR
   Save --> Probe[New headless browser:<br/>session gate again]
   Probe --> Done([exit 0])
 ```
+
+## Automatic Sign-In — `_notion-login`
+
+Phase 14, with `NOTION_AUTO_LOGIN_ENABLED=true`: the worker signs in by itself with Notion's
+email code, at most once a day and within 120 s. Shapes and constants come from spike S7.
+
+```mermaid
+flowchart LR
+  Queue([_notion-login, signed,<br/>once per attempt]) --> Identity{Saved browser identity,<br/>owner = Gmail address?}
+  Identity -->|no| Fail
+  Identity -->|yes| Email[Fresh context: login page,<br/>OWNER_GOOGLE_EMAIL, Continue]
+  Email -->|challenge or password| Fail
+  Email -->|code field| Poll[Gmail every 5 s, 60 s:<br/>trusted login email after the request]
+  Poll -->|none, or no single code| Fail
+  Poll --> Code[Type the code, Enter]
+  Code --> Gate[Session gate]
+  Gate --> FileToken{Unexpired file_token?}
+  FileToken -->|no| Fail
+  FileToken -->|yes| Save[Save session and identity;<br/>health valid; resume the waiting job]
+  Save --> Renewed([🔑 Notion login renewed])
+  Fail([No retry: 🔑 access is gone,<br/>or the expiry warning])
+```

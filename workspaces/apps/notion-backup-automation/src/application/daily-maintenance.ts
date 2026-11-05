@@ -9,12 +9,14 @@ import type { Logger } from '../shared/logger.js';
 import type { BackupApplicationService } from './backup-service.js';
 import type { LoginWarnings } from './login-watch.js';
 import { awaitedLogin, loginServiceOf, resumeAfterLoginFix } from './login-watch.js';
+import type { NotionLoginRequestOutcome, NotionLoginRequests } from './notion-auto-login.js';
 import type {
   HealthProbes,
   HealthStore,
   JobRepository,
   LoginService,
   NotionLoginInfo,
+  NotionLoginTrigger,
   Heartbeat,
 } from './ports.js';
 import type { ProbeName, ProbeReport } from './probe-runner.js';
@@ -43,10 +45,15 @@ export type AutoStartOutcome = 'active_job' | 'disabled' | 'exists' | 'not_due' 
  */
 export type WatchdogOutcome = 'idle' | 'leased' | 'lifetime' | 'on_schedule' | 'rearmed';
 
+/** `?probe=`'s answer: the probe, and for a Notion session found gone, the login it asked for. */
+export type ProbeAnswer = ProbeReport & { readonly notionLogin?: NotionLoginRequestOutcome };
+
 export interface DailyReport {
   readonly autoStart: AutoStartOutcome | 'failed';
   /** The sub-steps that threw; any one sends the heartbeat's `/fail`. */
   readonly failedSteps: readonly string[];
+  /** The automatic Notion login this run asked for, if it asked (Phase 14). */
+  readonly notionLogin?: NotionLoginRequestOutcome;
   readonly ok: boolean;
   /** `ok`, the failed probe's code, or `failed` when the probe could not even be recorded. */
   readonly probes: Readonly<Partial<Record<ProbeName, 'failed' | 'ok' | ErrorCode>>>;
@@ -59,6 +66,8 @@ export interface DailyReport {
 
 export interface DailyMaintenanceOptions {
   readonly autoStart: { readonly dayOfMonth: number; readonly enabled: boolean };
+  /** The automatic Notion login (Phase 14); without it, the warnings stay as they were. */
+  readonly autoLogin?: Pick<NotionLoginRequests, 'request'>;
   readonly clock: Clock;
   readonly health: HealthStore;
   readonly heartbeat: Heartbeat;
@@ -70,7 +79,7 @@ export interface DailyMaintenanceOptions {
   readonly service: Pick<BackupApplicationService, 'process' | 'retryIncident' | 'start'>;
   /** `BACKUP_TIME_ZONE`: the period, the auto-start day and the Notion probe days. */
   readonly timeZone: string;
-  readonly warnings: Pick<LoginWarnings, 'lost' | 'notionExpiring'>;
+  readonly warnings: Pick<LoginWarnings, 'lost' | 'notionExpiring' | 'notionExpiryDue'>;
 }
 
 /**
@@ -91,11 +100,28 @@ export class DailyMaintenance {
   }
 
   /**
-   * One probe, recorded in `health`; `?probe=` runs only this. A probe's own failure is its
-   * result; failing to record it (Redis) throws.
+   * `?probe=`: one probe, recorded in `health`. A probe's own failure is its result; failing to
+   * record it (Redis) throws. A Notion session found gone asks for the automatic login; when
+   * that is refused (one a day) or cannot be queued, the `lost` warning goes out instead.
    */
-  probe(name: ProbeName): Promise<ProbeReport> {
-    return this.probes.probe(name);
+  async probe(name: ProbeName): Promise<ProbeAnswer> {
+    const report = await this.probes.probe(name);
+
+    if (!isNotionGone(report)) {
+      return report;
+    }
+
+    const notionLogin = await this.requestLogin('expired');
+
+    if (notionLogin === 'disabled') {
+      return report;
+    }
+
+    if (notionLogin === 'refused' || notionLogin === 'failed') {
+      await this.options.warnings.lost('notion');
+    }
+
+    return { ...report, notionLogin };
   }
 
   async run(): Promise<DailyReport> {
@@ -130,6 +156,7 @@ export class DailyMaintenance {
     const watchdog = (lookup && (await step('watchdog', () => this.watchdog(active)))) ?? 'failed';
     const probes: Partial<Record<ProbeName, 'failed' | 'ok' | ErrorCode>> = {};
     const resumed: string[] = [];
+    let notionLogin: NotionLoginRequestOutcome | undefined;
 
     // At once, so the slowest budget (Notion's 120 s) bounds the probes, not their sum (210 s):
     // the record and the heartbeat stay well inside the function's 300 s. Results are taken in
@@ -152,15 +179,17 @@ export class DailyMaintenance {
       }
 
       probes[result.name] = result.outcome.code ?? 'ok';
+      notionLogin = result.outcome.notionLogin ?? notionLogin;
 
       if (result.outcome.resumed !== undefined) {
         resumed.push(result.outcome.resumed);
       }
     }
 
-    const warnedDays = await step('warnings', async () =>
-      this.options.warnings.notionExpiring(await this.options.notionLogin.authCookieExpiresAt()),
-    );
+    const warnings = await step('warnings', async () => this.warnings(notionLogin));
+    const warnedDays = warnings?.warnedDays;
+
+    notionLogin = warnings?.notionLogin ?? notionLogin;
 
     await step('record', () => health.write('cron', { ok: failedSteps.length === 0, ranAt }));
 
@@ -179,6 +208,7 @@ export class DailyMaintenance {
       probes,
       resumed,
       watchdog,
+      ...(notionLogin === undefined ? {} : { notionLogin }),
       ...(warnedDays === undefined ? {} : { warnedDays }),
     };
 
@@ -229,12 +259,14 @@ export class DailyMaintenance {
    * found gone that this probe did not already find gone sends one `lost` warning. The Drive
    * probe failing on the Google token reports Google; the 24 h gate keeps that to one message.
    */
-  private async probeAndWatch(
-    name: ProbeName,
-  ): Promise<{ readonly code?: ErrorCode; readonly resumed?: string }> {
+  private async probeAndWatch(name: ProbeName): Promise<{
+    readonly code?: ErrorCode;
+    readonly notionLogin?: NotionLoginRequestOutcome;
+    readonly resumed?: string;
+  }> {
     const lostBefore = await this.lostBefore(name);
     const waiting = await this.options.jobs.findActive();
-    const report = await this.probe(name);
+    const report = await this.probes.probe(name);
 
     if (report.ok) {
       const job = await resumeAfterLoginFix(
@@ -245,13 +277,81 @@ export class DailyMaintenance {
       return job === undefined ? {} : { resumed: job.id };
     }
 
-    const lost = loginServiceOf(report.code);
+    // A Notion session found gone asks for the automatic login first; its worker reports the
+    // outcome, so `lost` waits for a failure. A login refused (one a day) or not queued sends
+    // `lost` even if this probe found it gone before: the login's own report may never have
+    // come. `JobNotifications` keeps that to one a day.
+    const notionLogin = isNotionGone(report) ? await this.requestLogin('expired') : undefined;
 
-    if (lost !== undefined && lost !== lostBefore) {
+    if (notionLogin === 'queued') {
+      return { code: report.code, notionLogin };
+    }
+
+    const lost = loginServiceOf(report.code);
+    const loginStuck = notionLogin === 'refused' || notionLogin === 'failed';
+
+    if (lost !== undefined && (lost !== lostBefore || loginStuck)) {
       await this.options.warnings.lost(lost);
     }
 
-    return { code: report.code };
+    return {
+      code: report.code,
+      ...(notionLogin === undefined || notionLogin === 'disabled' ? {} : { notionLogin }),
+    };
+  }
+
+  /**
+   * The automatic login, if configured. A failed request (the gate's Redis) is logged and
+   * reported as `failed`, so the warning it replaced still goes out.
+   */
+  private async requestLogin(trigger: NotionLoginTrigger): Promise<NotionLoginRequestOutcome> {
+    const { autoLogin, logger } = this.options;
+
+    if (autoLogin === undefined) {
+      return 'disabled';
+    }
+
+    try {
+      return await autoLogin.request(trigger);
+    } catch (error) {
+      logger.error('notion.login.request_failed', { error, trigger });
+
+      return 'failed';
+    }
+  }
+
+  /**
+   * The Notion expiry warning, or within the warning days the automatic renewal ahead of time:
+   * the warning is sent only if the renewal cannot be queued (refused, off, or failed). A login
+   * a probe queued in this run stands for both.
+   */
+  private async warnings(probeLogin: NotionLoginRequestOutcome | undefined): Promise<{
+    readonly notionLogin?: NotionLoginRequestOutcome;
+    readonly warnedDays?: number;
+  }> {
+    const { notionLogin: sessionInfo, warnings } = this.options;
+    const expiresAt = await sessionInfo.authCookieExpiresAt();
+
+    if (probeLogin === 'queued') {
+      return {};
+    }
+
+    let notionLogin: NotionLoginRequestOutcome | undefined;
+
+    if (warnings.notionExpiryDue(expiresAt) !== undefined) {
+      notionLogin = await this.requestLogin('expiring');
+
+      if (notionLogin === 'queued') {
+        return { notionLogin };
+      }
+    }
+
+    const warnedDays = await warnings.notionExpiring(expiresAt);
+
+    return {
+      ...(notionLogin === undefined || notionLogin === 'disabled' ? {} : { notionLogin }),
+      ...(warnedDays === undefined ? {} : { warnedDays }),
+    };
   }
 
   /** Google and Drive daily; Notion on its probe days, or while the active job waits for it. */
@@ -294,6 +394,11 @@ export class DailyMaintenance {
 
     return expired ? 'lifetime' : 'rearmed';
   }
+}
+
+/** The Notion probe found the saved session signed out: the case an automatic login fixes. */
+function isNotionGone(report: ProbeReport): boolean {
+  return report.probe === 'notion' && !report.ok && report.code === 'NOTION_SESSION_EXPIRED';
 }
 
 /**

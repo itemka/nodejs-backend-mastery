@@ -77,6 +77,22 @@ describe('QStashScheduler', () => {
     ]);
   });
 
+  it('publishes an automatic Notion login to the reserved _notion-login path, at once', async () => {
+    const { api, scheduler } = setup();
+
+    await scheduler.enqueueNotionLogin({ attempt: TEST_TOKEN, trigger: 'expiring' });
+
+    expect(api.published).toEqual([
+      {
+        body: { attempt: TEST_TOKEN, jobId: '_notion-login', trigger: 'expiring' },
+        deduplicationId: `_notion-login.${TEST_TOKEN}`,
+        flowControl: { key: 'nba-prod', parallelism: 1 },
+        retries: 3,
+        url: `${TEST_BASE_URL}${workerPath('_notion-login')}`,
+      },
+    ]);
+  });
+
   it('turns a failed publish into a content-free SchedulerError', async () => {
     const { api, logs, scheduler } = setup();
 

@@ -2,14 +2,20 @@ import { z } from 'zod';
 
 import type { SignatureVerifier } from '../adapters/qstash/qstash-signature-verifier.js';
 import { wakeupReasons } from '../application/ports.js';
+import type { NotionLoginRequest } from '../application/ports.js';
 import type { TickRequest } from '../application/process-job.js';
-import { jobIdSchema, PING_JOB_ID } from '../domain/naming.js';
+import { jobIdSchema, NOTION_LOGIN_JOB_ID, PING_JOB_ID } from '../domain/naming.js';
 
 const WORKER_PATH = /^\/api\/jobs\/process\/([^/]+)$/;
 
-/** The two bodies the app publishes; anything else, extra keys included, is refused. */
+/** The three bodies the app publishes; anything else, extra keys included, is refused. */
 export const workerMessageSchema = z.union([
   z.strictObject({ jobId: z.literal(PING_JOB_ID), nonce: z.string().regex(/^[\w-]{8,64}$/) }),
+  z.strictObject({
+    attempt: z.string().regex(/^[\w-]{16,64}$/),
+    jobId: z.literal(NOTION_LOGIN_JOB_ID),
+    trigger: z.enum(['expired', 'expiring']),
+  }),
   z.strictObject({
     jobId: jobIdSchema,
     reason: z.enum(wakeupReasons),
@@ -18,6 +24,7 @@ export const workerMessageSchema = z.union([
 ]);
 
 export type WorkerDelivery =
+  | { readonly kind: 'notion_login'; readonly request: NotionLoginRequest }
   | { readonly kind: 'ping'; readonly nonce: string }
   | { readonly kind: 'tick'; readonly request: TickRequest };
 
@@ -25,7 +32,7 @@ export type WorkerDelivery =
  * - `unauthorized`: no genuine QStash signature for this URL and body;
  * - `invalid`: genuine, but the body is not one the app publishes, or names another job than the
  *   path. It can never succeed, so the worker answers 489;
- * - `ok`: a ping or a wakeup of the path's job.
+ * - `ok`: a ping, an automatic Notion login, or a wakeup of the path's job.
  */
 export type DeliveryCheck =
   | { readonly delivery: WorkerDelivery; readonly outcome: 'ok' }
@@ -68,13 +75,19 @@ export async function checkDelivery(
 
   const { data } = message;
 
-  return {
-    delivery:
-      'nonce' in data
-        ? { kind: 'ping', nonce: data.nonce }
-        : { kind: 'tick', request: { jobId: data.jobId, reason: data.reason, token: data.token } },
-    outcome: 'ok',
-  };
+  return { delivery: deliveryOf(data), outcome: 'ok' };
+}
+
+function deliveryOf(data: z.output<typeof workerMessageSchema>): WorkerDelivery {
+  if ('nonce' in data) {
+    return { kind: 'ping', nonce: data.nonce };
+  }
+
+  if ('attempt' in data) {
+    return { kind: 'notion_login', request: { attempt: data.attempt, trigger: data.trigger } };
+  }
+
+  return { kind: 'tick', request: { jobId: data.jobId, reason: data.reason, token: data.token } };
 }
 
 function jobIdOfPath(pathname: string): string | undefined {

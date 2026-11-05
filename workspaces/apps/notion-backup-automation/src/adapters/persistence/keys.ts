@@ -24,8 +24,13 @@ export function persistenceKeys(prefix: string) {
     job: (jobId: string) => `${prefix}job:${jobId}`,
     jobs: `${prefix}jobs`,
     lease: (jobId: string) => `${prefix}lease:${jobId}`,
-    /** A sent notification that must not repeat for a while: `attention:<jobId>:<code>`, `lost:<service>`. */
+    /**
+     * A sent notification that must not repeat for a while: `attention:<jobId>:<code>`,
+     * `lost:<service>`; also `notion-login:run:<attempt>`, an automatic login that ran.
+     */
     notify: (key: string) => `${prefix}notify:${key}`,
+    /** The ID of the day's one automatic Notion login (Phase 14), for 24 h. */
+    notionLoginAttempt: `${prefix}notion-login:attempt`,
     /** One MCP fixed window's counter; Telegram admission is stored by the hub. */
     rateLimit: (name: string, windowStartSec: number) =>
       `${prefix}ratelimit:${name}:${windowStartSec}`,

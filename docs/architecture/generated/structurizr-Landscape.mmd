@@ -59,7 +59,7 @@ graph LR
     30-. "<div>Leases updates, records<br />completed deliveries, and<br />counts retry-safe ingress<br />limits in the hub namespace</div><div style='font-size: 70%'>[Redis REST over HTTPS]</div>" .->39
     30-. "<div>Forwards validated normalized<br />updates to the configured<br />backup integration</div><div style='font-size: 70%'>[HTTPS POST (integration bearer)]</div>" .->21
     21-. "<div>Checks the saved session,<br />requests workspace exports in<br />Settings, and downloads an<br />export with the session's<br />cookies</div><div style='font-size: 70%'>[Playwright + Chrome; HTTPS]</div>" .->41
-    42-. "<div>Delivers signed wakeups and<br />the _ping</div><div style='font-size: 70%'>[HTTPS POST (Upstash-Signature JWT)]</div>" .->21
+    42-. "<div>Delivers signed wakeups, the<br />_ping and _notion-login</div><div style='font-size: 70%'>[HTTPS POST (Upstash-Signature JWT)]</div>" .->21
     21-. "<div>Pings after each run, or<br />/fail when a sub-step threw</div><div style='font-size: 70%'>[HTTPS GET]</div>" .->43
     43-. "<div>Alerts when the pings stop</div><div style='font-size: 70%'>[Email]</div>" .->1
     1-. "<div>Chats and compares models in<br />the browser</div><div style='font-size: 70%'></div>" .->5

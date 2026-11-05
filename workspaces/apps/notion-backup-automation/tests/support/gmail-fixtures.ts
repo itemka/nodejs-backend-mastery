@@ -9,11 +9,16 @@ const fixtureSchema = z.object({
   html: z.string(),
   id: z.string(),
   internalDate: z.string(),
+  /** A `text/plain` part beside the HTML, as in the login-code email. */
+  text: z.string().optional(),
 });
 
 export type EmailFixture = z.infer<typeof fixtureSchema>;
 
-export type EmailFixtureName = 'export-ready' | 'forged-authentication-results';
+export type EmailFixtureName =
+  | 'export-ready'
+  | 'forged-authentication-results'
+  | 'notion-login-code';
 
 export function loadEmailFixture(name: EmailFixtureName): EmailFixture {
   const file = path.resolve(import.meta.dirname, '../fixtures/emails', `${name}.json`);
@@ -21,15 +26,33 @@ export function loadEmailFixture(name: EmailFixtureName): EmailFixture {
   return fixtureSchema.parse(JSON.parse(readFileSync(file, 'utf8')));
 }
 
-/** The Gmail API shape: one `text/html` part, body base64url-encoded. */
+const encode = (value: string) => Buffer.from(value, 'utf8').toString('base64url');
+
+/**
+ * The Gmail API shape, bodies base64url-encoded: one `text/html` part, or with `text` a
+ * `multipart/alternative` of the plain text and the HTML.
+ */
 export function toGmailMessage(fixture: EmailFixture): GmailMessage {
+  const { headers, html, id, internalDate, text } = fixture;
+
+  if (text === undefined) {
+    return {
+      id,
+      internalDate,
+      payload: { body: { data: encode(html) }, headers, mimeType: 'text/html' },
+    };
+  }
+
   return {
-    id: fixture.id,
-    internalDate: fixture.internalDate,
+    id,
+    internalDate,
     payload: {
-      body: { data: Buffer.from(fixture.html, 'utf8').toString('base64url') },
-      headers: fixture.headers,
-      mimeType: 'text/html',
+      headers,
+      mimeType: 'multipart/alternative',
+      parts: [
+        { body: { data: encode(text) }, mimeType: 'text/plain' },
+        { body: { data: encode(html) }, mimeType: 'text/html' },
+      ],
     },
   };
 }
