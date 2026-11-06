@@ -33,6 +33,14 @@ export const CONFIRM_TTL_SEC = 10 * 60;
 
 export const TELEGRAM_CANCEL_REASON = 'Cancelled from Telegram';
 
+const ALREADY_RAN = 'This action already ran or the job changed; use a fresh button';
+
+/**
+ * A confirmation's lease: its saved action, `busy` while another handler holds it, or
+ * `undefined` when it expired or was used.
+ */
+export type ConfirmationClaim = 'busy' | { readonly pending: string } | undefined;
+
 /** What the webhook remembers between updates. */
 export interface TelegramState {
   /** Only completed updates are ignored; a live processing lease remains retryable. */
@@ -45,7 +53,7 @@ export interface TelegramState {
   releaseUpdate(updateId: number): Promise<void>;
   saveConfirmation(nonce: string, value: string, ttlSec: number): Promise<void>;
   /** A lease reserves a pending action without consuming it before a transient failure. */
-  claimConfirmation(nonce: string): Promise<string | undefined>;
+  claimConfirmation(nonce: string): Promise<ConfirmationClaim>;
   completeConfirmation(nonce: string): Promise<void>;
   releaseConfirmation(nonce: string): Promise<void>;
 }
@@ -86,6 +94,13 @@ const loginServiceSchema = z.enum(['drive', 'google', 'notion']);
 
 /** What a button tap answers with: a short notice on the button, or nothing. */
 type Answer = string | undefined;
+
+/** The tap a Cancel or Retry acts for: its update, the buttons to remove, its confirmation. */
+interface ActionTap {
+  readonly asked: readonly (number | undefined)[];
+  readonly confirmationNonce?: string;
+  readonly updateId: number;
+}
 
 /**
  * Your messages and button taps, mapped to the same application methods as the MCP tools. The
@@ -224,7 +239,7 @@ export class TelegramWebhook {
 
       case 'retry': {
         return this.withJob(target, (job, version) =>
-          this.retry(job, version, undefined, [messageId], updateId),
+          this.retry(job, version, undefined, { asked: [messageId], updateId }),
         );
       }
 
@@ -275,16 +290,16 @@ export class TelegramWebhook {
     messageId: number | undefined,
     updateId: number,
   ): Promise<Answer> {
-    const raw = await this.options.state.claimConfirmation(nonce);
+    const claim = await this.options.state.claimConfirmation(nonce);
 
-    if (raw === 'busy') {
+    if (claim === 'busy') {
       throw new Error('Confirmation is being handled');
     }
 
-    const pending = parsePending(raw);
+    const pending = parsePending(claim?.pending);
 
     if (pending === undefined) {
-      if (raw !== undefined) {
+      if (claim !== undefined) {
         await this.options.state.completeConfirmation(nonce);
       }
 
@@ -293,48 +308,18 @@ export class TelegramWebhook {
       return 'This confirmation expired or was used; tap the button on the report again';
     }
 
-    const asked = [messageId, pending.messageId];
+    const tap: ActionTap = {
+      asked: [messageId, pending.messageId],
+      confirmationNonce: nonce,
+      updateId,
+    };
 
     try {
-      return await this.withJob(pending.jobId, async (job, version) => {
-        if (pending.action === 'retryFromScratch') {
-          return this.retry(job, version, 'NOTION_TRIGGER', asked, updateId, nonce);
-        }
-
-        const refusal = stale(job);
-
-        if (refusal !== undefined) {
-          await this.options.state.completeConfirmation(nonce);
-
-          return refusal;
-        }
-
-        if (!(await this.bindMutation(`confirm-${nonce}`, job, 'cancel', version))) {
-          await this.options.state.completeConfirmation(nonce);
-
-          return 'This action already ran or the job changed; use a fresh button';
-        }
-
-        const { job: cancelled } = await this.options.service.cancel(
-          job.id,
-          TELEGRAM_CANCEL_REASON,
-        );
-        const receipt = {
-          answer: 'Cancelled',
-          removeMessageIds: asked.filter((id): id is number => id !== undefined),
-          reply: noticeMessage(
-            cancelled.status === 'CANCELLED'
-              ? `🚫 Job ${cancelled.id} cancelled.`
-              : `🚫 Job ${cancelled.id} is cancelled at its next step boundary; a worker holds it now.`,
-          ),
-        };
-
-        await this.options.state.saveActionReceipt(updateId, JSON.stringify(receipt));
-        await this.options.state.completeConfirmation(nonce);
-        await this.deliverAction(receipt);
-
-        return receipt.answer;
-      });
+      return await this.withJob(pending.jobId, (job, version) =>
+        pending.action === 'retryFromScratch'
+          ? this.retry(job, version, 'NOTION_TRIGGER', tap)
+          : this.cancel(job, version, tap),
+      );
     } catch (error) {
       await (error instanceof ApplicationError
         ? this.options.state.completeConfirmation(nonce)
@@ -344,58 +329,88 @@ export class TelegramWebhook {
     }
   }
 
+  private async cancel(job: BackupJob, version: number, tap: ActionTap): Promise<Answer> {
+    const refusal = stale(job);
+
+    if (refusal !== undefined) {
+      return this.refuse(refusal, tap);
+    }
+
+    if (!(await this.bindMutation(tap, job, 'cancel', version))) {
+      return this.refuse(ALREADY_RAN, tap);
+    }
+
+    const { job: cancelled } = await this.options.service.cancel(job.id, TELEGRAM_CANCEL_REASON);
+
+    return this.commitAction(
+      tap,
+      'Cancelled',
+      cancelled.status === 'CANCELLED'
+        ? `🚫 Job ${cancelled.id} cancelled.`
+        : `🚫 Job ${cancelled.id} is cancelled at its next step boundary; a worker holds it now.`,
+    );
+  }
+
   private async retry(
     job: BackupJob,
     version: number,
     fromStage: Stage | undefined,
-    asked: readonly (number | undefined)[],
-    updateId: number,
-    confirmationNonce?: string,
+    tap: ActionTap,
   ): Promise<Answer> {
     const refusal = this.retryRefusal(job, fromStage);
 
     if (refusal !== undefined) {
-      if (confirmationNonce !== undefined) {
-        await this.options.state.completeConfirmation(confirmationNonce);
-      }
-
-      return refusal;
+      return this.refuse(refusal, tap);
     }
 
-    const actionKey =
-      confirmationNonce === undefined ? `update-${updateId}` : `confirm-${confirmationNonce}`;
-
-    if (!(await this.bindMutation(actionKey, job, `retry-${fromStage ?? 'resume'}`, version))) {
-      if (confirmationNonce !== undefined) {
-        await this.options.state.completeConfirmation(confirmationNonce);
-      }
-
-      return 'This action already ran or the job changed; use a fresh button';
+    if (!(await this.bindMutation(tap, job, `retry-${fromStage ?? 'resume'}`, version))) {
+      return this.refuse(ALREADY_RAN, tap);
     }
 
     const { job: retried } = await this.options.service.retry(job.id, fromStage);
     const scratch = fromStage === 'NOTION_TRIGGER' ? ' from scratch' : '';
+
+    return this.commitAction(
+      tap,
+      'Retry queued',
+      `🔁 Job ${retried.id} retried${scratch}: ${retried.status}. A worker picks it up now.`,
+    );
+  }
+
+  /** An action that will not run: its confirmation, if any, is spent and the button says why. */
+  private async refuse(answer: string, tap: ActionTap): Promise<Answer> {
+    await this.finishConfirmation(tap);
+
+    return answer;
+  }
+
+  /**
+   * After the action ran: the receipt is saved before the confirmation is spent, so a resent
+   * update delivers this reply again instead of running the action twice.
+   */
+  private async commitAction(tap: ActionTap, answer: string, notice: string): Promise<Answer> {
     const receipt = {
-      answer: 'Retry queued',
-      removeMessageIds: asked.filter((id): id is number => id !== undefined),
-      reply: noticeMessage(
-        `🔁 Job ${retried.id} retried${scratch}: ${retried.status}. A worker picks it up now.`,
-      ),
+      answer,
+      removeMessageIds: tap.asked.filter((id): id is number => id !== undefined),
+      reply: noticeMessage(notice),
     };
 
-    await this.options.state.saveActionReceipt(updateId, JSON.stringify(receipt));
+    await this.options.state.saveActionReceipt(tap.updateId, JSON.stringify(receipt));
+    await this.finishConfirmation(tap);
+    await this.deliverAction(receipt);
 
+    return answer;
+  }
+
+  private async finishConfirmation({ confirmationNonce }: ActionTap): Promise<void> {
     if (confirmationNonce !== undefined) {
       await this.options.state.completeConfirmation(confirmationNonce);
     }
-
-    await this.deliverAction(receipt);
-
-    return receipt.answer;
   }
 
+  /** Binds the tap to one action on this job version: `false` if it already ran on another. */
   private async bindMutation(
-    actionKey: string,
+    { confirmationNonce, updateId }: ActionTap,
     job: BackupJob,
     action: string,
     version: number,
@@ -403,6 +418,9 @@ export class TelegramWebhook {
     const fingerprint = createHash('sha256')
       .update(JSON.stringify({ action, jobId: job.id, version }))
       .digest('hex');
+    // A confirmed action binds to its nonce; a direct button to its update.
+    const actionKey =
+      confirmationNonce === undefined ? `update-${updateId}` : `confirm-${confirmationNonce}`;
 
     return this.options.state.bindAction(actionKey, fingerprint);
   }
