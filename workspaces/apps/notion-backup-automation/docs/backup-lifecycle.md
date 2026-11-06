@@ -1,7 +1,7 @@
-# notion-backup-automation — Job States, Ticks, Notifications and the Daily Cron
+# notion-backup-automation — Job States, Ticks and the Daily Cron
 
-Workflow diagrams for the [notion-backup-automation workspace](../). Behavior, codes and
-limits are in the [README](../README.md#backup-jobs); the Notion steps inside a tick are in
+Workflow diagrams for the [notion-backup-automation workspace](../). Behavior, codes and limits
+are in the [README](../README.md#backup-jobs); the Notion steps inside a tick are in
 [notion-export-flow.md](notion-export-flow.md). Structure-level view: the
 [repository C4 workspace](../../../../docs/architecture/workspace.dsl).
 
@@ -32,14 +32,13 @@ stateDiagram-v2
 
 Not shown, to keep the diagram readable:
 
-- The email timeout is `EMAIL_WAIT_TIMEOUT_HOURS` (default 48 h); the lifetime limit is
-  `JOB_MAX_LIFETIME_HOURS` (default 168 h).
-- A dead or over-budget transfer run rolls back to `EMAIL_FOUND` once. A link that expires
-  during the download also starts a new export attempt.
-- A new export attempt (back to `TRIGGERING_EXPORT`) needs attempts left
-  (`MAX_EXPORT_ATTEMPTS`); otherwise the job needs attention.
-- Any working status can fail as below; any non-terminal status can end as `CANCELLED` or
-  `FAILED` (lifetime).
+- Any working status can fail into `RETRYABLE_FAILURE` or `NEEDS_ATTENTION` (next section); any
+  non-terminal status can end as `CANCELLED`, or as `FAILED` when the lifetime
+  (`JOB_MAX_LIFETIME_HOURS`, default 168 h) runs out.
+- A dead or over-budget transfer run rolls back to `EMAIL_FOUND` once. A link that expires during
+  the download also starts a new export attempt.
+- A new export attempt (back to `TRIGGERING_EXPORT`) needs attempts left (`MAX_EXPORT_ATTEMPTS`);
+  otherwise the job needs attention.
 
 ## Failures And Incidents
 
@@ -62,14 +61,14 @@ flowchart LR
 
 Supervised codes (such as `NOTION_UI_CHANGED`) first wait one minute for the
 [supervisor](../README.md#supervisor), which makes one bounded decision per wakeup. Inspection
-actions normally wake again after one minute; `wait` defers the next decision for 15, 60 or
-240 minutes. With `AGENT_MODEL_PROVIDER=none`, the next tick hands the incident to you without
-an LLM call. Once an incident waits for you, nothing more is scheduled.
+actions wake again after one minute; `wait` defers the next decision for 15, 60 or 240 minutes.
+With `AGENT_MODEL_PROVIDER=none`, the next tick hands the incident to you without an LLM call.
+Once an incident waits for you, nothing more is scheduled.
 
 ## One Tick — `ProcessJobUseCase.execute`
 
-Each wakeup runs exactly one step. A Redis failure or a failed publish of the next wakeup
-throws, so QStash retries the same delivery with the same token.
+Each wakeup runs exactly one step. A Redis failure or a failed publish of the next wakeup throws,
+so QStash retries the same delivery with the same token.
 
 ```mermaid
 flowchart TD
@@ -89,74 +88,48 @@ flowchart TD
 
 ## Schedule Token — Publish, Then Save
 
-A delivery runs only with the job's current token. Publishing first and saving second means a
-failed publish leaves the delivered token valid for QStash's retry, and a failed save leaves
-only a stale message behind.
+Every job keeps one **current token** (`schedule.token`), and every QStash wakeup carries a
+token. A wakeup does work only if its token matches the job's. Each new wakeup gets a new token,
+so duplicate, late or replaced wakeups do nothing.
+
+Follow one wakeup from arrival to answer:
 
 ```mermaid
-sequenceDiagram
-  participant Q as QStash
-  participant W as Worker tick
-  participant R as Redis
-  Q->>W: wakeup (T1)
-  W->>R: lease, reload: token T1 is current
-  W->>R: save the step's transitions (compare-and-set)
-  W->>Q: publish the next wakeup with T2
-  alt publish fails
-    W-->>Q: 500: Q retries T1, still current
-  else publish succeeds
-    W->>R: save schedule.token = T2
-    alt save fails
-      W-->>Q: 500: Q retries T1, which re-arms
-      Q->>W: wakeup (T2) later: stale, does nothing
-    else save succeeds
-      W-->>Q: 200
-      Q->>W: wakeup (T2) when due
-    end
-  end
+flowchart TD
+  Msg([QStash delivers a wakeup<br/>carrying token T1]) --> Check{Does T1 match the<br/>job's current token?}
+  Check -->|no| Stale([Stale: do nothing, 200])
+  Check -->|yes| Run[Run one step, save the job]
+  Run --> Pub{Publish the next wakeup<br/>with a new token T2}
+  Pub -->|fails| Retry1([500: QStash redelivers T1.<br/>T1 still matches, so the tick runs again])
+  Pub -->|ok| Save{Save T2 as the<br/>job's current token}
+  Save -->|fails| Retry2([500: QStash redelivers T1, which still matches.<br/>T2 will arrive stale and do nothing])
+  Save -->|another call changed<br/>the token first| Other([200: T2 will arrive stale.<br/>The other call's wakeup is the live one])
+  Save -->|ok| Done([200: T2 wakes the job when due])
 ```
 
-## Notifications — `JobNotifications`
-
-Nothing in this path throws: a failed channel, gate or event write is logged and the tick goes
-on.
-
-```mermaid
-flowchart LR
-  Event[success · failure · attention ·<br/>late email · login warning] --> Gate{First in 24 h?<br/>attention: this job and code<br/>late email: this export attempt<br/>lost login: this service}
-  Gate -->|no| Skip([skipped])
-  Gate -->|yes| Fan[CompositeNotifier:<br/>console + Telegram]
-  Fan -->|a channel fails| Logged[notify.failed:<br/>name and code only]
-  Fan --> Record[Event in events:jobId,<br/>or health for a login warning]
-```
+**Why publish before saving:** a published wakeup whose token was never saved is harmless: it
+arrives stale. A saved token whose wakeup was never published would leave the job asleep for
+good. When the job needs no wakeup (it waits for you), the token is cleared instead, so any late
+wakeup is stale.
 
 ## Daily Cron — `DailyMaintenance.run`
 
-A sub-step that throws is logged and skipped, and turns the heartbeat into `/fail`. With no
-active job and auto-start off, nothing is published. A probe resumes only the incident it read
-before probing, re-checked under the job's lease.
+A sub-step that throws is logged and skipped, and turns the heartbeat into `/fail`. A probe
+resumes only the incident it read before probing, re-checked under the job's lease.
 
 ```mermaid
 flowchart TD
   Cron([Vercel Cron, Bearer CRON_SECRET]) --> Touch[Record the run in health]
-  Touch --> Start{Auto-start on, due,<br/>no active job?}
-  Start -->|yes| Create[Start this month's job]
-  Start -->|no| Watch
-  Create --> Watch{Active job's wakeup over an<br/>hour late, or past its lifetime?}
-  Watch -->|yes| Rearm[New token and wakeup<br/>under the control lease]
-  Watch -->|no| Probes
-  Rearm --> Probes["Probe in parallel: Google and Drive daily;<br/>Notion on Mondays, 2 days before the backup day,<br/>or while a job waits for its login"]
-  Probes -->|a probe passes| Resume[Resume a job waiting<br/>for that login]
-  Probes -->|a login newly gone| Lost[🔑 access is gone]
-  Probes -->|Notion signed out,<br/>automatic login on| Queue[Queue _notion-login,<br/>one a day; lost only if<br/>refused or not queued]
+  Touch --> Start[Auto-start this month's job<br/>if enabled, due and idle]
+  Start --> Watch[Watchdog: re-arm a wakeup over an hour late,<br/>wake a job past its lifetime]
+  Watch --> Probes["Probe Google and Drive daily;<br/>Notion on Mondays, 2 days before the backup day,<br/>or while a job waits for its login"]
+  Probes -->|probe passes| Resume[Resume a job waiting<br/>for that login]
+  Probes -->|access newly lost| Lost[🔑 access is gone]
+  Probes -->|Notion signed out,<br/>auto-login on| Queue[Queue _notion-login]
   Resume --> Warn
   Lost --> Warn
-  Queue --> Warn{"Notion session expires within<br/>30, 7 or 1 days?"}
-  Warn -->|automatic login on| Renew[Queue _notion-login;<br/>warn only if refused]
-  Warn -->|off, or refused| Expiry["🔑 expiry warning,<br/>once per threshold"]
-  Warn -->|no| Beat
-  Renew --> Beat
-  Expiry --> Beat{Any sub-step threw?}
+  Queue --> Warn
+  Warn["Warn 30, 7, 1 days before the Notion session expires<br/>(auto-login on: renew first, warn only if that fails)"] --> Beat{Any sub-step threw?}
   Beat -->|no| Ok([Heartbeat ping])
   Beat -->|yes| Fail([Heartbeat /fail])
 ```

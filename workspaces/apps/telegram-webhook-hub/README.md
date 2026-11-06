@@ -3,50 +3,36 @@
 The only owner of the Telegram bot **Artsem Automation Hub** (`@artsem_automation_bot`). It
 receives the bot's webhook, routes commands and button taps to registered feature apps over
 authenticated HTTP, and sends their replies. Feature apps never see the bot token, the chat ID
-or the webhook secret, and never import the hub's code at runtime: they share only the
-validated schemas in `@workspaces/telegram-contracts`.
+or the webhook secret, and never import the hub's code: they share only the validated schemas in
+`@workspaces/telegram-contracts`.
 
 The only integration today is [notion-backup-automation](../notion-backup-automation/README.md)
 (`nb-prod`). Deployed as its own Vercel project; public webhook:
 `https://telegram-webhook-hub.vercel.app/api/webhook`.
 
-## Resources
+## Architecture
 
-Every service the hub uses, one click each. The links need your own sign-in; the credentials
-are in 1Password, not here.
-
-- **Vercel**
-  - [telegram-webhook-hub](https://vercel.com/artsem-paulenkas-projects/telegram-webhook-hub):
-    environment variables and settings.
-  - [Deployments](https://vercel.com/artsem-paulenkas-projects/telegram-webhook-hub/deployments):
-    production and the rollback targets for the webhook.
-  - [Logs](https://vercel.com/artsem-paulenkas-projects/telegram-webhook-hub/logs): runtime
-    logs, kept for 1 hour on Hobby.
-- **Live endpoint:** [Hub health](https://telegram-webhook-hub.vercel.app/api/health): `ok` from
-  the hub.
-- **Telegram**
-  - [@artsem_automation_bot](https://t.me/artsem_automation_bot): the owner's chat with the bot.
-  - [@BotFather](https://t.me/BotFather): the bot token, name and settings.
-- **Upstash:** [console](https://console.upstash.com/home): the hub's Redis database, keys
-  under `HUB_KEY_PREFIX` (`telegram-hub:prod`).
-- **GitHub**
-  - [nodejs-backend-mastery](https://github.com/itemka/nodejs-backend-mastery): source, PRs and
-    CI; Vercel deploys `main` to production.
-  - [Clean up Vercel deployments](https://github.com/itemka/nodejs-backend-mastery/actions/workflows/vercel-deployment-cleanup.yml):
-    runs of the deployment cleanup workflow.
-- **Integrations:**
-  [notion-backup-automation resources](../notion-backup-automation/README.md#resources): the
-  backup app's own links.
-
-## How It Works
+Three Vercel Functions, one Redis database, and a setup CLI. The hub holds no feature logic.
 
 ```mermaid
 flowchart LR
-  TG[Telegram<br/>Bot API] -->|update +<br/>secret header| WH["/api/webhook"]
-  WH <-->|lease, receipt,<br/>hourly quota| R[(Upstash Redis)]
-  WH -->|normalized update +<br/>integration bearer| APP[Integration receiver<br/>e.g. notion-backup-automation]
-  APP -->|operation +<br/>integration bearer| MSG["/api/messages"]
-  MSG -->|sendMessage, answerCallbackQuery,<br/>editMessageReplyMarkup| TG
+  You([You])
+  CLI[Setup CLI<br/>telegram:setup]
+  TG[Telegram<br/>Bot API]
+  subgraph Hub[telegram-webhook-hub]
+    WH["POST /api/webhook"]
+    MSG["POST /api/messages"]
+  end
+  R[(Upstash Redis<br/>lease, receipt, quota)]
+  APP[Integration<br/>e.g. notion-backup-automation]
+
+  You <-->|private chat| TG
+  CLI -->|find chat, set webhook, test| TG
+  TG -->|update + secret header| WH
+  WH <--> R
+  WH -->|"normalized update + bearer"| APP
+  APP -->|"operation + bearer"| MSG
+  MSG -->|"sendMessage, answerCallbackQuery,<br/>editMessageReplyMarkup"| TG
   WH -->|help and notices| TG
 ```
 
@@ -54,24 +40,28 @@ flowchart LR
 2. The hub accepts only private-chat updates from the configured owner, claims a delivery
    lease in Redis, checks the hourly quota, and routes by command or callback namespace.
 3. It forwards `{ updateId, input }` to the integration's HTTPS URL with that integration's
-   bearer token, and completes the receipt when the integration answers 2xx.
+   bearer token, and completes the receipt when the integration answers 2xx (or refuses for good
+   with a 4xx, after a short notice).
 4. The integration replies through `POST /api/messages` with the same token; the hub sends to
-   the owner chat.
+   the owner chat. Integrations also call `/api/messages` on their own for notifications.
+   `/api/messages` keeps no state: only the webhook uses Redis.
+
+The setup CLI talks to the Bot API directly; it is the only place that registers the webhook.
 
 Step-by-step flow and the cross-app sequence: [docs/webhook-flow.md](docs/webhook-flow.md).
+Repository-level C4 view: [workspace.dsl](../../../docs/architecture/workspace.dsl).
 
-## Layout
-
-| Path                              | Purpose                                                               |
-| --------------------------------- | --------------------------------------------------------------------- |
-| `api/`                            | Vercel entry points: `webhook.ts`, `messages.ts`, `health.ts`.        |
-| `src/config/env.ts`               | Zod env schemas and the `HUB_INTEGRATIONS` registry validation.       |
-| `src/config/containers.ts`        | Composition root: auth before config, then the handlers.              |
-| `src/http/webhook.ts`             | Update parsing, owner check, lease, quota, routing, forwarding.       |
-| `src/http/messages.ts`            | Integration auth, operation validation, callback namespace check.     |
-| `src/adapters/redis-state.ts`     | Lua scripts for leases, receipts and the quota.                       |
-| `src/adapters/telegram-client.ts` | Bot API client over `fetch`; errors never contain the token or URL.   |
-| `src/cli/`                        | `telegram:setup`: chat discovery, test message, webhook registration. |
+| Path                              | Purpose                                                                |
+| --------------------------------- | ---------------------------------------------------------------------- |
+| `api/`                            | Vercel entry points: `webhook.ts`, `messages.ts`, `health.ts`.         |
+| `src/config/`                     | Zod env schemas, `HUB_INTEGRATIONS` validation, composition root.      |
+| `src/ports.ts`                    | `BotClient` and `DeliveryState` interfaces the handlers depend on.     |
+| `src/http/webhook.ts`             | Update parsing, owner check, lease, quota, routing, forwarding.        |
+| `src/http/messages.ts`            | Integration auth, operation validation, callback namespace check.      |
+| `src/http/shared.ts`              | JSON responses, constant-time secret check, 64 KiB body limit.         |
+| `src/adapters/redis-state.ts`     | Lua scripts for leases, receipts and the quota.                        |
+| `src/adapters/telegram-client.ts` | Bot API client over `fetch`; errors never contain the token or URL.    |
+| `src/cli/`                        | `telegram:setup`: chat discovery, webhook info and registration, test. |
 
 ## Endpoints
 
@@ -124,8 +114,8 @@ methods. URL buttons must be HTTPS. Escaping HTML and removing private data is t
   `{ "kind": "callback", "callbackId": "...", "data": "s:2026-10", "messageId": 42 }` or
   `{ "kind": "message", "text": "/status" }`.
 
-Integrations are trusted services in the same owner's chat, not sandboxed tenants: message
-and callback IDs are not scoped per integration. Namespaces prevent routing collisions only.
+Integrations are trusted services in the owner's chat, not sandboxed tenants: message and
+callback IDs are not scoped per integration. Namespaces only prevent routing collisions.
 
 ## Delivery Guarantees
 
@@ -139,9 +129,8 @@ and callback IDs are not scoped per integration. Namespaces prevent routing coll
   (`<id> could not handle this button`, or a reply for commands) and returns 200: a resend would
   fail the same way.
 - **Quota.** 30 admitted updates per fixed UTC hour; a retry of an admitted update costs
-  nothing. `<HUB_KEY_PREFIX>:allowed:<updateId>` records admission for 48 h;
-  `<HUB_KEY_PREFIX>:rate:<hourWindow>` counts admissions and expires at the end of that UTC
-  hour. Excess updates get 200 (and a short notice for button taps).
+  nothing (`<HUB_KEY_PREFIX>:allowed:<updateId>` for 48 h, `<HUB_KEY_PREFIX>:rate:<hourWindow>`
+  until the hour ends). Excess updates get 200, plus a short notice for button taps.
 - **Ignored with 200:** malformed updates, other chats and other senders.
 - **Limits:** bodies are capped at 64 KiB while streaming; responses are `no-store`; the hub
   logs no message content or credentials.
@@ -214,53 +203,13 @@ Vercel's per-function type check honours `target`/`module` only from this app's
 version in the range `@types/node` declares, or the build log fills with false
 `Request`/`Response` errors.
 
-### Deployment Cleanup
-
-[Clean up Vercel deployments](../../../.github/workflows/vercel-deployment-cleanup.yml) runs on
-every push to `main`, so on every merge, with a separate job for this project. It retains the **ten
-newest successful or in-progress `main` builds**, the deployment behind
-`telegram-webhook-hub.vercel.app`, and other current project targets. It deletes older builds and
-completed preview, failed, and canceled deployments. If fewer than ten such `main` builds exist, it
-keeps all of them. Other in-progress builds and deployments without Git branch metadata stay intact.
-
-This project bundles no browser, so its builds add little to Function Storage. The ten builds are
-kept mainly as rollback targets for the Telegram webhook.
-
-Vercel's Git integration deploys the same push independently, so cleanup runs alongside that
-deployment rather than strictly before it. The new build normally shows as in progress and takes one
-of the ten slots, leaving nine older successful builds. If that build then fails, those nine remain
-until the next merge. If Vercel has not registered the build when cleanup lists deployments, or a
-protected target is outside the newest ten, more than ten deployments can exist until a later merge.
-Removed preview links stop working, and older builds are no longer available as rollback targets.
-The registered webhook URL is unaffected, because cleanup never deletes the production domain's
-target. Vercel's native age-based retention also applies: Hobby permits up to 30 days, so Vercel can
-expire older retained builds and leave fewer than ten. This workflow does not override that platform
-limit or restore previously deleted builds.
-
-Configure these under GitHub → repository Settings → Secrets and variables → Actions:
-
-| Type     | Name                             | Value                                                                |
-| -------- | -------------------------------- | -------------------------------------------------------------------- |
-| Secret   | `VERCEL_CLEANUP_TOKEN`           | Vercel access token for the owning team, with deletion access        |
-| Variable | `VERCEL_TELEGRAM_HUB_PROJECT_ID` | Project ID from Vercel → `telegram-webhook-hub` → Settings → General |
-| Variable | `VERCEL_TEAM_ID`                 | Owning team ID from Vercel → Team Settings → General                 |
-
-The token and team ID are shared with
-[`notion-backup-automation`](../notion-backup-automation/README.md#deployment-cleanup). Enter the
-token directly in GitHub; do not commit it or add it to the app's runtime environment. The script
-verifies the project name, owner, production branch, and production domain before cleanup, and
-rechecks live targets before each deletion. It stops on API or validation errors, and a failure in
-the other project's job does not stop this one. No dependencies are installed in the workflow, and
-the credential is available only to the cleanup step running code from `main`.
-
-Pushes to `main` apply the cleanup automatically, including the merge that adds this workflow. To
-preview a run, open GitHub Actions → **Clean up Vercel deployments** → **Run workflow** on `main`,
-leave **dry_run** checked, and open the `telegram-webhook-hub` job to review the retained IDs and
-deletion candidates. A manual run covers both projects, so unchecking **dry_run** applies the
-cleanup to both. For a local dry-run of this project, export `VERCEL_TOKEN`, `VERCEL_TEAM_ID`,
-`VERCEL_PROJECT_ID`, and `VERCEL_PROJECT_NAME=telegram-webhook-hub`, then run
-`node scripts/cleanup-vercel-deployments.mjs` from the repository root; deletion requires
-`--apply`.
+**Deployment cleanup.** The
+[Clean up Vercel deployments](../../../.github/workflows/vercel-deployment-cleanup.yml)
+workflow runs on every push to `main` and keeps the ten newest `main` builds plus the production
+target, so older builds stop being rollback targets. This project has a job of its own, using the
+variable `VERCEL_TELEGRAM_HUB_PROJECT_ID`. Retention rules, the shared token and the dry-run
+steps are in the
+[backup app's README](../notion-backup-automation/README.md#deployment-cleanup).
 
 ## Local Checks
 
@@ -273,3 +222,19 @@ pnpm --filter telegram-webhook-hub test
 
 Tests use fake Telegram, Redis and HTTP dependencies; they never call the live bot or Redis.
 The hub has no Google, Notion, QStash, Playwright or Chromium dependencies.
+
+## Resources
+
+Each link needs your own sign-in; credentials are in 1Password, not here.
+
+- **Vercel:** [project](https://vercel.com/artsem-paulenkas-projects/telegram-webhook-hub)
+  (variables), [deployments](https://vercel.com/artsem-paulenkas-projects/telegram-webhook-hub/deployments)
+  (rollback targets), [logs](https://vercel.com/artsem-paulenkas-projects/telegram-webhook-hub/logs)
+  (kept 1 hour on Hobby).
+- **Live:** [hub health](https://telegram-webhook-hub.vercel.app/api/health).
+- **Telegram:** [@artsem_automation_bot](https://t.me/artsem_automation_bot),
+  [@BotFather](https://t.me/BotFather) (token and settings).
+- **Upstash:** [console](https://console.upstash.com/home); keys under `HUB_KEY_PREFIX`.
+- **GitHub:** [nodejs-backend-mastery](https://github.com/itemka/nodejs-backend-mastery) (Vercel
+  deploys `main`), [deployment cleanup runs](https://github.com/itemka/nodejs-backend-mastery/actions/workflows/vercel-deployment-cleanup.yml).
+- **Integration:** [notion-backup-automation resources](../notion-backup-automation/README.md#resources).

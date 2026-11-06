@@ -1,9 +1,8 @@
-# notion-backup-automation — Notion Sign-In, Session Gate, and Export Trigger
+# notion-backup-automation — Notion Session Gate, Export Trigger and Sign-In
 
 Workflow diagrams for the [notion-backup-automation workspace](../). Behavior and error codes
-are described in the [README](../README.md#notion-session-and-export).
-
-Structure-level view: [repository C4 workspace](../../../../docs/architecture/workspace.dsl).
+are in the [README](../README.md#notion-session-and-export). Structure-level view:
+[repository C4 workspace](../../../../docs/architecture/workspace.dsl).
 
 ## Session Gate — `passSessionGate`
 
@@ -27,7 +26,9 @@ flowchart LR
 
 Each call decrypts the saved session into a new browser context with downloads refused, and
 closes the browser at the end whatever the outcome. An abort before the final click rejects at
-once and never clicks. Nothing throws after the click.
+once and never clicks. Nothing throws after the click. `rehearseExport` (`dev:trigger --dry-run`)
+stops at the dialog and cancels; the cron's Notion probe (`probeExportDialog`) does the same walk
+without clicking.
 
 ```mermaid
 flowchart TD
@@ -50,24 +51,16 @@ flowchart TD
 
 ## Sign-In — `auth:notion`
 
-The new session is checked for the export file host's cookie before it is saved, so a sign-in
-the download cannot use never replaces a working session.
-
-```mermaid
-flowchart LR
-  SignIn[Headed Chrome, fresh profile:<br/>you sign in] --> Gate[Session gate]
-  Gate --> Capture[Keep Notion's cookies and<br/>localStorage, token_v2 required]
-  Capture --> FileToken{Unexpired file_token<br/>for file.notion.com?}
-  FileToken -->|no| Keep([exit 1, nothing saved:<br/>the previous session stays])
-  FileToken -->|yes| Save[Encrypt into Redis as<br/>secret:notion-storage-state]
-  Save --> Probe[New headless browser:<br/>session gate again]
-  Probe --> Done([exit 0])
-```
+You sign in in a headed Chrome window with a fresh profile, then the session gate runs. Only
+Notion's cookies and localStorage are kept, and `token_v2` is required. The new session is
+checked for an unexpired `file_token` (the export file host's cookie) before it is saved, so a
+sign-in the download cannot use never replaces a working session. It is then encrypted into
+Redis as `secret:notion-storage-state` and re-checked in a new headless browser.
 
 ## Automatic Sign-In — `_notion-login`
 
-Phase 14, with `NOTION_AUTO_LOGIN_ENABLED=true`: the worker signs in by itself with Notion's
-email code, at most once a day and within 120 s. Shapes and constants come from spike S7.
+With `NOTION_AUTO_LOGIN_ENABLED=true`, the worker signs in by itself with Notion's email code, at
+most once a day and within 120 s.
 
 ```mermaid
 flowchart LR
