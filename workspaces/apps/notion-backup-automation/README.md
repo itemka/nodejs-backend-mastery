@@ -12,6 +12,59 @@ A bounded [Gemini supervisor](#supervisor) triages selected incidents after the 
 retries run out. It can inspect, wait or retry within the job's limits, then ask you for help.
 `AGENT_MODEL_PROVIDER=none` hands incidents to you without an LLM call.
 
+## Resources
+
+Every service the app and its Telegram hub use, one click each. The links need your own
+sign-in; the credentials are in the 1Password note "Notion Backup Agent", not here.
+
+- **Vercel**
+  - [notion-backup-automation](https://vercel.com/artsem-paulenkas-projects/notion-backup-automation):
+    deployments, environment variables, the daily cron.
+  - [notion-backup-automation logs](https://vercel.com/artsem-paulenkas-projects/notion-backup-automation/logs):
+    runtime logs, kept for 1 hour on Hobby.
+  - [telegram-webhook-hub deployments](https://vercel.com/artsem-paulenkas-projects/telegram-webhook-hub/deployments):
+    the hub that owns the Telegram bot.
+- **Live endpoints**
+  - [App health](https://notion-backup-automation.vercel.app/api/health): `ok` and the deployed
+    commit.
+  - [Hub health](https://telegram-webhook-hub.vercel.app/api/health): `ok` from the hub.
+- **Upstash:** [console](https://console.upstash.com/home): Redis `notion-backup-state` (job
+  state) and QStash EU (wakeups, dead-letter queue).
+- **Google Cloud**, project `notion-backup-agent`
+  - [OAuth clients](https://console.cloud.google.com/auth/clients?project=notion-backup-agent):
+    the Desktop client (local CLI) and the Web client (phone re-login).
+  - [Audience](https://console.cloud.google.com/auth/audience?project=notion-backup-agent):
+    publishing status and test users.
+  - [Branding](https://console.cloud.google.com/auth/branding?project=notion-backup-agent): app
+    name, home, privacy and terms pages, authorized domain.
+  - [Enabled APIs](https://console.cloud.google.com/apis/dashboard?project=notion-backup-agent):
+    Gmail and Drive API traffic and errors.
+  - [Google account access](https://myaccount.google.com/connections): check or revoke the
+    app's Gmail and Drive grant.
+- **Google AI Studio**, the Gemini supervisor
+  - [Rate limits](https://aistudio.google.com/rate-limit?timeRange=last-1-day&project=notion-backup-agent):
+    Gemini usage against the free tier.
+  - [API keys](https://aistudio.google.com/apikey): `GEMINI_API_KEY`.
+- **Gmail**
+  - [Inbox](https://mail.google.com/mail/u/0/#inbox).
+  - [Notion export emails](https://mail.google.com/mail/u/0/#search/from%3Anotify%40mail.notion.com+subject%3A%22Your+workspace+export+is+ready%22):
+    the emails the worker waits for.
+  - [Notion login codes](https://mail.google.com/mail/u/0/#search/from%3Anotify%40updates.notion.com+subject%3A%22Your+temporary+Notion+login+code%22):
+    the codes the automatic Notion login reads.
+- **Google Drive:**
+  [Backups/Notion/Full Workspace](https://drive.google.com/drive/folders/1T-Wnw8H8eqGam7qc7vvrGix9xImuMS5G):
+  the ZIPs, one folder per year.
+- **Notion:** [Dashboard](https://app.notion.com/p/Dashboard-39a92d1ef41b81d09ff7fdbfabab9943):
+  the workspace that gets backed up.
+- **Telegram:** [@artsem_automation_bot](https://t.me/artsem_automation_bot): reports, buttons
+  and `/status`.
+- **healthchecks.io:** [checks](https://healthchecks.io/): the daily cron heartbeat; it alerts
+  by email.
+- **Claude:** [connectors](https://claude.ai/settings/connectors) (Customize → Connectors): the
+  `/mcp` custom connector with its bearer header.
+- **GitHub:** [nodejs-backend-mastery](https://github.com/itemka/nodejs-backend-mastery):
+  source, PRs and CI; Vercel deploys `main` to production.
+
 ## How It Works
 
 ```mermaid
