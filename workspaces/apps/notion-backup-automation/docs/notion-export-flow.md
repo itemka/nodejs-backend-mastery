@@ -1,13 +1,11 @@
-# notion-backup-automation — Notion Session Gate, Export Trigger and Sign-In
+# Notion export and login
 
-Workflow diagrams for the [notion-backup-automation workspace](../). Behavior and error codes
-are in the [README](../README.md#notion-session-and-export). Structure-level view:
-[repository C4 workspace](../../../../docs/architecture/workspace.dsl).
+The app automates Notion's Settings UI with a saved browser session. It uses no Notion API or
+stored password. [Setup and recovery commands](../README.md#local-setup) live in the README.
 
 ## Session Gate — `passSessionGate`
 
-Notion answers `200` without a session, so the gate judges the rendered page. Every call of the
-trigger, and `auth:notion` twice, passes it first.
+An HTTP 200 does not prove sign-in: the gate checks the rendered page and configured workspace.
 
 ```mermaid
 flowchart LR
@@ -22,13 +20,9 @@ flowchart LR
   Switcher -->|yes| Pass([the switcher])
 ```
 
-## Export Trigger — `requestExport` and `rehearseExport`
+Source: [session-gate.ts](../src/adapters/notion/session-gate.ts).
 
-Each call decrypts the saved session into a new browser context with downloads refused, and
-closes the browser at the end whatever the outcome. An abort before the final click rejects at
-once and never clicks. Nothing throws after the click. `rehearseExport` (`dev:trigger --dry-run`)
-stops at the dialog and cancels; the cron's Notion probe (`probeExportDialog`) does the same walk
-without clicking.
+## Export Trigger — `requestExport` and `rehearseExport`
 
 ```mermaid
 flowchart TD
@@ -49,18 +43,25 @@ flowchart TD
   Confirm -->|no, or any error| InDoubt([in_doubt])
 ```
 
+The five options are Markdown & CSV, database views set to Current view, page content set to
+Everything, private pages enabled and subpage folders enabled. The pre-click marker prevents
+another click in the same attempt after interruption. Missing confirmation after a click means
+`in_doubt`: wait for Gmail instead of clicking again.
+
+Each call closes its browser and refuses browser downloads; ZIP transfer is a separate adapter.
+Changed cookies are saved on a best-effort basis. The cron probe cancels the dialog and checks
+the persisted `file_token` too. Source:
+[notion-export-trigger.ts](../src/adapters/notion/notion-export-trigger.ts) and
+[notion-settings-page.ts](../src/adapters/notion/notion-settings-page.ts).
+
 ## Sign-In — `auth:notion`
 
-You sign in in a headed Chrome window with a fresh profile, then the session gate runs. Only
-Notion's cookies and localStorage are kept, and `token_v2` is required. The new session is
-checked for an unexpired `file_token` (the export file host's cookie) before it is saved, so a
-sign-in the download cannot use never replaces a working session. It is then encrypted into
-Redis as `secret:notion-storage-state` and re-checked in a new headless browser.
+Headed Chrome opens with a fresh profile. After sign-in, only Notion cookies/localStorage are
+retained; valid `token_v2` and file-host `file_token` cookies are required. The encrypted session
+is saved in Redis and checked again headlessly. A waiting production job resumes through QStash
+when publishing is configured; otherwise use `backup_retry`. Dev jobs resume with `dev:tick`.
 
 ## Automatic Sign-In — `_notion-login`
-
-With `NOTION_AUTO_LOGIN_ENABLED=true`, the worker signs in by itself with Notion's email code, at
-most once a day and within 120 s.
 
 ```mermaid
 flowchart LR
@@ -78,3 +79,8 @@ flowchart LR
   Save --> Renewed([🔑 Notion login renewed])
   Fail([No retry: 🔑 access is gone,<br/>or the expiry warning])
 ```
+
+Login emails require Gmail's DKIM/DMARC verdicts for `updates.notion.com`. The code is never
+stored or logged, and is typed only on Notion hosts. Password/challenge pages or ambiguous
+emails stop the attempt. The once-per-24-hour allowance, timeout and fallback are covered in
+[daily maintenance and login renewal](../README.md#daily-maintenance-and-login-renewal).
