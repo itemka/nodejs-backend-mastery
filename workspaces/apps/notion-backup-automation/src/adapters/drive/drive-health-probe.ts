@@ -25,34 +25,30 @@ export interface DriveHealthProbeOptions {
  * or availability failure keeps that failure's code, so it never reads as lost folder access.
  */
 export class DriveHealthProbe {
-  private readonly api: GoogleApiClient;
-  private readonly devStorage: Pick<DriveBackupStorage, 'ensureYearFolder'>;
-  private readonly ids: IdGenerator;
-  private readonly logger: Logger;
-  private readonly storage: Pick<DriveBackupStorage, 'ensureYearFolder' | 'rootMode'>;
+  private readonly options: Required<DriveHealthProbeOptions>;
 
-  constructor({ api, devStorage, ids = randomIds, logger, storage }: DriveHealthProbeOptions) {
-    this.api = api;
-    this.devStorage = devStorage;
-    this.ids = ids;
-    this.logger = logger;
-    this.storage = storage;
+  constructor(options: DriveHealthProbeOptions) {
+    this.options = { ids: randomIds, ...options };
   }
 
   async run(period: Period, signal?: AbortSignal): Promise<DriveProbeResult> {
-    const mode = await this.storage.rootMode(signal);
+    const mode = await this.options.storage.rootMode(signal);
 
-    await this.storage.ensureYearFolder(period, signal);
+    await this.options.storage.ensureYearFolder(period, signal);
 
-    const devYearId = await this.devStorage.ensureYearFolder(period, signal);
+    const devYearId = await this.options.devStorage.ensureYearFolder(period, signal);
 
     signal?.throwIfAborted();
 
-    const write = await probeWrite(this.api, devYearId, `.nba-access-probe-${this.ids.shortId()}`);
+    const write = await probeWrite(
+      this.options.api,
+      devYearId,
+      `.nba-access-probe-${this.options.ids.shortId()}`,
+    );
 
     if (write.leftoverIds.length > 0) {
       // File IDs only; delete them in Drive.
-      this.logger.warn('drive.probe.leftover', { fileIds: write.leftoverIds });
+      this.options.logger.warn('drive.probe.leftover', { fileIds: write.leftoverIds });
     }
 
     if (!write.ok) {

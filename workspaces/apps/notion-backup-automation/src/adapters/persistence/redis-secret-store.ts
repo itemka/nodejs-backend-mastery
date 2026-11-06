@@ -25,18 +25,12 @@ export interface RedisSecretStoreOptions {
  * its environment and name (`nba:<APP_ENV>:<name>:v1`), so a dev secret never opens in prod.
  */
 export class RedisSecretStore implements SecretStore {
-  private readonly appEnv: AppEnv;
-  private readonly clock: Clock;
-  private readonly key: EnvelopeKey;
   private readonly keys;
-  private readonly redis: StringCommands;
+  private readonly options: Required<RedisSecretStoreOptions>;
 
-  constructor({ appEnv, clock = systemClock, key, keyPrefix, redis }: RedisSecretStoreOptions) {
-    this.appEnv = appEnv;
-    this.clock = clock;
-    this.key = key;
-    this.keys = persistenceKeys(keyPrefix);
-    this.redis = redis;
+  constructor(options: RedisSecretStoreOptions) {
+    this.keys = persistenceKeys(options.keyPrefix);
+    this.options = { clock: systemClock, ...options };
   }
 
   /**
@@ -44,7 +38,7 @@ export class RedisSecretStore implements SecretStore {
    * a different key (`KEY_MISMATCH`), tampering or another environment (`AUTHENTICATION_FAILED`).
    */
   async get(name: SecretName): Promise<StoredSecret | undefined> {
-    const stored = await this.redis.get(this.keys.secret(name));
+    const stored = await this.options.redis.get(this.keys.secret(name));
 
     if (stored === null) {
       return undefined;
@@ -58,7 +52,7 @@ export class RedisSecretStore implements SecretStore {
       throw new EnvelopeError('ENVELOPE_INVALID');
     }
 
-    const opened = openEnvelope({ context: this.context(name), envelope, key: this.key });
+    const opened = openEnvelope({ context: this.context(name), envelope, key: this.options.key });
 
     return { createdAt: opened.createdAt, meta: opened.meta, value: opened.plaintext };
   }
@@ -66,16 +60,16 @@ export class RedisSecretStore implements SecretStore {
   async put(name: SecretName, value: string, meta: EnvelopeMeta = {}): Promise<void> {
     const envelope = sealEnvelope({
       context: this.context(name),
-      createdAt: this.clock.now(),
-      key: this.key,
+      createdAt: this.options.clock.now(),
+      key: this.options.key,
       meta,
       plaintext: value,
     });
 
-    await this.redis.set(this.keys.secret(name), JSON.stringify(envelope));
+    await this.options.redis.set(this.keys.secret(name), JSON.stringify(envelope));
   }
 
   private context(name: SecretName): string {
-    return `nba:${this.appEnv}:${name}:v1`;
+    return `nba:${this.options.appEnv}:${name}:v1`;
   }
 }

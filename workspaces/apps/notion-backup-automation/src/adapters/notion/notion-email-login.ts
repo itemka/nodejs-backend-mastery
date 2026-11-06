@@ -75,47 +75,35 @@ export interface PlaywrightNotionEmailLoginOptions {
  * stages, never values.
  */
 export class PlaywrightNotionEmailLogin implements NotionEmailLogin {
-  private readonly clock: Clock;
-  private readonly codes: LoginCodeFinder;
-  private readonly launcher: BrowserLauncher;
-  private readonly logger: Logger;
+  private readonly options: Required<PlaywrightNotionEmailLoginOptions>;
   private readonly ownerEmail: string;
-  private readonly sessions: Pick<NotionSessionStore, 'identity' | 'save'>;
-  private readonly stepTimeoutMs: number;
-  private readonly workspace: { readonly name: string; readonly url: string };
 
   constructor(options: PlaywrightNotionEmailLoginOptions) {
-    this.clock = options.clock ?? systemClock;
-    this.codes = options.codes;
-    this.launcher = options.launcher;
-    this.logger = options.logger;
+    this.options = { clock: systemClock, stepTimeoutMs: STEP_TIMEOUT_MS, ...options };
     this.ownerEmail = options.ownerEmail.trim().toLowerCase();
-    this.sessions = options.sessions;
-    this.stepTimeoutMs = options.stepTimeoutMs ?? STEP_TIMEOUT_MS;
-    this.workspace = options.workspace;
   }
 
   async renewSession(signal: AbortSignal): Promise<RenewedNotionSession> {
     const started = performance.now();
 
     const stage = (name: string) => {
-      this.logger.info('notion.login.stage', {
+      this.options.logger.info('notion.login.stage', {
         atMs: Math.round(performance.now() - started),
         stage: name,
       });
     };
 
-    const identity = await abortable(this.sessions.identity(), signal);
+    const identity = await abortable(this.options.sessions.identity(), signal);
 
     if (identity === undefined) {
       throw new NotionLoginError('no_identity', 'No saved browser identity to replay');
     }
 
-    if ((await this.codes.mailbox(signal)) !== this.ownerEmail) {
+    if ((await this.options.codes.mailbox(signal)) !== this.ownerEmail) {
       throw new NotionLoginError('owner_mismatch', 'OWNER_GOOGLE_EMAIL is not the Gmail address');
     }
 
-    const browser = await this.launcher.launch({ headless: true });
+    const browser = await this.options.launcher.launch({ headless: true });
 
     // Ends an action in flight at once: after the deadline, nothing more reaches the page, so no
     // code is submitted for a session that would never be saved.
@@ -144,7 +132,7 @@ export class PlaywrightNotionEmailLogin implements NotionEmailLogin {
 
       stage('code_requested');
 
-      const code = await this.codes.waitForCode({ requestedAt, signal });
+      const code = await this.options.codes.waitForCode({ requestedAt, signal });
 
       stage('code_found');
       await this.enterCode(page, navigation, code, signal);
@@ -152,13 +140,17 @@ export class PlaywrightNotionEmailLogin implements NotionEmailLogin {
       stage('signed_in');
       await passSessionGate(page, {
         signal,
-        timeoutMs: this.stepTimeoutMs,
-        workspaceName: this.workspace.name,
-        workspaceUrl: this.workspace.url,
+        timeoutMs: this.options.stepTimeoutMs,
+        workspaceName: this.options.workspace.name,
+        workspaceUrl: this.options.workspace.url,
       });
       stage('gate');
 
-      const captured = captureSession(await context.storageState(), identity, this.clock.now());
+      const captured = captureSession(
+        await context.storageState(),
+        identity,
+        this.options.clock.now(),
+      );
 
       if (!captured.fileHostCookie) {
         throw new NotionLoginError(
@@ -169,7 +161,7 @@ export class PlaywrightNotionEmailLogin implements NotionEmailLogin {
 
       signal.throwIfAborted();
       // Not aborted from here: a half-written save is worse than a late one.
-      await this.sessions.save(captured);
+      await this.options.sessions.save(captured);
       stage('saved');
 
       return captured.authCookieExpiresAt === undefined
@@ -201,7 +193,7 @@ export class PlaywrightNotionEmailLogin implements NotionEmailLogin {
 
     try {
       await page.goto(NOTION_LOGIN_URL, {
-        timeout: this.stepTimeoutMs,
+        timeout: this.options.stepTimeoutMs,
         waitUntil: 'domcontentloaded',
       });
     } catch {
@@ -215,7 +207,7 @@ export class PlaywrightNotionEmailLogin implements NotionEmailLogin {
       emailInput.fill(this.ownerEmail, this.actionOptions()),
     );
 
-    const requestedAt = this.clock.now();
+    const requestedAt = this.options.clock.now();
     const submit = (await isShown(continueButton))
       ? () => continueButton.click(this.actionOptions())
       : () => emailInput.press('Enter', this.actionOptions());
@@ -270,7 +262,7 @@ export class PlaywrightNotionEmailLogin implements NotionEmailLogin {
     const started = performance.now();
     let clicked = false;
 
-    while (performance.now() - started < this.stepTimeoutMs) {
+    while (performance.now() - started < this.options.stepTimeoutMs) {
       assertOnNotion(page, navigation);
 
       const [appShell, challenge, title] = await Promise.all([
@@ -341,7 +333,7 @@ export class PlaywrightNotionEmailLogin implements NotionEmailLogin {
   }
 
   private actionOptions(): { readonly timeout: number } {
-    return { timeout: this.stepTimeoutMs };
+    return { timeout: this.options.stepTimeoutMs };
   }
 
   /** The first of `targets` that shows; a challenge or the step's timeout ends the wait. */
@@ -353,7 +345,7 @@ export class PlaywrightNotionEmailLogin implements NotionEmailLogin {
   ): Promise<K> {
     const started = performance.now();
 
-    while (performance.now() - started < this.stepTimeoutMs) {
+    while (performance.now() - started < this.options.stepTimeoutMs) {
       assertOnNotion(page, navigation);
 
       const [challenge, title] = await Promise.all([
@@ -388,11 +380,8 @@ export class PlaywrightNotionEmailLogin implements NotionEmailLogin {
 class NotionOnlyNavigation {
   /** A navigation off Notion was tried and stopped. */
   blocked = false;
-  private readonly page: Page;
 
-  constructor(page: Page) {
-    this.page = page;
-  }
+  constructor(private readonly page: Page) {}
 
   readonly handle = async (route: Route): Promise<void> => {
     const request = route.request();

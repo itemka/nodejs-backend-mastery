@@ -50,33 +50,10 @@ export interface JobNotificationsOptions {
  * fails the tick or the cron run that sends it.
  */
 export class JobNotifications {
-  private readonly clock: Clock;
-  private readonly devFolder: boolean;
-  private readonly gate: NotificationGate;
-  private readonly health: Pick<HealthStore, 'write'>;
-  private readonly jobs: Pick<JobRepository, 'appendEvent' | 'listEvents'>;
-  private readonly logger: Logger;
-  private readonly notifier: Notifier;
-  private readonly policy: Pick<BackupPolicy, 'maxExportAttempts'>;
+  private readonly options: Required<JobNotificationsOptions>;
 
-  constructor({
-    clock = systemClock,
-    devFolder,
-    gate,
-    health,
-    jobs,
-    logger,
-    notifier,
-    policy,
-  }: JobNotificationsOptions) {
-    this.clock = clock;
-    this.devFolder = devFolder;
-    this.gate = gate;
-    this.health = health;
-    this.jobs = jobs;
-    this.logger = logger;
-    this.notifier = notifier;
-    this.policy = policy;
+  constructor(options: JobNotificationsOptions) {
+    this.options = { clock: systemClock, ...options };
   }
 
   /** The job needs a person: its incident's code, the fix, and the recent events. */
@@ -89,7 +66,7 @@ export class JobNotifications {
       }
 
       if (!(await this.firstInWindow(`attention:${job.id}:${incident.code}`))) {
-        this.logger.info('notify.skipped', {
+        this.options.logger.info('notify.skipped', {
           code: incident.code,
           jobId: job.id,
           kind: 'attention',
@@ -106,12 +83,12 @@ export class JobNotifications {
         period: job.period,
         reason: definition.description,
         recentEvents: await this.recentEvents(job.id),
-        retryFromScratch: job.exportAttempt < this.policy.maxExportAttempts,
+        retryFromScratch: job.exportAttempt < this.options.policy.maxExportAttempts,
         stage: incident.stage,
         ...(supervisorSummary === undefined ? {} : { supervisorSummary }),
       };
 
-      await this.notifier.attention(notification);
+      await this.options.notifier.attention(notification);
       await this.record(job, attentionText(notification), incident.code);
     });
   }
@@ -137,7 +114,7 @@ export class JobNotifications {
         stage: lastError.stage,
       };
 
-      await this.notifier.failure(notification);
+      await this.options.notifier.failure(notification);
       await this.record(job, failureText(notification), lastError.code);
     });
   }
@@ -159,10 +136,10 @@ export class JobNotifications {
         exportAttempt: job.exportAttempt,
         jobId: job.id,
         period: job.period,
-        waitedMs: this.clock.now().getTime() - Date.parse(requestedAt),
+        waitedMs: this.options.clock.now().getTime() - Date.parse(requestedAt),
       };
 
-      await this.notifier.lateEmail(notification);
+      await this.options.notifier.lateEmail(notification);
       await this.record(job, lateEmailText(notification));
     });
   }
@@ -173,15 +150,15 @@ export class JobNotifications {
         notification.kind === 'lost' &&
         !(await this.firstInWindow(`lost:${notification.service}`))
       ) {
-        this.logger.info('notify.skipped', { kind: 'lost', service: notification.service });
+        this.options.logger.info('notify.skipped', { kind: 'lost', service: notification.service });
 
         return;
       }
 
-      await this.notifier.loginWarning(notification);
-      await this.health.write('loginWarning', {
+      await this.options.notifier.loginWarning(notification);
+      await this.options.health.write('loginWarning', {
         kind: notification.kind,
-        sentAt: this.clock.now().toISOString(),
+        sentAt: this.options.clock.now().toISOString(),
         service: notification.service,
       });
     });
@@ -205,7 +182,7 @@ export class JobNotifications {
         driveFileId: result.driveFileId,
         durationMs: Date.parse(completedAt) - Date.parse(job.createdAt),
         fileName: result.fileName,
-        folder: this.devFolder ? `${DEV_FOLDER_NAME}/${year}` : year,
+        folder: this.options.devFolder ? `${DEV_FOLDER_NAME}/${year}` : year,
         jobId: job.id,
         period: job.period,
         sizeBytes: result.sizeBytes,
@@ -214,7 +191,7 @@ export class JobNotifications {
         ...(result.firstBackup === undefined ? {} : { firstBackup: result.firstBackup }),
       };
 
-      await this.notifier.success(notification);
+      await this.options.notifier.success(notification);
       await this.record(job, successText(notification));
     });
   }
@@ -228,9 +205,9 @@ export class JobNotifications {
     let events;
 
     try {
-      events = await this.jobs.listEvents(job.id, { limit: SENT_SCAN_COUNT });
+      events = await this.options.jobs.listEvents(job.id, { limit: SENT_SCAN_COUNT });
     } catch (error) {
-      this.logger.warn('notify.events.failed', { error, jobId: job.id });
+      this.options.logger.warn('notify.events.failed', { error, jobId: job.id });
 
       return false;
     }
@@ -240,7 +217,7 @@ export class JobNotifications {
     );
 
     if (sent) {
-      this.logger.info('notify.skipped', {
+      this.options.logger.info('notify.skipped', {
         jobId: job.id,
         kind: job.status,
         reason: 'already_sent',
@@ -253,9 +230,9 @@ export class JobNotifications {
   /** A gate that cannot answer lets the notification through: a repeat beats a lost alert. */
   private async firstInWindow(key: string): Promise<boolean> {
     try {
-      return await this.gate.claim(key, REPEAT_WINDOW_SEC);
+      return await this.options.gate.claim(key, REPEAT_WINDOW_SEC);
     } catch (error) {
-      this.logger.warn('notify.gate.failed', { error });
+      this.options.logger.warn('notify.gate.failed', { error });
 
       return true;
     }
@@ -269,18 +246,18 @@ export class JobNotifications {
     try {
       await run();
     } catch (error) {
-      this.logger.warn('notify.record.failed', { error, jobId, kind });
+      this.options.logger.warn('notify.record.failed', { error, jobId, kind });
     }
   }
 
   /** The events behind an attention notification; without them, it is still sent. */
   private async recentEvents(jobId: string): Promise<NotificationEventLine[]> {
     try {
-      const events = await this.jobs.listEvents(jobId, { limit: RECENT_EVENT_COUNT });
+      const events = await this.options.jobs.listEvents(jobId, { limit: RECENT_EVENT_COUNT });
 
       return events.map(({ at, text }) => ({ at, text }));
     } catch (error) {
-      this.logger.warn('notify.events.failed', { error, jobId });
+      this.options.logger.warn('notify.events.failed', { error, jobId });
 
       return [];
     }
@@ -288,8 +265,8 @@ export class JobNotifications {
 
   /** The notification as a job event, with the code it reports. */
   private async record(job: BackupJob, text: string, code?: ErrorCode): Promise<void> {
-    await this.jobs.appendEvent(job.id, {
-      at: this.clock.now().toISOString(),
+    await this.options.jobs.appendEvent(job.id, {
+      at: this.options.clock.now().toISOString(),
       status: job.status,
       text: text.length > MAX_EVENT_TEXT ? `${text.slice(0, MAX_EVENT_TEXT - 1)}…` : text,
       type: 'notification',

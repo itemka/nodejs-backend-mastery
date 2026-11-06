@@ -23,11 +23,12 @@ export function stateHash(state: string): string {
  */
 export class RedisLoginStore {
   private readonly keys;
-  private readonly redis: LoginRedis;
 
-  constructor(redis: LoginRedis, keyPrefix: string) {
+  constructor(
+    private readonly redis: LoginRedis,
+    keyPrefix: string,
+  ) {
     this.keys = persistenceKeys(keyPrefix);
-    this.redis = redis;
   }
 
   async save(state: string, login: LoginRecord): Promise<void> {

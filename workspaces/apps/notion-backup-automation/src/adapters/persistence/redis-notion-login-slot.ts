@@ -19,11 +19,12 @@ const attemptPattern = /^[\w-]{16,64}$/;
  */
 export class RedisNotionLoginSlot implements NotionLoginSlot {
   private readonly key: string;
-  private readonly redis: SlotCommands;
 
-  constructor(redis: SlotCommands, keyPrefix: string) {
+  constructor(
+    private readonly redis: SlotCommands,
+    keyPrefix: string,
+  ) {
     this.key = persistenceKeys(keyPrefix).notionLoginAttempt;
-    this.redis = redis;
   }
 
   async claim(attempt: string, ttlSec: number): Promise<boolean> {
@@ -40,11 +41,8 @@ export class RedisNotionLoginSlot implements NotionLoginSlot {
 /** The same semantics in memory, for tests and local runs. */
 export class InMemoryNotionLoginSlot implements NotionLoginSlot {
   private claimed: { readonly attempt: string; readonly expiresAtMs: number } | undefined;
-  private readonly clock: Clock;
 
-  constructor(clock: Clock = systemClock) {
-    this.clock = clock;
-  }
+  constructor(private readonly clock: Clock = systemClock) {}
 
   claim(attempt: string, ttlSec: number): Promise<boolean> {
     assertClaim(attempt, ttlSec);

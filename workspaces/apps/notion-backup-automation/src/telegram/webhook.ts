@@ -93,23 +93,7 @@ type Answer = string | undefined;
  * button acts on the job's current state, so a stale one changes nothing.
  */
 export class TelegramWebhook {
-  private readonly client: TelegramWebhookOptions['client'];
-  private readonly format: MessageFormatOptions;
-  private readonly ids: Pick<IdGenerator, 'token'>;
-  private readonly logger: Logger;
-  private readonly policy: Pick<BackupPolicy, 'maxExportAttempts'>;
-  private readonly service: TelegramWebhookOptions['service'];
-  private readonly state: TelegramState;
-
-  constructor(options: TelegramWebhookOptions) {
-    this.client = options.client;
-    this.format = options.format;
-    this.ids = options.ids;
-    this.logger = options.logger;
-    this.policy = options.policy;
-    this.service = options.service;
-    this.state = options.state;
-  }
+  constructor(private readonly options: TelegramWebhookOptions) {}
 
   /**
    * A normalized update from the authenticated hub, already checked against the contract.
@@ -117,10 +101,10 @@ export class TelegramWebhook {
    * release the receipt and remain retryable.
    */
   async handle({ input, updateId }: IntegrationUpdate): Promise<WebhookOutcome> {
-    const claim = await this.state.claimUpdate(updateId);
+    const claim = await this.options.state.claimUpdate(updateId);
 
     if (claim === 'completed') {
-      this.logger.info('telegram.duplicate', { updateId });
+      this.options.logger.info('telegram.duplicate', { updateId });
 
       return 'duplicate';
     }
@@ -136,7 +120,7 @@ export class TelegramWebhook {
         let answer: Answer;
 
         await this.guard(async () => {
-          const receipt = await this.state.readActionReceipt(updateId);
+          const receipt = await this.options.state.readActionReceipt(updateId);
 
           if (receipt === undefined) {
             answer = await this.onCallback(input, updateId);
@@ -152,26 +136,30 @@ export class TelegramWebhook {
         await this.answer(input, answer);
       }
 
-      this.logger.info('telegram.handled', { kind: input.kind, updateId });
+      this.options.logger.info('telegram.handled', { kind: input.kind, updateId });
 
-      await this.state.completeUpdate(updateId);
+      await this.options.state.completeUpdate(updateId);
 
       return 'handled';
     } catch (error) {
       if (!isPermanentHubRefusal(error)) {
-        await this.state.releaseUpdate(updateId);
+        await this.options.state.releaseUpdate(updateId);
 
         throw error;
       }
 
       // The hub refused a reply for good: a resend would only fail the same way.
-      this.logger.warn('telegram.rejected', { code: error.code, kind: input.kind, updateId });
+      this.options.logger.warn('telegram.rejected', {
+        code: error.code,
+        kind: input.kind,
+        updateId,
+      });
 
       if (input.kind === 'callback') {
         await this.answer(input);
       }
 
-      await this.state.completeUpdate(updateId);
+      await this.options.state.completeUpdate(updateId);
 
       return 'rejected';
     }
@@ -189,7 +177,7 @@ export class TelegramWebhook {
       }
 
       if (!isPermanentHubRefusal(error)) {
-        this.logger.error('telegram.failed', { error });
+        this.options.logger.error('telegram.failed', { error });
       }
 
       throw error;
@@ -229,7 +217,7 @@ export class TelegramWebhook {
           return 'Unknown button';
         }
 
-        await this.reply(fixLoginMessage(service.data, this.format));
+        await this.reply(fixLoginMessage(service.data, this.options.format));
 
         return undefined;
       }
@@ -268,14 +256,14 @@ export class TelegramWebhook {
       return refusal;
     }
 
-    const nonce = this.ids.token();
+    const nonce = this.options.ids.token();
     const pending: Pending = {
       action,
       jobId: job.id,
       ...(messageId === undefined ? {} : { messageId }),
     };
 
-    await this.state.saveConfirmation(nonce, JSON.stringify(pending), CONFIRM_TTL_SEC);
+    await this.options.state.saveConfirmation(nonce, JSON.stringify(pending), CONFIRM_TTL_SEC);
     await this.reply(confirmMessage(action, job.id, nonce));
 
     return undefined;
@@ -287,7 +275,7 @@ export class TelegramWebhook {
     messageId: number | undefined,
     updateId: number,
   ): Promise<Answer> {
-    const raw = await this.state.claimConfirmation(nonce);
+    const raw = await this.options.state.claimConfirmation(nonce);
 
     if (raw === 'busy') {
       throw new Error('Confirmation is being handled');
@@ -297,7 +285,7 @@ export class TelegramWebhook {
 
     if (pending === undefined) {
       if (raw !== undefined) {
-        await this.state.completeConfirmation(nonce);
+        await this.options.state.completeConfirmation(nonce);
       }
 
       await this.removeButtons([messageId]);
@@ -316,18 +304,21 @@ export class TelegramWebhook {
         const refusal = stale(job);
 
         if (refusal !== undefined) {
-          await this.state.completeConfirmation(nonce);
+          await this.options.state.completeConfirmation(nonce);
 
           return refusal;
         }
 
         if (!(await this.bindMutation(`confirm-${nonce}`, job, 'cancel', version))) {
-          await this.state.completeConfirmation(nonce);
+          await this.options.state.completeConfirmation(nonce);
 
           return 'This action already ran or the job changed; use a fresh button';
         }
 
-        const { job: cancelled } = await this.service.cancel(job.id, TELEGRAM_CANCEL_REASON);
+        const { job: cancelled } = await this.options.service.cancel(
+          job.id,
+          TELEGRAM_CANCEL_REASON,
+        );
         const receipt = {
           answer: 'Cancelled',
           removeMessageIds: asked.filter((id): id is number => id !== undefined),
@@ -338,16 +329,16 @@ export class TelegramWebhook {
           ),
         };
 
-        await this.state.saveActionReceipt(updateId, JSON.stringify(receipt));
-        await this.state.completeConfirmation(nonce);
+        await this.options.state.saveActionReceipt(updateId, JSON.stringify(receipt));
+        await this.options.state.completeConfirmation(nonce);
         await this.deliverAction(receipt);
 
         return receipt.answer;
       });
     } catch (error) {
       await (error instanceof ApplicationError
-        ? this.state.completeConfirmation(nonce)
-        : this.state.releaseConfirmation(nonce));
+        ? this.options.state.completeConfirmation(nonce)
+        : this.options.state.releaseConfirmation(nonce));
 
       throw error;
     }
@@ -365,7 +356,7 @@ export class TelegramWebhook {
 
     if (refusal !== undefined) {
       if (confirmationNonce !== undefined) {
-        await this.state.completeConfirmation(confirmationNonce);
+        await this.options.state.completeConfirmation(confirmationNonce);
       }
 
       return refusal;
@@ -376,13 +367,13 @@ export class TelegramWebhook {
 
     if (!(await this.bindMutation(actionKey, job, `retry-${fromStage ?? 'resume'}`, version))) {
       if (confirmationNonce !== undefined) {
-        await this.state.completeConfirmation(confirmationNonce);
+        await this.options.state.completeConfirmation(confirmationNonce);
       }
 
       return 'This action already ran or the job changed; use a fresh button';
     }
 
-    const { job: retried } = await this.service.retry(job.id, fromStage);
+    const { job: retried } = await this.options.service.retry(job.id, fromStage);
     const scratch = fromStage === 'NOTION_TRIGGER' ? ' from scratch' : '';
     const receipt = {
       answer: 'Retry queued',
@@ -392,10 +383,10 @@ export class TelegramWebhook {
       ),
     };
 
-    await this.state.saveActionReceipt(updateId, JSON.stringify(receipt));
+    await this.options.state.saveActionReceipt(updateId, JSON.stringify(receipt));
 
     if (confirmationNonce !== undefined) {
-      await this.state.completeConfirmation(confirmationNonce);
+      await this.options.state.completeConfirmation(confirmationNonce);
     }
 
     await this.deliverAction(receipt);
@@ -413,7 +404,7 @@ export class TelegramWebhook {
       .update(JSON.stringify({ action, jobId: job.id, version }))
       .digest('hex');
 
-    return this.state.bindAction(actionKey, fingerprint);
+    return this.options.state.bindAction(actionKey, fingerprint);
   }
 
   private async deliverAction(receipt: {
@@ -436,8 +427,11 @@ export class TelegramWebhook {
       return `Job ${job.id} is ${job.status}; there is nothing to retry`;
     }
 
-    if (fromStage === 'NOTION_TRIGGER' && job.exportAttempt >= this.policy.maxExportAttempts) {
-      return `Job ${job.id} used all ${this.policy.maxExportAttempts} export attempts`;
+    if (
+      fromStage === 'NOTION_TRIGGER' &&
+      job.exportAttempt >= this.options.policy.maxExportAttempts
+    ) {
+      return `Job ${job.id} used all ${this.options.policy.maxExportAttempts} export attempts`;
     }
 
     return undefined;
@@ -447,7 +441,7 @@ export class TelegramWebhook {
     let found;
 
     try {
-      found = await this.service.status(jobId);
+      found = await this.options.service.status(jobId);
     } catch (error) {
       if (error instanceof ApplicationError && error.code === 'JOB_NOT_FOUND') {
         await this.reply(
@@ -463,10 +457,13 @@ export class TelegramWebhook {
     const { events, job } = found;
 
     await this.reply(
-      statusMessage(jobView(job, events, { googleReauthUrl: this.format.googleReauthUrl }), {
-        ...this.format,
-        retryFromScratch: job.exportAttempt < this.policy.maxExportAttempts,
-      }),
+      statusMessage(
+        jobView(job, events, { googleReauthUrl: this.options.format.googleReauthUrl }),
+        {
+          ...this.options.format,
+          retryFromScratch: job.exportAttempt < this.options.policy.maxExportAttempts,
+        },
+      ),
     );
   }
 
@@ -479,13 +476,13 @@ export class TelegramWebhook {
       return 'Unknown button';
     }
 
-    const { job, version } = await this.service.status(target);
+    const { job, version } = await this.options.service.status(target);
 
     return act(job, version);
   }
 
   private async reply(message: TelegramMessage): Promise<void> {
-    await this.client.sendMessage(message);
+    await this.options.client.sendMessage(message);
   }
 
   /** Best effort: the action is done whether or not the old buttons go. */
@@ -496,9 +493,9 @@ export class TelegramWebhook {
       }
 
       try {
-        await this.client.removeButtons(messageId);
+        await this.options.client.removeButtons(messageId);
       } catch (error) {
-        this.logger.warn('telegram.buttons_not_removed', { error });
+        this.options.logger.warn('telegram.buttons_not_removed', { error });
       }
     }
   }
@@ -506,9 +503,9 @@ export class TelegramWebhook {
   /** Ends the button's spinner; a failure only means Telegram shows it a little longer. */
   private async answer(input: CallbackInput, text?: string): Promise<void> {
     try {
-      await this.client.answerCallbackQuery(input.callbackId, text);
+      await this.options.client.answerCallbackQuery(input.callbackId, text);
     } catch (error) {
-      this.logger.warn('telegram.answer_failed', { error });
+      this.options.logger.warn('telegram.answer_failed', { error });
     }
   }
 }

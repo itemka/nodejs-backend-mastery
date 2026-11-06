@@ -16,11 +16,7 @@ export interface GmailMessageIdsPage {
 
 /** The three Gmail REST calls the app makes, all read-only (`gmail.readonly`). */
 export class GmailApi {
-  private readonly client: GoogleApiClient;
-
-  constructor(client: GoogleApiClient) {
-    this.client = client;
-  }
+  constructor(private readonly client: GoogleApiClient) {}
 
   /**
    * `users.messages.get` with `format=full`: headers and body parts. An aborted `signal` cancels

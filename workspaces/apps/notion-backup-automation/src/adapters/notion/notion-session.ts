@@ -190,11 +190,7 @@ export interface NotionSessionStoreOptions {
  * facts are the envelope's `meta`.
  */
 export class NotionSessionStore implements NotionLoginInfo {
-  private readonly secrets: SecretStore;
-
-  constructor({ secrets }: NotionSessionStoreOptions) {
-    this.secrets = secrets;
-  }
+  constructor(private readonly options: NotionSessionStoreOptions) {}
 
   /** The saved sign-in's recorded expiry; undefined when none is saved or it cannot be read. */
   async authCookieExpiresAt(): Promise<string | undefined> {
@@ -219,7 +215,7 @@ export class NotionSessionStore implements NotionLoginInfo {
     let stored: StoredSecret | undefined;
 
     try {
-      stored = await this.secrets.get(SECRET_NAME);
+      stored = await this.options.secrets.get(SECRET_NAME);
     } catch (error) {
       if (error instanceof EnvelopeError) {
         throw new IntegrationError(
@@ -275,7 +271,7 @@ export class NotionSessionStore implements NotionLoginInfo {
     let stored: StoredSecret | undefined;
 
     try {
-      stored = await this.secrets.get(IDENTITY_SECRET_NAME);
+      stored = await this.options.secrets.get(IDENTITY_SECRET_NAME);
     } catch (error) {
       if (error instanceof EnvelopeError) {
         return undefined;
@@ -291,13 +287,17 @@ export class NotionSessionStore implements NotionLoginInfo {
 
   /** Keeps the identity apart from the session, so a login can replay it after the session. */
   async rememberIdentity(fingerprint: BrowserFingerprint): Promise<void> {
-    await this.secrets.put(IDENTITY_SECRET_NAME, JSON.stringify(fingerprint));
+    await this.options.secrets.put(IDENTITY_SECRET_NAME, JSON.stringify(fingerprint));
   }
 
   /** Saves the identity's copy first: a session is never saved without it. */
   async save(session: CapturedSession): Promise<void> {
     await this.rememberIdentity(session.fingerprint);
-    await this.secrets.put(SECRET_NAME, JSON.stringify(session.storageState), sessionMeta(session));
+    await this.options.secrets.put(
+      SECRET_NAME,
+      JSON.stringify(session.storageState),
+      sessionMeta(session),
+    );
   }
 }
 

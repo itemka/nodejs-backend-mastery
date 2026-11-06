@@ -58,15 +58,10 @@ export interface NotionSettingsPageOptions {
  * naming the step.
  */
 export class NotionSettingsPage {
-  private readonly page: Page;
-  private readonly stepTimeoutMs: number;
-  private readonly workspaceSwitcher: Locator;
-
-  constructor(page: Page, { stepTimeoutMs, workspaceSwitcher }: NotionSettingsPageOptions) {
-    this.page = page;
-    this.stepTimeoutMs = stepTimeoutMs;
-    this.workspaceSwitcher = workspaceSwitcher;
-  }
+  constructor(
+    private readonly page: Page,
+    private readonly options: NotionSettingsPageOptions,
+  ) {}
 
   /** Opens Settings from the workspace menu, or else with the keyboard shortcut (S2). */
   async open(): Promise<'menu' | 'shortcut'> {
@@ -75,19 +70,19 @@ export class NotionSettingsPage {
 
     return uiStep('open-settings', async () => {
       try {
-        await this.workspaceSwitcher.click({ timeout: this.stepTimeoutMs });
+        await this.options.workspaceSwitcher.click({ timeout: this.options.stepTimeoutMs });
         await page
           .getByRole('menuitem', { exact: true, name: NOTION_SETTINGS.settings })
           .or(page.getByText(NOTION_SETTINGS.settings, { exact: true }))
           .first()
-          .click({ timeout: this.stepTimeoutMs });
-        await preferences.waitFor({ timeout: this.stepTimeoutMs / 2 });
+          .click({ timeout: this.options.stepTimeoutMs });
+        await preferences.waitFor({ timeout: this.options.stepTimeoutMs / 2 });
 
         return 'menu';
       } catch {
         await page.keyboard.press('Escape');
         await page.keyboard.press('ControlOrMeta+Comma');
-        await preferences.waitFor({ timeout: this.stepTimeoutMs });
+        await preferences.waitFor({ timeout: this.options.stepTimeoutMs });
 
         return 'shortcut';
       }
@@ -109,11 +104,11 @@ export class NotionSettingsPage {
       await navigation
         .getByText(NOTION_SETTINGS.general, { exact: true })
         .first()
-        .click({ timeout: this.stepTimeoutMs });
+        .click({ timeout: this.options.stepTimeoutMs });
       await page
         .getByText(NOTION_SETTINGS.exportRow, { exact: true })
         .first()
-        .waitFor({ timeout: this.stepTimeoutMs });
+        .waitFor({ timeout: this.options.stepTimeoutMs });
     });
   }
 
@@ -135,18 +130,18 @@ export class NotionSettingsPage {
       .last();
 
     return uiStep('open-export-dialog', async () => {
-      await row.waitFor({ timeout: this.stepTimeoutMs });
+      await row.waitFor({ timeout: this.options.stepTimeoutMs });
 
       if (await row.getByText(exportProgress).first().isVisible()) {
         return 'in_progress';
       }
 
-      await control(row, NOTION_SETTINGS.export).click({ timeout: this.stepTimeoutMs });
+      await control(row, NOTION_SETTINGS.export).click({ timeout: this.options.stepTimeoutMs });
 
       const format = page.getByText(EXPORT_DIALOG.format, { exact: true }).first();
       const progress = page.getByText(exportProgress).first();
 
-      await format.or(progress).first().waitFor({ timeout: this.stepTimeoutMs });
+      await format.or(progress).first().waitFor({ timeout: this.options.stepTimeoutMs });
 
       if (await progress.isVisible()) {
         return 'in_progress';
@@ -158,22 +153,18 @@ export class NotionSettingsPage {
         .filter({ has: page.getByText(NOTION_SETTINGS.cancel, { exact: true }) })
         .last();
 
-      return new ExportDialog(page, root, this.stepTimeoutMs);
+      return new ExportDialog(page, root, this.options.stepTimeoutMs);
     });
   }
 }
 
 /** The "Workspace content" export dialog. */
 export class ExportDialog {
-  private readonly page: Page;
-  private readonly root: Locator;
-  private readonly stepTimeoutMs: number;
-
-  constructor(page: Page, root: Locator, stepTimeoutMs: number) {
-    this.page = page;
-    this.root = root;
-    this.stepTimeoutMs = stepTimeoutMs;
-  }
+  constructor(
+    private readonly page: Page,
+    private readonly root: Locator,
+    private readonly stepTimeoutMs: number,
+  ) {}
 
   /**
    * Sets each of the five values where it differs, and returns the labels of the ones it

@@ -64,11 +64,7 @@ export interface ProbeRunnerOptions {
  * daily cron's probes, and the Google and Drive checks after a phone re-login.
  */
 export class ProbeRunner {
-  private readonly options: ProbeRunnerOptions;
-
-  constructor(options: ProbeRunnerOptions) {
-    this.options = options;
-  }
+  constructor(private readonly options: ProbeRunnerOptions) {}
 
   /**
    * One probe, recorded in `health`; `?probe=` runs only this. A probe's own failure is its

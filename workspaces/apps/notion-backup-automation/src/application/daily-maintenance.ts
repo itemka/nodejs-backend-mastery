@@ -91,11 +91,9 @@ export interface DailyMaintenanceOptions {
  * With nothing active and auto-start off, the run publishes nothing.
  */
 export class DailyMaintenance {
-  private readonly options: DailyMaintenanceOptions;
   private readonly probes: ProbeRunner;
 
-  constructor(options: DailyMaintenanceOptions) {
-    this.options = options;
+  constructor(private readonly options: DailyMaintenanceOptions) {
     this.probes = new ProbeRunner(options);
   }
 

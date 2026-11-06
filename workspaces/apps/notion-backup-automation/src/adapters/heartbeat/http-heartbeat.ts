@@ -17,14 +17,10 @@ export interface HttpHeartbeatOptions {
  * channel, which does not depend on this app. A failed ping is logged and ignored.
  */
 export class HttpHeartbeat implements Heartbeat {
-  private readonly fetch: typeof fetch;
-  private readonly logger: Logger;
-  private readonly url: SecretValue<string>;
+  private readonly options: Required<HttpHeartbeatOptions>;
 
-  constructor({ fetch: fetchImpl = globalThis.fetch, logger, url }: HttpHeartbeatOptions) {
-    this.fetch = fetchImpl;
-    this.logger = logger;
-    this.url = url;
+  constructor(options: HttpHeartbeatOptions) {
+    this.options = { fetch: globalThis.fetch, ...options };
   }
 
   fail(): Promise<void> {
@@ -36,7 +32,7 @@ export class HttpHeartbeat implements Heartbeat {
   }
 
   private async ping(kind: 'fail' | 'ok'): Promise<void> {
-    let base = this.url.reveal();
+    let base = this.options.url.reveal();
 
     // Trailing slashes off, without a backtracking regex.
     while (base.endsWith('/')) {
@@ -44,20 +40,20 @@ export class HttpHeartbeat implements Heartbeat {
     }
 
     try {
-      const response = await this.fetch(kind === 'fail' ? `${base}/fail` : base, {
+      const response = await this.options.fetch(kind === 'fail' ? `${base}/fail` : base, {
         method: 'GET',
         redirect: 'error',
         signal: AbortSignal.timeout(TIMEOUT_MS),
       });
 
       if (response.ok) {
-        this.logger.info('heartbeat.sent', { kind });
+        this.options.logger.info('heartbeat.sent', { kind });
       } else {
-        this.logger.warn('heartbeat.failed', { kind, status: response.status });
+        this.options.logger.warn('heartbeat.failed', { kind, status: response.status });
       }
     } catch (error) {
       // The URL is in the request, so the error is reduced to its kind.
-      this.logger.warn('heartbeat.failed', {
+      this.options.logger.warn('heartbeat.failed', {
         kind,
         reason: error instanceof Error && error.name === 'TimeoutError' ? 'timeout' : 'network',
       });

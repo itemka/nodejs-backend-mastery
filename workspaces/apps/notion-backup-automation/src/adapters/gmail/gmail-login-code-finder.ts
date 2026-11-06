@@ -33,29 +33,20 @@ export interface GmailLoginCodeFinderOptions {
 
 /** `LoginCodeFinder` over Gmail REST (`gmail.readonly`). */
 export class GmailLoginCodeFinder implements LoginCodeFinder {
-  private readonly gmail: GmailApi;
-  private readonly logger: Logger;
-  private readonly pollMs: number;
-  private readonly sleep: Sleep;
-  private readonly waitMs: number;
+  private readonly options: Required<GmailLoginCodeFinderOptions>;
 
-  constructor({
-    gmail,
-    logger,
-    pollMs = LOGIN_EMAIL_POLL_MS,
-    sleep = systemSleep,
-    waitMs = LOGIN_EMAIL_WAIT_MS,
-  }: GmailLoginCodeFinderOptions) {
-    this.gmail = gmail;
-    this.logger = logger;
-    this.pollMs = pollMs;
-    this.sleep = sleep;
-    this.waitMs = waitMs;
+  constructor(options: GmailLoginCodeFinderOptions) {
+    this.options = {
+      pollMs: LOGIN_EMAIL_POLL_MS,
+      sleep: systemSleep,
+      waitMs: LOGIN_EMAIL_WAIT_MS,
+      ...options,
+    };
   }
 
   /** The Gmail profile's address, lowercased: the only address the login may type. */
   async mailbox(signal?: AbortSignal): Promise<string> {
-    const { emailAddress } = await abortable(this.gmail.getProfile(signal), signal);
+    const { emailAddress } = await abortable(this.options.gmail.getProfile(signal), signal);
 
     return emailAddress.trim().toLowerCase();
   }
@@ -87,7 +78,7 @@ export class GmailLoginCodeFinder implements LoginCodeFinder {
         const result = extractLoginCode(email);
 
         if (!result.ok) {
-          this.logger.warn('gmail.login_email.unrecognized', {
+          this.options.logger.warn('gmail.login_email.unrecognized', {
             messageId: email.id,
             problem: result.problem,
           });
@@ -99,7 +90,7 @@ export class GmailLoginCodeFinder implements LoginCodeFinder {
         }
 
         signal?.throwIfAborted();
-        this.logger.info('gmail.login_email.found', {
+        this.options.logger.info('gmail.login_email.found', {
           delayMs: Number(email.internalDate) - requestedAt.getTime(),
           messageId: email.id,
           polls: poll,
@@ -109,13 +100,13 @@ export class GmailLoginCodeFinder implements LoginCodeFinder {
       }
 
       // Counted, not timed: Gmail's own latency comes on top, within the login's budget.
-      if (poll * this.pollMs >= this.waitMs) {
-        this.logger.warn('gmail.login_email.missing', { polls: poll });
+      if (poll * this.options.pollMs >= this.options.waitMs) {
+        this.options.logger.warn('gmail.login_email.missing', { polls: poll });
 
         throw new NotionLoginError('email_missing', 'No trusted login email arrived in time');
       }
 
-      await pause(this.sleep, this.pollMs, signal);
+      await pause(this.options.sleep, this.options.pollMs, signal);
     }
   }
 
@@ -130,7 +121,7 @@ export class GmailLoginCodeFinder implements LoginCodeFinder {
     signal: AbortSignal | undefined,
   ): Promise<GmailMessage | undefined> {
     const { ids, nextPageToken } = await abortable(
-      this.gmail.listMessageIds(query, MAX_RESULTS, undefined, signal),
+      this.options.gmail.listMessageIds(query, MAX_RESULTS, undefined, signal),
       signal,
     );
 
@@ -145,7 +136,7 @@ export class GmailLoginCodeFinder implements LoginCodeFinder {
       let message: GmailMessage;
 
       try {
-        message = await abortable(this.gmail.getMessage(id, signal), signal);
+        message = await abortable(this.options.gmail.getMessage(id, signal), signal);
       } catch (error) {
         // A listed message can disappear; other failures must still end the search.
         if (error instanceof GoogleApiError && error.status === 404) {
@@ -161,7 +152,7 @@ export class GmailLoginCodeFinder implements LoginCodeFinder {
         trusted.push(message);
       } else {
         rejected.add(id);
-        this.logger.info('gmail.login_email.rejected', { messageId: id, rejection });
+        this.options.logger.info('gmail.login_email.rejected', { messageId: id, rejection });
       }
     }
 
