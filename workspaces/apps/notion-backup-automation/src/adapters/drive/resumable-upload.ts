@@ -144,34 +144,24 @@ const uploadOrigin = new URL(DRIVE_UPLOAD_URL);
  * The session URL is as sensitive as a token: it is kept in memory and never logged.
  */
 export class ResumableUploader {
-  private readonly chunkSize: number;
-  private readonly fetch: typeof fetch;
-  private readonly maxAttempts: number;
-  private readonly maxSessions: number;
-  private readonly sleep: Sleep;
-  private readonly timeoutMs: number;
-  private readonly tokenProvider: GoogleTokenProvider;
+  private readonly options: Required<ResumableUploaderOptions>;
 
-  constructor({
-    chunkSize = DEFAULT_UPLOAD_CHUNK_SIZE,
-    fetch = globalThis.fetch,
-    maxAttempts = 5,
-    maxSessions = 3,
-    sleep = systemSleep,
-    timeoutMs = 120_000,
-    tokenProvider,
-  }: ResumableUploaderOptions) {
+  constructor(options: ResumableUploaderOptions) {
+    this.options = {
+      chunkSize: DEFAULT_UPLOAD_CHUNK_SIZE,
+      fetch: globalThis.fetch,
+      maxAttempts: 5,
+      maxSessions: 3,
+      sleep: systemSleep,
+      timeoutMs: 120_000,
+      ...options,
+    };
+
+    const { chunkSize } = this.options;
+
     if (!Number.isInteger(chunkSize) || chunkSize <= 0 || chunkSize % UPLOAD_CHUNK_UNIT !== 0) {
       throw new RangeError('The chunk size must be a positive multiple of 256 KiB');
     }
-
-    this.chunkSize = chunkSize;
-    this.fetch = fetch;
-    this.maxAttempts = maxAttempts;
-    this.maxSessions = maxSessions;
-    this.sleep = sleep;
-    this.timeoutMs = timeoutMs;
-    this.tokenProvider = tokenProvider;
   }
 
   /** Uploads every byte of `source` into a new file; returns its ID once Drive created it. */
@@ -180,7 +170,7 @@ export class ResumableUploader {
     source: UploadSource,
     signal?: AbortSignal,
   ): Promise<{ fileId: string }> {
-    for (let session = 1; session <= this.maxSessions; session += 1) {
+    for (let session = 1; session <= this.options.maxSessions; session += 1) {
       const sessionUrl = await this.startSession(metadata, source.size, signal);
       const result = await this.sendAll(sessionUrl, source, signal);
 
@@ -191,7 +181,7 @@ export class ResumableUploader {
 
     throw new IntegrationError(
       'DRIVE_UNAVAILABLE',
-      `Drive expired ${this.maxSessions} upload sessions in a row`,
+      `Drive expired ${this.options.maxSessions} upload sessions in a row`,
     );
   }
 
@@ -206,11 +196,11 @@ export class ResumableUploader {
   ): Promise<void> {
     const delaySec = error.retryAfterSec ?? backoffMs(failures) / 1000;
 
-    if (failures >= this.maxAttempts || delaySec > MAX_IN_TICK_DELAY_SEC) {
+    if (failures >= this.options.maxAttempts || delaySec > MAX_IN_TICK_DELAY_SEC) {
       throw error;
     }
 
-    await pause(this.sleep, delaySec * 1000, signal);
+    await pause(this.options.sleep, delaySec * 1000, signal);
   }
 
   /** One request with the bearer token. A network failure or timeout is returned as an error. */
@@ -222,11 +212,11 @@ export class ResumableUploader {
     signal?.throwIfAborted();
 
     // A token refresh takes no signal, so the abort must not wait for it.
-    const token = await abortable(serviceAccessToken(this.tokenProvider, 'drive'), signal);
-    const timeout = AbortSignal.timeout(this.timeoutMs);
+    const token = await abortable(serviceAccessToken(this.options.tokenProvider, 'drive'), signal);
+    const timeout = AbortSignal.timeout(this.options.timeoutMs);
 
     try {
-      return await this.fetch(url, {
+      return await this.options.fetch(url, {
         ...(init.body === undefined ? {} : { body: init.body }),
         headers: { ...init.headers, Authorization: `Bearer ${token}` },
         method: init.method,
@@ -383,7 +373,7 @@ export class ResumableUploader {
     }
 
     // A read may stall; the abort must not wait for it.
-    const bytes = await abortable(source.read(offset, this.chunkSize), signal);
+    const bytes = await abortable(source.read(offset, this.options.chunkSize), signal);
     const chunkEnd = offset + bytes.length;
 
     progress.sent = Math.max(progress.sent, chunkEnd);
@@ -436,7 +426,7 @@ export class ResumableUploader {
 
         return new TransientFailure(error);
       },
-      { attempts: this.maxAttempts, signal, sleep: this.sleep },
+      { attempts: this.options.maxAttempts, signal, sleep: this.options.sleep },
     );
   }
 }

@@ -84,27 +84,16 @@ const reasonPattern = /^[\w.-]{1,64}$/;
  * service's `*_UNAVAILABLE` code. Errors carry status codes and reasons, never bodies or URLs.
  */
 export class GoogleApiClient {
-  private readonly fetch: typeof fetch;
-  private readonly maxAttempts: number;
-  private readonly service: GoogleService;
-  private readonly sleep: Sleep;
-  private readonly timeoutMs: number;
-  private readonly tokenProvider: GoogleTokenProvider;
+  private readonly options: Required<GoogleApiClientOptions>;
 
-  constructor({
-    fetch = globalThis.fetch,
-    maxAttempts = 3,
-    service,
-    sleep = systemSleep,
-    timeoutMs = 30_000,
-    tokenProvider,
-  }: GoogleApiClientOptions) {
-    this.fetch = fetch;
-    this.maxAttempts = maxAttempts;
-    this.service = service;
-    this.sleep = sleep;
-    this.timeoutMs = timeoutMs;
-    this.tokenProvider = tokenProvider;
+  constructor(options: GoogleApiClientOptions) {
+    this.options = {
+      fetch: globalThis.fetch,
+      maxAttempts: 3,
+      sleep: systemSleep,
+      timeoutMs: 30_000,
+      ...options,
+    };
   }
 
   /** Sends the request and parses the JSON reply with `schema`. */
@@ -133,7 +122,9 @@ export class GoogleApiClient {
   async send(request: GoogleApiRequest): Promise<Response> {
     const method = request.method ?? 'GET';
     const attempts =
-      method === 'GET' || method === 'DELETE' || request.idempotent === true ? this.maxAttempts : 1;
+      method === 'GET' || method === 'DELETE' || request.idempotent === true
+        ? this.options.maxAttempts
+        : 1;
     const url = buildUrl(request);
     const { signal } = request;
 
@@ -142,11 +133,11 @@ export class GoogleApiClient {
         // A token refresh takes no signal, so the abort must not wait for it. Its failure is
         // thrown, not retried: gaxios has already retried the token endpoint.
         const token = await abortable(this.accessToken(), signal);
-        const timeout = AbortSignal.timeout(this.timeoutMs);
+        const timeout = AbortSignal.timeout(this.options.timeoutMs);
         let response: Response;
 
         try {
-          response = await this.fetch(url, {
+          response = await this.options.fetch(url, {
             ...(request.body === undefined ? {} : { body: JSON.stringify(request.body) }),
             headers: {
               Authorization: `Bearer ${token}`,
@@ -159,33 +150,33 @@ export class GoogleApiClient {
         } catch {
           signal?.throwIfAborted();
 
-          return new TransientFailure(serviceUnavailable(this.service));
+          return new TransientFailure(serviceUnavailable(this.options.service));
         }
 
         if (response.ok) {
           return response;
         }
 
-        const error = await googleApiErrorOf(this.service, response, signal);
+        const error = await googleApiErrorOf(this.options.service, response, signal);
 
-        if (isServiceUnavailable(error, this.service)) {
+        if (isServiceUnavailable(error, this.options.service)) {
           return new TransientFailure(error);
         }
 
         throw error;
       },
-      { attempts, signal, sleep: this.sleep },
+      { attempts, signal, sleep: this.options.sleep },
     );
   }
 
   private accessToken(): Promise<string> {
-    return serviceAccessToken(this.tokenProvider, this.service);
+    return serviceAccessToken(this.options.tokenProvider, this.options.service);
   }
 
   private unexpectedResponse(status: number): GoogleApiError {
     return new GoogleApiError(
       'INTEGRATION_UNCLASSIFIED',
-      `${serviceNames[this.service]} returned an unexpected response`,
+      `${serviceNames[this.options.service]} returned an unexpected response`,
       { status },
     );
   }

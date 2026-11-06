@@ -1,7 +1,8 @@
 import { DomUtils, ElementType, parseDocument } from 'htmlparser2';
 
 import { SecretValue } from '../../shared/secret-value.js';
-import { headerValues, isTrustedByGmail, singleAddress } from './export-email-parser.js';
+import { isTrustedByGmail } from './authentication-results.js';
+import { headerValues, singleAddress } from './export-email-parser.js';
 import type { GmailMessage, GmailMessagePart } from './gmail-schemas.js';
 
 /**

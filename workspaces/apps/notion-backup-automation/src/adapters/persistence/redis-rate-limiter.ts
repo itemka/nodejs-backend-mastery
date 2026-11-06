@@ -16,14 +16,14 @@ const namePattern = /^[\w.:-]{1,100}$/;
  * before it is incremented, so no counter outlives its window, even when a call fails midway.
  */
 export class RedisRateLimiter implements RateLimiter {
-  private readonly clock: Clock;
   private readonly keys;
-  private readonly redis: CounterCommands;
 
-  constructor(redis: CounterCommands, keyPrefix: string, clock: Clock = systemClock) {
-    this.clock = clock;
+  constructor(
+    private readonly redis: CounterCommands,
+    keyPrefix: string,
+    private readonly clock: Clock = systemClock,
+  ) {
     this.keys = persistenceKeys(keyPrefix);
-    this.redis = redis;
   }
 
   async take(name: string, { limit, windowSec }: RateLimit): Promise<RateLimitResult> {

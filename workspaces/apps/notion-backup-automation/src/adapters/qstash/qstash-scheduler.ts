@@ -96,23 +96,17 @@ export interface QStashSchedulerOptions {
  * flow control runs one delivery per environment at a time.
  */
 export class QStashScheduler implements NotionLoginQueue, Scheduler {
-  private readonly api: QStashApi;
-  private readonly appBaseUrl: string;
   private readonly flowControlKey: string;
-  private readonly logger: Logger;
 
-  constructor({ api, appBaseUrl, appEnv, logger }: QStashSchedulerOptions) {
-    this.api = api;
-    this.appBaseUrl = appBaseUrl;
-    this.flowControlKey = `nba-${appEnv}`;
-    this.logger = logger;
+  constructor(private readonly options: QStashSchedulerOptions) {
+    this.flowControlKey = `nba-${options.appEnv}`;
   }
 
   async cancel(messageId: string): Promise<void> {
     try {
-      await this.api.messages.cancel(messageId);
+      await this.options.api.messages.cancel(messageId);
     } catch (error) {
-      this.logger.warn('qstash.cancel.failed', failureFields(error));
+      this.options.logger.warn('qstash.cancel.failed', failureFields(error));
 
       throw new SchedulerError('cancel');
     }
@@ -146,18 +140,21 @@ export class QStashScheduler implements NotionLoginQueue, Scheduler {
     options: { readonly deduplicationId: string; readonly delay?: number },
   ): Promise<{ readonly messageId: string }> {
     try {
-      const { messageId } = await this.api.publishJSON({
+      const { messageId } = await this.options.api.publishJSON({
         body,
         deduplicationId: options.deduplicationId,
         flowControl: { key: this.flowControlKey, parallelism: 1 },
         retries: DELIVERY_RETRIES,
-        url: new URL(workerPath(body.jobId), this.appBaseUrl).href,
+        url: new URL(workerPath(body.jobId), this.options.appBaseUrl).href,
         ...(options.delay === undefined ? {} : { delay: options.delay }),
       });
 
       return { messageId };
     } catch (error) {
-      this.logger.warn('qstash.publish.failed', { ...failureFields(error), jobId: body.jobId });
+      this.options.logger.warn('qstash.publish.failed', {
+        ...failureFields(error),
+        jobId: body.jobId,
+      });
 
       throw new SchedulerError('publish');
     }

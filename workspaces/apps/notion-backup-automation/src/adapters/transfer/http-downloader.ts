@@ -76,36 +76,20 @@ const FILE_HOST = "Notion's file host";
  * cookies reach `file.notion.com` only.
  */
 export class HttpDownloader {
-  private readonly clock: Clock;
-  private readonly fetch: typeof fetch;
-  private readonly freeSpace: (directory: string) => Promise<number>;
-  private readonly idleTimeoutMs: number;
-  private readonly linkTimeoutMs: number;
-  private readonly logger: Logger;
-  private readonly maxAttempts: number;
-  private readonly reserveBytes: number;
-  private readonly sleep: Sleep;
+  private readonly options: Required<HttpDownloaderOptions>;
 
-  constructor({
-    clock = systemClock,
-    fetch = globalThis.fetch,
-    freeSpace = freeBytes,
-    idleTimeoutMs = 30_000,
-    linkTimeoutMs = 15_000,
-    logger,
-    maxAttempts = 3,
-    reserveBytes = 16 * 1024 * 1024,
-    sleep = systemSleep,
-  }: HttpDownloaderOptions) {
-    this.clock = clock;
-    this.fetch = fetch;
-    this.freeSpace = freeSpace;
-    this.idleTimeoutMs = idleTimeoutMs;
-    this.linkTimeoutMs = linkTimeoutMs;
-    this.logger = logger;
-    this.maxAttempts = maxAttempts;
-    this.reserveBytes = reserveBytes;
-    this.sleep = sleep;
+  constructor(options: HttpDownloaderOptions) {
+    this.options = {
+      clock: systemClock,
+      fetch: globalThis.fetch,
+      freeSpace: freeBytes,
+      idleTimeoutMs: 30_000,
+      linkTimeoutMs: 15_000,
+      maxAttempts: 3,
+      reserveBytes: 16 * 1024 * 1024,
+      sleep: systemSleep,
+      ...options,
+    };
   }
 
   /**
@@ -152,7 +136,7 @@ export class HttpDownloader {
     // which the free-space check below would count against this attempt.
     await rm(partPath, { force: true });
 
-    const idle = new IdleTimer(this.idleTimeoutMs);
+    const idle = new IdleTimer(this.options.idleTimeoutMs);
     const attemptSignal =
       signal === undefined ? idle.signal : AbortSignal.any([signal, idle.signal]);
 
@@ -160,7 +144,7 @@ export class HttpDownloader {
       let response: Response;
 
       try {
-        response = await this.fetch(target.url.reveal(), {
+        response = await this.options.fetch(target.url.reveal(), {
           headers: { 'Accept-Encoding': 'identity', Cookie: cookieHeader.reveal() },
           redirect: 'manual',
           signal: attemptSignal,
@@ -178,7 +162,8 @@ export class HttpDownloader {
       }
 
       const expectedBytes = contentLength(response);
-      const limitBytes = (await this.freeSpace(path.dirname(partPath))) - this.reserveBytes;
+      const limitBytes =
+        (await this.options.freeSpace(path.dirname(partPath))) - this.options.reserveBytes;
 
       if (expectedBytes !== undefined && expectedBytes > limitBytes) {
         await cancelBody(response);
@@ -206,11 +191,11 @@ export class HttpDownloader {
   }
 
   private async followLink(link: URL, signal: AbortSignal | undefined): Promise<DownloadTarget> {
-    const timeout = AbortSignal.timeout(this.linkTimeoutMs);
+    const timeout = AbortSignal.timeout(this.options.linkTimeoutMs);
     let response: Response;
 
     try {
-      response = await this.fetch(link, {
+      response = await this.options.fetch(link, {
         redirect: 'manual',
         signal: signal === undefined ? timeout : AbortSignal.any([signal, timeout]),
       });
@@ -257,7 +242,7 @@ export class HttpDownloader {
     const { status } = response;
 
     if (status === 401 || status === 403) {
-      if (this.clock.now().getTime() >= target.expiresAt.getTime()) {
+      if (this.options.clock.now().getTime() >= target.expiresAt.getTime()) {
         return { outcome: 'link_expired' };
       }
 
@@ -296,15 +281,15 @@ export class HttpDownloader {
         }
       },
       {
-        attempts: this.maxAttempts,
+        attempts: this.options.maxAttempts,
         onRetry: (error, attemptNumber) => {
-          this.logger.warn('transfer.download.retry', {
+          this.options.logger.warn('transfer.download.retry', {
             attempt: attemptNumber,
             reason: error.message,
           });
         },
         signal,
-        sleep: this.sleep,
+        sleep: this.options.sleep,
       },
     );
   }

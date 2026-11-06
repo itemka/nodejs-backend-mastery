@@ -74,24 +74,10 @@ export interface JobStatusResult {
  * happens in the worker, woken by a published wakeup.
  */
 export class BackupApplicationService {
-  private readonly clock: Clock;
-  private readonly ids: IdGenerator;
-  private readonly jobs: JobRepository;
-  private readonly logger: Logger;
-  private readonly policy: BackupPolicy;
-  private readonly scheduler: Scheduler;
   private readonly store: JobStore;
-  private readonly timeZone: string;
 
-  constructor(options: BackupServiceOptions) {
-    this.clock = options.clock;
-    this.ids = options.ids;
-    this.jobs = options.jobs;
-    this.logger = options.logger;
-    this.policy = options.policy;
-    this.scheduler = options.scheduler;
+  constructor(private readonly options: BackupServiceOptions) {
     this.store = new JobStore({ clock: options.clock, jobs: options.jobs, logger: options.logger });
-    this.timeZone = options.timeZone;
   }
 
   /** `backup_cancel`: at once, or at the next step boundary while a worker runs the job. */
@@ -113,7 +99,7 @@ export class BackupApplicationService {
           const current = await this.require(jobId);
           const cancelled = await this.store.commit(
             current,
-            (job) => cancelJob(job, this.clock.now()),
+            (job) => cancelJob(job, this.options.clock.now()),
             'backup_cancel',
           );
 
@@ -121,7 +107,7 @@ export class BackupApplicationService {
 
           return cancelled;
         },
-        () => this.store.commit(stored, (job) => requestCancel(job, this.clock.now())),
+        () => this.store.commit(stored, (job) => requestCancel(job, this.options.clock.now())),
       ),
     );
 
@@ -132,7 +118,7 @@ export class BackupApplicationService {
 
   /** `backup_list`: the newest jobs first. */
   async list(limit: number): Promise<BackupJob[]> {
-    const stored = await this.jobs.list({ limit });
+    const stored = await this.options.jobs.list({ limit });
 
     return stored.map(({ job }) => job);
   }
@@ -172,7 +158,7 @@ export class BackupApplicationService {
   async retry(jobId: string, fromStage?: Stage): Promise<{ readonly job: BackupJob }> {
     const job = await this.asInvalidState(jobId, () =>
       this.retryWith(jobId, (current) =>
-        retryJob(current, this.clock.now(), this.policy, fromStage),
+        retryJob(current, this.options.clock.now(), this.options.policy, fromStage),
       ),
     );
 
@@ -187,7 +173,7 @@ export class BackupApplicationService {
   async retryIncident(jobId: string, incident: Incident): Promise<BackupJob | undefined> {
     try {
       return await this.retryWith(jobId, (current) =>
-        retryIncident(current, this.clock.now(), this.policy, incident),
+        retryIncident(current, this.options.clock.now(), this.options.policy, incident),
       );
     } catch (error) {
       if (error instanceof InvalidJobStateError && error.reason === 'INCIDENT_CHANGED') {
@@ -203,13 +189,13 @@ export class BackupApplicationService {
    * period is this month in `BACKUP_TIME_ZONE`. An existing job of the period is returned.
    */
   async start(request: StartRequest = {}): Promise<StartResult> {
-    const now = this.clock.now();
-    const period = periodFor(now, this.timeZone);
+    const now = this.options.clock.now();
+    const period = periodFor(now, this.options.timeZone);
     let job: BackupJob;
 
     if (request.force === true) {
       // Refused while any job is active: `create` answers `active_exists` below.
-      const existing = await this.jobs.list({ limit: FORCED_SCAN_LIMIT });
+      const existing = await this.options.jobs.list({ limit: FORCED_SCAN_LIMIT });
 
       job = newBackupJob({
         kind: 'forced',
@@ -225,8 +211,8 @@ export class BackupApplicationService {
     }
 
     // The token is saved with the job, so the first wakeup can never arrive before it.
-    const token = this.ids.token();
-    const created = await this.jobs.create({
+    const token = this.options.ids.token();
+    const created = await this.options.jobs.create({
       ...job,
       schedule: { notBefore: now.toISOString(), token },
     });
@@ -243,13 +229,13 @@ export class BackupApplicationService {
         // same token. QStash deduplicates `<jobId>.<token>`, and a repeat after the first tick
         // ran is stale.
         if (existing.status === 'CREATED' && existing.schedule !== undefined) {
-          await this.scheduler.schedule({
+          await this.options.scheduler.schedule({
             delaySec: 0,
             jobId: existing.id,
             reason: 'start',
             token: existing.schedule.token,
           });
-          this.logger.info('job.start.republished', { jobId: existing.id });
+          this.options.logger.info('job.start.republished', { jobId: existing.id });
         }
 
         return { created: false, job: existing };
@@ -259,8 +245,13 @@ export class BackupApplicationService {
         const reason = request.reason === undefined ? '' : `: ${sanitizeReason(request.reason)}`;
 
         await this.store.note(job.id, `job.created · ${job.kind}${reason}`);
-        await this.scheduler.schedule({ delaySec: 0, jobId: job.id, reason: 'start', token });
-        this.logger.info('job.started', { jobId: job.id, kind: job.kind });
+        await this.options.scheduler.schedule({
+          delaySec: 0,
+          jobId: job.id,
+          reason: 'start',
+          token,
+        });
+        this.options.logger.info('job.started', { jobId: job.id, kind: job.kind });
 
         return { created: true, job: created.stored.job };
       }
@@ -275,19 +266,19 @@ export class BackupApplicationService {
       throw new ApplicationError('JOB_NOT_FOUND', 'No backup job exists yet');
     }
 
-    const events = await this.jobs.listEvents(stored.job.id, { limit: STATUS_EVENT_COUNT });
+    const events = await this.options.jobs.listEvents(stored.job.id, { limit: STATUS_EVENT_COUNT });
 
     return { events, job: stored.job, version: stored.version };
   }
 
   private async activeOrLatest(): Promise<StoredJob | undefined> {
-    const active = await this.jobs.findActive();
+    const active = await this.options.jobs.findActive();
 
     if (active !== undefined) {
       return active;
     }
 
-    const [latest] = await this.jobs.list({ limit: 1 });
+    const [latest] = await this.options.jobs.list({ limit: 1 });
 
     return latest;
   }
@@ -310,9 +301,9 @@ export class BackupApplicationService {
     }
 
     try {
-      await this.scheduler.cancel(messageId);
+      await this.options.scheduler.cancel(messageId);
     } catch (error) {
-      this.logger.warn('job.wakeup.cancel_failed', { error, jobId: previous.id });
+      this.options.logger.warn('job.wakeup.cancel_failed', { error, jobId: previous.id });
     }
   }
 
@@ -328,9 +319,9 @@ export class BackupApplicationService {
   ): Promise<StoredJob> {
     rule(current.job);
 
-    const token = this.ids.token();
-    const now = this.clock.now();
-    const { messageId } = await this.scheduler.schedule({
+    const token = this.options.ids.token();
+    const now = this.options.clock.now();
+    const { messageId } = await this.options.scheduler.schedule({
       delaySec: 0,
       jobId: current.job.id,
       reason,
@@ -343,7 +334,7 @@ export class BackupApplicationService {
     };
     const saved = await this.store.commit(
       current,
-      (job) => update(rule(job), { schedule }, this.clock.now()),
+      (job) => update(rule(job), { schedule }, this.options.clock.now()),
       detail,
     );
 
@@ -377,7 +368,7 @@ export class BackupApplicationService {
   }
 
   private async require(jobId: string): Promise<StoredJob> {
-    const stored = await this.jobs.get(jobId);
+    const stored = await this.options.jobs.get(jobId);
 
     if (stored === undefined) {
       throw new ApplicationError('JOB_NOT_FOUND', `No job ${jobId}`, jobId);
@@ -395,8 +386,8 @@ export class BackupApplicationService {
     run: () => Promise<T>,
     onHeld: () => Promise<T> | T,
   ): Promise<T> {
-    const workerId = this.ids.shortId();
-    const lease = await this.jobs.acquireLease(jobId, workerId, CONTROL_LEASE_MS);
+    const workerId = this.options.ids.shortId();
+    const lease = await this.options.jobs.acquireLease(jobId, workerId, CONTROL_LEASE_MS);
 
     if (!lease.acquired) {
       return onHeld();
@@ -406,9 +397,9 @@ export class BackupApplicationService {
       return await run();
     } finally {
       try {
-        await this.jobs.releaseLease(jobId, workerId);
+        await this.options.jobs.releaseLease(jobId, workerId);
       } catch (error) {
-        this.logger.warn('job.lease.release_failed', { error, jobId });
+        this.options.logger.warn('job.lease.release_failed', { error, jobId });
       }
     }
   }

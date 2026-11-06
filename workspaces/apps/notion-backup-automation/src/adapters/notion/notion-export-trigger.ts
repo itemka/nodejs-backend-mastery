@@ -76,33 +76,15 @@ interface ReadyDialog {
  * forward instead of ageing out.
  */
 export class PlaywrightNotionExportTrigger implements NotionExportTrigger {
-  private readonly clock: Clock;
-  private readonly exportFormat: NotionExportFormat;
-  private readonly headless: boolean;
-  private readonly launcher: BrowserLauncher;
-  private readonly logger: Logger;
-  private readonly sessions: PlaywrightNotionExportTriggerOptions['sessions'];
-  private readonly stepTimeoutMs: number;
-  private readonly workspace: { readonly name: string; readonly url: string };
+  private readonly options: Required<PlaywrightNotionExportTriggerOptions>;
 
-  constructor({
-    clock = systemClock,
-    exportFormat,
-    headless = true,
-    launcher,
-    logger,
-    sessions,
-    stepTimeoutMs = DEFAULT_STEP_TIMEOUT_MS,
-    workspace,
-  }: PlaywrightNotionExportTriggerOptions) {
-    this.clock = clock;
-    this.exportFormat = exportFormat;
-    this.headless = headless;
-    this.launcher = launcher;
-    this.logger = logger;
-    this.sessions = sessions;
-    this.stepTimeoutMs = stepTimeoutMs;
-    this.workspace = workspace;
+  constructor(options: PlaywrightNotionExportTriggerOptions) {
+    this.options = {
+      clock: systemClock,
+      headless: true,
+      stepTimeoutMs: DEFAULT_STEP_TIMEOUT_MS,
+      ...options,
+    };
   }
 
   /**
@@ -125,8 +107,12 @@ export class PlaywrightNotionExportTrigger implements NotionExportTrigger {
 
     // Reload after withPage's best-effort refresh: the transfer uses the persisted cookies,
     // so a renewed browser cookie whose save failed is not enough to report recovery.
-    const session = await abortable(this.sessions.load(), signal);
-    const captured = captureSession(session.storageState, session.fingerprint, this.clock.now());
+    const session = await abortable(this.options.sessions.load(), signal);
+    const captured = captureSession(
+      session.storageState,
+      session.fingerprint,
+      this.options.clock.now(),
+    );
 
     if (!captured.fileHostCookie) {
       throw new IntegrationError(
@@ -148,7 +134,7 @@ export class PlaywrightNotionExportTrigger implements NotionExportTrigger {
   async probeSession(signal?: AbortSignal): Promise<SessionProbe> {
     return this.withPage(signal, async (page, session) => {
       await this.gate(page, signal);
-      this.logger.info('notion.session.valid', { createdAt: session.createdAt });
+      this.options.logger.info('notion.session.valid', { createdAt: session.createdAt });
 
       return session.authCookieExpiresAt === undefined
         ? { state: 'valid' }
@@ -183,7 +169,7 @@ export class PlaywrightNotionExportTrigger implements NotionExportTrigger {
       const ready = await this.openDialog(page, signal);
 
       if (ready === 'in_progress') {
-        this.logger.info('notion.export.already_in_progress');
+        this.options.logger.info('notion.export.already_in_progress');
 
         return { outcome: 'already_in_progress' };
       }
@@ -208,18 +194,18 @@ export class PlaywrightNotionExportTrigger implements NotionExportTrigger {
     signal: AbortSignal | undefined,
   ): Promise<ExportTriggerOutcome> {
     try {
-      await button.click({ timeout: this.stepTimeoutMs });
-      this.logger.info('notion.export.clicked');
+      await button.click({ timeout: this.options.stepTimeoutMs });
+      this.options.logger.info('notion.export.clicked');
 
-      if (await abortable(waitForExportProgress(page, this.stepTimeoutMs), signal)) {
-        this.logger.info('notion.export.confirmed');
+      if (await abortable(waitForExportProgress(page, this.options.stepTimeoutMs), signal)) {
+        this.options.logger.info('notion.export.confirmed');
 
         return 'confirmed';
       }
 
-      this.logger.warn('notion.export.unconfirmed', { reason: 'no_confirmation' });
+      this.options.logger.warn('notion.export.unconfirmed', { reason: 'no_confirmation' });
     } catch (error) {
-      this.logger.warn('notion.export.unconfirmed', {
+      this.options.logger.warn('notion.export.unconfirmed', {
         reason: error instanceof Error ? error.name : 'unknown',
       });
     }
@@ -230,9 +216,9 @@ export class PlaywrightNotionExportTrigger implements NotionExportTrigger {
   private async gate(page: Page, signal: AbortSignal | undefined): Promise<Locator> {
     return passSessionGate(page, {
       signal,
-      timeoutMs: this.stepTimeoutMs,
-      workspaceName: this.workspace.name,
-      workspaceUrl: this.workspace.url,
+      timeoutMs: this.options.stepTimeoutMs,
+      workspaceName: this.options.workspace.name,
+      workspaceUrl: this.options.workspace.url,
     });
   }
 
@@ -251,7 +237,7 @@ export class PlaywrightNotionExportTrigger implements NotionExportTrigger {
       try {
         const ready = await this.walkToDialog(page, workspaceSwitcher, signal);
 
-        this.logger.info('notion.dialog.done', {
+        this.options.logger.info('notion.dialog.done', {
           attempt,
           durationMs: Math.round(performance.now() - started),
           ...(ready === 'in_progress'
@@ -273,7 +259,7 @@ export class PlaywrightNotionExportTrigger implements NotionExportTrigger {
 
         if (attempt < UI_ATTEMPTS) {
           signal?.throwIfAborted();
-          this.logger.warn('notion.ui.retry', { attempt, message: error.message });
+          this.options.logger.warn('notion.ui.retry', { attempt, message: error.message });
         }
       }
     }
@@ -281,7 +267,7 @@ export class PlaywrightNotionExportTrigger implements NotionExportTrigger {
     // Every attempt failed with NOTION_UI_CHANGED. The supervisor gets the dialog's landmarks,
     // never its text or a screenshot.
     throw new IntegrationError('NOTION_UI_CHANGED', failure?.message ?? 'Notion Settings changed', {
-      uiLandmarks: await collectUiLandmarks(page, this.workspace.name),
+      uiLandmarks: await collectUiLandmarks(page, this.options.workspace.name),
     });
   }
 
@@ -291,7 +277,7 @@ export class PlaywrightNotionExportTrigger implements NotionExportTrigger {
     signal: AbortSignal | undefined,
   ): Promise<'in_progress' | ReadyDialog> {
     const settings = new NotionSettingsPage(page, {
-      stepTimeoutMs: this.stepTimeoutMs,
+      stepTimeoutMs: this.options.stepTimeoutMs,
       workspaceSwitcher,
     });
     const settingsOpenedBy = await settings.open();
@@ -308,7 +294,7 @@ export class PlaywrightNotionExportTrigger implements NotionExportTrigger {
 
     signal?.throwIfAborted();
 
-    const changed = await dialog.applySettings(this.exportFormat);
+    const changed = await dialog.applySettings(this.options.exportFormat);
     const button = await dialog.exportButton();
 
     return { button, changed, dialog, settingsOpenedBy };
@@ -324,8 +310,8 @@ export class PlaywrightNotionExportTrigger implements NotionExportTrigger {
   ): Promise<T> {
     signal?.throwIfAborted();
 
-    const session = await this.sessions.load();
-    const browser = await this.launcher.launch({ headless: this.headless });
+    const session = await this.options.sessions.load();
+    const browser = await this.options.launcher.launch({ headless: this.options.headless });
 
     const onAbort = () => {
       void closeBrowser(browser);
@@ -339,7 +325,7 @@ export class PlaywrightNotionExportTrigger implements NotionExportTrigger {
       const context = await newSessionContext(browser, session);
       const page = await context.newPage();
 
-      page.setDefaultTimeout(this.stepTimeoutMs);
+      page.setDefaultTimeout(this.options.stepTimeoutMs);
 
       const result = await run(page, session);
 
@@ -362,9 +348,9 @@ export class PlaywrightNotionExportTrigger implements NotionExportTrigger {
    */
   private async rememberIdentity(session: NotionSession): Promise<void> {
     try {
-      await this.sessions.rememberIdentity?.(session.fingerprint);
+      await this.options.sessions.rememberIdentity?.(session.fingerprint);
     } catch (error) {
-      this.logger.warn('notion.identity.save_failed', { error: errorName(error) });
+      this.options.logger.warn('notion.identity.save_failed', { error: errorName(error) });
     }
   }
 
@@ -379,7 +365,7 @@ export class PlaywrightNotionExportTrigger implements NotionExportTrigger {
       const captured = captureSession(
         await context.storageState(),
         session.fingerprint,
-        this.clock.now(),
+        this.options.clock.now(),
       );
 
       if (
@@ -389,14 +375,14 @@ export class PlaywrightNotionExportTrigger implements NotionExportTrigger {
         return;
       }
 
-      await this.sessions.save(captured);
-      this.logger.info('notion.session.refreshed', {
+      await this.options.sessions.save(captured);
+      this.options.logger.info('notion.session.refreshed', {
         ...(captured.authCookieExpiresAt === undefined
           ? {}
           : { authCookieExpiresAt: captured.authCookieExpiresAt }),
       });
     } catch (error) {
-      this.logger.warn('notion.session.refresh_failed', {
+      this.options.logger.warn('notion.session.refresh_failed', {
         reason: error instanceof IntegrationError ? error.code : errorName(error),
       });
     }

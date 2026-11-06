@@ -45,30 +45,10 @@ export interface TmpExportTransferOptions {
  * in the directory after a run, whether it completes, fails or is aborted.
  */
 export class TmpExportTransfer implements ExportTransfer {
-  private readonly clock: Clock;
-  private readonly directory: string;
-  private readonly downloader: HttpDownloader;
-  private readonly emailFinder: Pick<ExportEmailFinder, 'getDownloadLink'>;
-  private readonly logger: Logger;
-  private readonly secrets: Pick<SecretStore, 'get'>;
-  private readonly storage: Pick<BackupStorage, 'upload'>;
+  private readonly options: Required<TmpExportTransferOptions>;
 
-  constructor({
-    clock = systemClock,
-    directory = DEFAULT_TRANSFER_DIRECTORY,
-    downloader,
-    emailFinder,
-    logger,
-    secrets,
-    storage,
-  }: TmpExportTransferOptions) {
-    this.clock = clock;
-    this.directory = directory;
-    this.downloader = downloader;
-    this.emailFinder = emailFinder;
-    this.logger = logger;
-    this.secrets = secrets;
-    this.storage = storage;
+  constructor(options: TmpExportTransferOptions) {
+    this.options = { clock: systemClock, directory: DEFAULT_TRANSFER_DIRECTORY, ...options };
   }
 
   /**
@@ -91,10 +71,13 @@ export class TmpExportTransfer implements ExportTransfer {
     }
 
     try {
-      const link = await abortable(this.emailFinder.getDownloadLink(emailMessageId), signal);
-      const target = await this.downloader.resolve(link, signal);
+      const link = await abortable(
+        this.options.emailFinder.getDownloadLink(emailMessageId),
+        signal,
+      );
+      const target = await this.options.downloader.resolve(link, signal);
 
-      if (target.expiresAt.getTime() <= this.clock.now().getTime()) {
+      if (target.expiresAt.getTime() <= this.options.clock.now().getTime()) {
         return this.linkExpired(target);
       }
 
@@ -103,9 +86,9 @@ export class TmpExportTransfer implements ExportTransfer {
       await step(onStep, 'DOWNLOADING', signal);
       await this.resetDirectory();
 
-      const zipPath = path.join(this.directory, `${jobId}.zip`);
-      let started = this.clock.now().getTime();
-      const downloaded = await this.downloader.download({
+      const zipPath = path.join(this.options.directory, `${jobId}.zip`);
+      let started = this.options.clock.now().getTime();
+      const downloaded = await this.options.downloader.download({
         cookieHeader,
         path: zipPath,
         signal,
@@ -118,21 +101,24 @@ export class TmpExportTransfer implements ExportTransfer {
 
       const { sha256, sizeBytes } = downloaded.digests;
 
-      this.logger.info('transfer.download.done', { durationMs: this.since(started), sizeBytes });
+      this.options.logger.info('transfer.download.done', {
+        durationMs: this.since(started),
+        sizeBytes,
+      });
       await step(onStep, 'VERIFYING', signal);
-      started = this.clock.now().getTime();
+      started = this.options.clock.now().getTime();
 
       const { entryCount, uncompressedBytes } = await verifyZipArchive(zipPath, signal);
 
-      this.logger.info('transfer.verify.done', {
+      this.options.logger.info('transfer.verify.done', {
         durationMs: this.since(started),
         entryCount,
         uncompressedBytes,
       });
       await step(onStep, 'UPLOADING', signal);
-      started = this.clock.now().getTime();
+      started = this.options.clock.now().getTime();
 
-      const backup = await this.storage.upload({
+      const backup = await this.options.storage.upload({
         content: { kind: 'file', path: zipPath, sha256 },
         fileName,
         jobId,
@@ -140,7 +126,7 @@ export class TmpExportTransfer implements ExportTransfer {
         ...(signal === undefined ? {} : { signal }),
       });
 
-      this.logger.info('transfer.upload.done', {
+      this.options.logger.info('transfer.upload.done', {
         driveFileId: backup.driveFileId,
         durationMs: this.since(started),
         sidecar: backup.sidecar,
@@ -164,7 +150,7 @@ export class TmpExportTransfer implements ExportTransfer {
     let session: StoredSecret | undefined;
 
     try {
-      session = await abortable(this.secrets.get('notion-storage-state'), signal);
+      session = await abortable(this.options.secrets.get('notion-storage-state'), signal);
     } catch (error) {
       if (error instanceof EnvelopeError) {
         throw new IntegrationError(
@@ -180,7 +166,11 @@ export class TmpExportTransfer implements ExportTransfer {
       throw new IntegrationError('NOTION_SESSION_EXPIRED', 'No Notion session is saved');
     }
 
-    const header = cookieHeaderFor(parseSessionCookies(session.value), url, this.clock.now());
+    const header = cookieHeaderFor(
+      parseSessionCookies(session.value),
+      url,
+      this.options.clock.now(),
+    );
 
     if (header === undefined) {
       throw new IntegrationError(
@@ -193,7 +183,9 @@ export class TmpExportTransfer implements ExportTransfer {
   }
 
   private linkExpired(target: DownloadTarget): TransferResult {
-    this.logger.info('transfer.link.expired', { expiresAt: target.expiresAt.toISOString() });
+    this.options.logger.info('transfer.link.expired', {
+      expiresAt: target.expiresAt.toISOString(),
+    });
 
     return { outcome: 'link_expired' };
   }
@@ -201,9 +193,9 @@ export class TmpExportTransfer implements ExportTransfer {
   /** A failure is logged, not thrown: it must not hide the run's own result or error. */
   private async removeDirectory(): Promise<void> {
     try {
-      await rm(this.directory, { force: true, recursive: true });
+      await rm(this.options.directory, { force: true, recursive: true });
     } catch (error) {
-      this.logger.warn('transfer.cleanup.failed', {
+      this.options.logger.warn('transfer.cleanup.failed', {
         code: (error as NodeJS.ErrnoException).code ?? 'UNKNOWN',
       });
     }
@@ -211,12 +203,12 @@ export class TmpExportTransfer implements ExportTransfer {
 
   /** Removes what a killed earlier run left behind, so the free-space check sees all of it. */
   private async resetDirectory(): Promise<void> {
-    await rm(this.directory, { force: true, recursive: true });
-    await mkdir(this.directory, { mode: 0o700, recursive: true });
+    await rm(this.options.directory, { force: true, recursive: true });
+    await mkdir(this.options.directory, { mode: 0o700, recursive: true });
   }
 
   private since(startedMs: number): number {
-    return this.clock.now().getTime() - startedMs;
+    return this.options.clock.now().getTime() - startedMs;
   }
 }
 

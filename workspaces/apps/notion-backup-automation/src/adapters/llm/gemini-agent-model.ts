@@ -64,19 +64,15 @@ export interface GeminiAgentModelOptions {
 export class GeminiAgentModel implements AgentModel {
   readonly id: string;
   private readonly client: GeminiClient;
-  private readonly logger: Logger;
-  private readonly model: string;
   private readonly responseJsonSchema = agentDecisionJsonSchema();
 
-  constructor(options: GeminiAgentModelOptions) {
+  constructor(private readonly options: GeminiAgentModelOptions) {
     this.id = `gemini:${options.model}`;
     this.client = options.client ?? sdkClient(options.apiKey, options.fetch);
-    this.logger = options.logger;
-    this.model = options.model;
   }
 
   async decide(context: AgentContext, signal: AbortSignal): Promise<unknown> {
-    const thinkingConfig = thinkingConfigFor(this.model);
+    const thinkingConfig = thinkingConfigFor(this.options.model);
     let response: Awaited<ReturnType<GeminiClient['generateContent']>>;
 
     try {
@@ -91,7 +87,7 @@ export class GeminiAgentModel implements AgentModel {
           ...(thinkingConfig === undefined ? {} : { thinkingConfig }),
         },
         contents: JSON.stringify(context),
-        model: this.model,
+        model: this.options.model,
       });
     } catch (error) {
       throw modelError(error, signal);
@@ -101,7 +97,7 @@ export class GeminiAgentModel implements AgentModel {
     const finishReason = response.candidates?.[0]?.finishReason;
 
     if (text === undefined || text.trim() === '') {
-      this.logger.warn('agent.gemini.empty', { finishReason, model: this.model });
+      this.options.logger.warn('agent.gemini.empty', { finishReason, model: this.options.model });
 
       throw new AgentModelError(
         'invalid_output',
@@ -112,9 +108,9 @@ export class GeminiAgentModel implements AgentModel {
     try {
       return JSON.parse(text) as unknown;
     } catch {
-      this.logger.warn('agent.gemini.not_json', {
+      this.options.logger.warn('agent.gemini.not_json', {
         finishReason,
-        model: this.model,
+        model: this.options.model,
         outputTokens: response.usageMetadata?.candidatesTokenCount,
       });
 

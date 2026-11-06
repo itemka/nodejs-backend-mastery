@@ -55,24 +55,10 @@ export interface TelegramClientOptions {
 
 /** An integration-scoped HTTP client. Only the hub calls Telegram itself. */
 export class TelegramClient {
-  private readonly fetchImpl: typeof fetch;
-  private readonly hubUrl: string;
-  private readonly integrationId: string;
-  private readonly timeoutMs: number;
-  private readonly token: SecretValue<string>;
+  private readonly options: Required<TelegramClientOptions>;
 
-  constructor({
-    fetch: fetchImpl = globalThis.fetch,
-    hubUrl,
-    integrationId,
-    timeoutMs = DEFAULT_TIMEOUT_MS,
-    token,
-  }: TelegramClientOptions) {
-    this.fetchImpl = fetchImpl;
-    this.hubUrl = hubUrl;
-    this.integrationId = integrationId;
-    this.timeoutMs = timeoutMs;
-    this.token = token;
+  constructor(options: TelegramClientOptions) {
+    this.options = { fetch: globalThis.fetch, timeoutMs: DEFAULT_TIMEOUT_MS, ...options };
   }
 
   async answerCallbackQuery(
@@ -111,7 +97,10 @@ export class TelegramClient {
             buttons: message.buttons.map((row) =>
               row.map((button) =>
                 'callbackData' in button
-                  ? { ...button, callbackData: `${this.integrationId}:${button.callbackData}` }
+                  ? {
+                      ...button,
+                      callbackData: `${this.options.integrationId}:${button.callbackData}`,
+                    }
                   : button,
               ),
             ),
@@ -185,12 +174,12 @@ export class TelegramClient {
     init: Pick<RequestInit, 'body' | 'headers' | 'method'>,
     signal: AbortSignal | undefined,
   ): Promise<{ body: string; response: Response }> {
-    const timeout = AbortSignal.timeout(this.timeoutMs);
+    const timeout = AbortSignal.timeout(this.options.timeoutMs);
 
     try {
-      const response = await this.fetchImpl(new URL(MESSAGES_PATH, this.hubUrl), {
+      const response = await this.options.fetch(new URL(MESSAGES_PATH, this.options.hubUrl), {
         ...init,
-        headers: { ...init.headers, authorization: `Bearer ${this.token.reveal()}` },
+        headers: { ...init.headers, authorization: `Bearer ${this.options.token.reveal()}` },
         redirect: 'error',
         signal: signal === undefined ? timeout : AbortSignal.any([timeout, signal]),
       });

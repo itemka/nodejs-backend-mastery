@@ -34,15 +34,7 @@ export class JobConflictError extends Error {
  * preconditions are checked against what is really stored.
  */
 export class JobStore {
-  private readonly clock: Clock;
-  private readonly jobs: JobRepository;
-  private readonly logger: Logger;
-
-  constructor({ clock, jobs, logger }: { clock: Clock; jobs: JobRepository; logger: Logger }) {
-    this.clock = clock;
-    this.jobs = jobs;
-    this.logger = logger;
-  }
+  constructor(private readonly options: { clock: Clock; jobs: JobRepository; logger: Logger }) {}
 
   /**
    * Saves `rule(job)` and records a status change as a `transition` event, with `detail` (or the
@@ -62,7 +54,7 @@ export class JobStore {
         return base;
       }
 
-      const result = await this.jobs.update(base.job.id, base.version, next);
+      const result = await this.options.jobs.update(base.job.id, base.version, next);
 
       if (result.outcome === 'updated') {
         await this.recordTransition(base.job, next, detail);
@@ -72,7 +64,7 @@ export class JobStore {
 
       const reloaded =
         result.outcome === 'conflict' && reloads < MAX_CONFLICT_RELOADS
-          ? await this.jobs.get(base.job.id)
+          ? await this.options.jobs.get(base.job.id)
           : undefined;
 
       if (reloaded === undefined) {
@@ -86,7 +78,7 @@ export class JobStore {
   /** A `note` event: what a step learned that is no status change. Best effort. */
   async note(jobId: string, text: string, code?: ErrorCode): Promise<void> {
     await this.append(jobId, {
-      at: this.clock.now().toISOString(),
+      at: this.options.clock.now().toISOString(),
       text: clip(text),
       type: 'note',
       ...(code === undefined ? {} : { code }),
@@ -96,7 +88,7 @@ export class JobStore {
   /** A `supervisor` event: one decision and what it did. Best effort. */
   async supervisor(jobId: string, text: string, code?: ErrorCode): Promise<void> {
     await this.append(jobId, {
-      at: this.clock.now().toISOString(),
+      at: this.options.clock.now().toISOString(),
       text: clip(text),
       type: 'supervisor',
       ...(code === undefined ? {} : { code }),
@@ -132,9 +124,9 @@ export class JobStore {
   /** Events are history: a failed append is logged and never fails the step. */
   private async append(jobId: string, event: JobEvent): Promise<void> {
     try {
-      await this.jobs.appendEvent(jobId, event);
+      await this.options.jobs.appendEvent(jobId, event);
     } catch (error) {
-      this.logger.warn('job.event.failed', { error, jobId, type: event.type });
+      this.options.logger.warn('job.event.failed', { error, jobId, type: event.type });
     }
   }
 }

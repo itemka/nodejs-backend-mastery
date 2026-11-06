@@ -16,11 +16,12 @@ export interface HashCommands {
  */
 export class RedisHealthStore implements HealthStore {
   private readonly key: string;
-  private readonly redis: HashCommands;
 
-  constructor(redis: HashCommands, keyPrefix: string) {
+  constructor(
+    private readonly redis: HashCommands,
+    keyPrefix: string,
+  ) {
     this.key = persistenceKeys(keyPrefix).health;
-    this.redis = redis;
   }
 
   async read(): Promise<HealthSnapshot> {

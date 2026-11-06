@@ -82,23 +82,25 @@ export interface ServerlessBrowserLauncherOptions {
  * dumps in `/tmp` are deleted before the launch and when the browser closes.
  */
 export class ServerlessBrowserLauncher implements BrowserLauncher {
-  private readonly loadChromium: () => Promise<ServerlessChromium>;
-  private readonly loadLaunch: () => Promise<
-    (options: PlaywrightLaunchOptions) => Promise<Browser>
-  >;
-  private readonly tmpDirectory: string;
+  private readonly options: Required<ServerlessBrowserLauncherOptions>;
 
   constructor(options: ServerlessBrowserLauncherOptions = {}) {
-    this.loadChromium = options.loadChromium ?? loadSparticuzChromium;
-    this.loadLaunch = options.loadLaunch ?? loadPlaywrightLaunch;
-    this.tmpDirectory = options.tmpDirectory ?? tmpdir();
+    this.options = {
+      loadChromium: loadSparticuzChromium,
+      loadLaunch: loadPlaywrightLaunch,
+      tmpDirectory: tmpdir(),
+      ...options,
+    };
   }
 
   async launch(): Promise<Browser> {
     let browser: Browser;
 
     try {
-      const [chromium, launch] = await Promise.all([this.loadChromium(), this.loadLaunch()]);
+      const [chromium, launch] = await Promise.all([
+        this.options.loadChromium(),
+        this.options.loadLaunch(),
+      ]);
 
       chromium.setGraphicsMode = false;
       await this.removeCoreDumps();
@@ -124,12 +126,12 @@ export class ServerlessBrowserLauncher implements BrowserLauncher {
   /** Best effort; a dump that stays is deleted before the next launch. */
   private async removeCoreDumps(): Promise<void> {
     try {
-      const names = await readdir(this.tmpDirectory);
+      const names = await readdir(this.options.tmpDirectory);
 
       await Promise.all(
         names
           .filter((name) => CORE_DUMP.test(name))
-          .map((name) => rm(path.join(this.tmpDirectory, name), { force: true })),
+          .map((name) => rm(path.join(this.options.tmpDirectory, name), { force: true })),
       );
     } catch {
       // See above.
@@ -138,7 +140,7 @@ export class ServerlessBrowserLauncher implements BrowserLauncher {
 
   /** A launcher script that runs Chromium with core dumps off. */
   private async withoutCoreDumps(executablePath: string): Promise<string> {
-    const wrapper = path.join(this.tmpDirectory, 'chromium-no-core.sh');
+    const wrapper = path.join(this.options.tmpDirectory, 'chromium-no-core.sh');
     const quoted = executablePath.replaceAll("'", String.raw`'\''`);
 
     await writeFile(wrapper, `#!/bin/sh\nulimit -c 0\nexec '${quoted}' "$@"\n`, { mode: 0o700 });

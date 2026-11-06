@@ -74,11 +74,12 @@ function toStored(jobId: string, version: string, data: string): StoredJob {
  */
 export class RedisJobRepository implements JobRepository {
   private readonly keys: PersistenceKeys;
-  private readonly redis: Redis;
   private readonly scripts;
 
-  constructor(redis: Redis, keyPrefix: string) {
-    this.redis = redis;
+  constructor(
+    private readonly redis: Redis,
+    keyPrefix: string,
+  ) {
     this.keys = persistenceKeys(keyPrefix);
     this.scripts = {
       appendEvent: redis.createScript<unknown>(appendEventScript),

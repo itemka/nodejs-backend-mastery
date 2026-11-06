@@ -59,16 +59,16 @@ return 1`;
 
 /** Owner-checked leases, completed action receipts and single-use confirmations. */
 export class RedisTelegramState implements TelegramState {
-  private readonly clock: Clock;
   private readonly keys;
-  private readonly redis: TelegramStateCommands;
   private readonly claims = new Map<number, string>();
   private readonly confirmationClaims = new Map<string, string>();
 
-  constructor(redis: TelegramStateCommands, keyPrefix: string, clock: Clock = systemClock) {
-    this.clock = clock;
+  constructor(
+    private readonly redis: TelegramStateCommands,
+    keyPrefix: string,
+    private readonly clock: Clock = systemClock,
+  ) {
     this.keys = persistenceKeys(keyPrefix);
-    this.redis = redis;
   }
 
   async claimUpdate(updateId: number): Promise<'busy' | 'claimed' | 'completed'> {
