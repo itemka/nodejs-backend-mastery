@@ -1,17 +1,13 @@
-# telegram-webhook-hub — Update Delivery
+# Telegram delivery flow
 
-Workflow diagrams for the [telegram-webhook-hub workspace](../). Codes and limits are in the
-[README](../README.md#delivery-guarantees). Structure-level view: the
-[repository C4 workspace](../../../../docs/architecture/workspace.dsl).
+[Configuration, contracts and limits](../README.md) live in the README. These diagrams show
+webhook handling and the two-way integration with the backup app.
 
 ## Webhook — `handleWebhookRequest`
 
-Telegram retries any non-2xx response ([Bot API](https://core.telegram.org/bots/api#setwebhook)),
-so only `200` acknowledges a delivery. Before the handler runs, `serveWebhook` returns `401` for
-a missing or wrong secret, `405` for a non-POST, and `503 CONFIG_INCOMPLETE` for invalid
-configuration; none of these claims a lease.
-
-The flow below starts with a configured, authenticated POST:
+The entry point checks the Telegram secret and POST method before processing an update.
+Missing/wrong secrets return 401, authenticated non-POSTs 405, and invalid configuration 503.
+The diagram starts with a configured, authenticated POST.
 
 ```mermaid
 flowchart TD
@@ -30,16 +26,16 @@ flowchart TD
   Forward -->|5xx, 408, 429, timeout| Retry([Release owned lease: 503])
 ```
 
-Malformed JSON, oversized bodies and invalid updates take the ignored `200` path. A Redis
-failure during claim, quota or completion (including an expired lease), or a Telegram or network
-failure, returns `503 DELIVERY_UNAVAILABLE` with `Retry-After: 5`. The handler releases a lease
-only if this request claimed it; if the release fails, the lease expires after 60 s.
-`503 DELIVERY_IN_PROGRESS` leaves the other request's lease intact.
+Malformed/oversized bodies and other users' updates are ignored. A busy lease returns 503
+`DELIVERY_IN_PROGRESS`. Redis, network or Telegram failures during processing return 503
+`DELIVERY_UNAVAILABLE`. Both include `Retry-After: 5`. A failing request releases only its
+own lease; if release fails, it expires after 60 s. An integration's permanent refusal is a
+4xx other than 408/429. Source: [webhook.ts](../src/http/webhook.ts) and
+[Redis state](../src/adapters/redis-state.ts).
 
 ## Button Tap Across Both Apps
 
-What happens when you tap **Retry** on a backup report. Arrows are numbered; notes are work done
-inside one endpoint.
+A Retry tap uses both directions of the integration:
 
 ```mermaid
 sequenceDiagram
@@ -64,24 +60,17 @@ sequenceDiagram
   M->>T: editMessageReplyMarkup
   B->>M: answerCallbackQuery (stop the spinner)
   M->>T: answerCallbackQuery
+  Note over B: Button removal and callback answer<br/>are best effort
   Note over B: Mark updateId done
   B-->>H: 200
   Note over H: Complete the receipt
   H-->>T: 200
 ```
 
-The backup app replies (arrows 4–9) before it answers the hub (arrow 10). So the hub marks the
-update done only after the job was retried and you saw the reply.
+The hub strips the integration namespace before forwarding, preserving `updateId`. Both apps
+keep delivery receipts. Once the backup app saves an action reply receipt, a redelivery replays
+that reply instead of repeating the mutation. A lost response or retried reply can show a
+message more than once: `/api/messages` has no outgoing deduplication.
 
-**If something fails**
-
-- **Temporary failure** (Redis, QStash or the hub unavailable): the backup app answers 503, the
-  hub releases its lease and answers 503 instead of arrow 11, and Telegram redelivers the same
-  `updateId`.
-- **Redelivery:** the backup app finds the receipt it saved before arrow 4, so it sends the saved
-  reply again and does not retry the job a second time.
-- **Final refusal** (a 4xx other than 408/429 from the backup app): the hub sends a short notice,
-  completes the receipt and answers 200; a resend would fail the same way.
-
-Outgoing notifications (backup stored, needs attention) skip the webhook: the backup worker or
-cron calls `/api/messages` with `sendMessage`, as in arrows 4–5.
+Transport/storage/scheduling failures remain retryable; permanent refusals finish with a notice.
+Worker and cron notifications use only the outgoing half: backup app → `/api/messages` → Telegram.

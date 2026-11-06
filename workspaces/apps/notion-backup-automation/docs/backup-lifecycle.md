@@ -1,15 +1,12 @@
-# notion-backup-automation — Job States, Ticks and the Daily Cron
+# Backup lifecycle
 
-Workflow diagrams for the [notion-backup-automation workspace](../). Behavior, codes and limits
-are in the [README](../README.md#backup-jobs); the Notion steps inside a tick are in
-[notion-export-flow.md](notion-export-flow.md). Structure-level view: the
-[repository C4 workspace](../../../../docs/architecture/workspace.dsl).
+[Setup, limits and recovery](../README.md) live in the README. Notion's browser work is shown
+in [Notion export and login](notion-export-flow.md).
 
 ## Job States
 
-The happy path, one step per tick. `DOWNLOADING`, `VERIFYING` and `UPLOADING` are progress
-markers inside one transfer run, not tick entry points. Source of truth:
-`src/domain/transitions.ts`.
+The normal path, including transfer progress markers. `DOWNLOADING`, `VERIFYING` and `UPLOADING`
+run inside one invocation, not separate ticks.
 
 ```mermaid
 stateDiagram-v2
@@ -30,15 +27,10 @@ stateDiagram-v2
   COMPLETE --> [*]
 ```
 
-Not shown, to keep the diagram readable:
-
-- Any working status can fail into `RETRYABLE_FAILURE` or `NEEDS_ATTENTION` (next section); any
-  non-terminal status can end as `CANCELLED`, or as `FAILED` when the lifetime
-  (`JOB_MAX_LIFETIME_HOURS`, default 168 h) runs out.
-- A dead or over-budget transfer run rolls back to `EMAIL_FOUND` once. A link that expires during
-  the download also starts a new export attempt.
-- A new export attempt (back to `TRIGGERING_EXPORT`) needs attempts left (`MAX_EXPORT_ATTEMPTS`);
-  otherwise the job needs attention.
+A verified Drive backup can complete the job before export or transfer. Forced jobs only adopt
+their own job ID. Link expiry or two invalid transfers can start another export only while
+attempts remain. See [job rules](../src/domain/job-lifecycle.ts) and
+[transitions](../src/domain/transitions.ts).
 
 ## Failures And Incidents
 
@@ -59,16 +51,12 @@ flowchart LR
   Lifetime[Job lifetime exceeded<br/>default 168 h] --> Failed([FAILED])
 ```
 
-Supervised codes (such as `NOTION_UI_CHANGED`) first wait one minute for the
-[supervisor](../README.md#supervisor), which makes one bounded decision per wakeup. Inspection
-actions wake again after one minute; `wait` defers the next decision for 15, 60 or 240 minutes.
-With `AGENT_MODEL_PROVIDER=none`, the next tick hands the incident to you without an LLM call.
-Once an incident waits for you, nothing more is scheduled.
+Supervised incidents make one decision per wakeup, within the
+[supervisor's limits](../README.md#supervisor). Once handed to an operator, they have no scheduled
+polling; a login fix can also resume them. Lifetime expiry is checked at the next tick, including
+when the daily watchdog wakes an expired job.
 
 ## One Tick — `ProcessJobUseCase.execute`
-
-Each wakeup runs exactly one step. A Redis failure or a failed publish of the next wakeup throws,
-so QStash retries the same delivery with the same token.
 
 ```mermaid
 flowchart TD
@@ -86,13 +74,14 @@ flowchart TD
   Next --> Done([Release the lease])
 ```
 
+The lease is released in `finally`, including stale deliveries and failures. Heavy steps have
+270 s to start work inside the 300 s function limit; light steps have 45 s. Redis writes use
+compare-and-set. Source: [process-job.ts](../src/application/process-job.ts) and
+[next-step.ts](../src/domain/next-step.ts).
+
 ## Schedule Token — Publish, Then Save
 
-Every job keeps one **current token** (`schedule.token`), and every QStash wakeup carries a
-token. A wakeup does work only if its token matches the job's. Each new wakeup gets a new token,
-so duplicate, late or replaced wakeups do nothing.
-
-Follow one wakeup from arrival to answer:
+Only a wakeup matching the job's current schedule token can advance it.
 
 ```mermaid
 flowchart TD
@@ -107,15 +96,12 @@ flowchart TD
   Save -->|ok| Done([200: T2 wakes the job when due])
 ```
 
-**Why publish before saving:** a published wakeup whose token was never saved is harmless: it
-arrives stale. A saved token whose wakeup was never published would leave the job asleep for
-good. When the job needs no wakeup (it waits for you), the token is cleared instead, so any late
-wakeup is stale.
+- Publishing first prevents a saved schedule with no message. A published token never saved is stale.
+- When no work remains scheduled, the token is cleared.
+- Redis or publish failures return 500 so QStash retries. The daily watchdog re-arms missing
+  or overdue wakeups.
 
 ## Daily Cron — `DailyMaintenance.run`
-
-A sub-step that throws is logged and skipped, and turns the heartbeat into `/fail`. A probe
-resumes only the incident it read before probing, re-checked under the job's lease.
 
 ```mermaid
 flowchart TD
@@ -133,3 +119,8 @@ flowchart TD
   Beat -->|no| Ok([Heartbeat ping])
   Beat -->|yes| Fail([Heartbeat /fail])
 ```
+
+Thrown sub-step failures produce HTTP 500 and a `/fail` heartbeat. A failed access probe is a
+recorded result and does not necessarily fail the cron. A passing probe resumes only the matching
+login incident, rechecked under the job's lease. Settings are in
+[daily maintenance and login renewal](../README.md#daily-maintenance-and-login-renewal).
