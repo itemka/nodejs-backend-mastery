@@ -41,11 +41,7 @@ export interface RefreshTokenGrant {
  * re-login replaces it without a redeploy. `GOOGLE_REFRESH_TOKEN` is only the fallback.
  */
 export class GoogleRefreshTokenStore {
-  private readonly secrets: SecretStore;
-
-  constructor(secrets: SecretStore) {
-    this.secrets = secrets;
-  }
+  constructor(private readonly secrets: SecretStore) {}
 
   /**
    * Undefined when none is stored. An envelope that cannot be opened (another key, tampering)

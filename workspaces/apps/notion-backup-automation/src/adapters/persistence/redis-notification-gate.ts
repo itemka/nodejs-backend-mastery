@@ -16,14 +16,14 @@ const keyPattern = /^[\w.:-]{1,200}$/;
  * functions. The value is the claim's time, for inspecting a skipped notification.
  */
 export class RedisNotificationGate implements NotificationGate {
-  private readonly clock: Clock;
   private readonly keys;
-  private readonly redis: SetIfAbsentCommands;
 
-  constructor(redis: SetIfAbsentCommands, keyPrefix: string, clock: Clock = systemClock) {
-    this.clock = clock;
+  constructor(
+    private readonly redis: SetIfAbsentCommands,
+    keyPrefix: string,
+    private readonly clock: Clock = systemClock,
+  ) {
     this.keys = persistenceKeys(keyPrefix);
-    this.redis = redis;
   }
 
   async claim(key: string, ttlSec: number): Promise<boolean> {
@@ -41,11 +41,8 @@ export class RedisNotificationGate implements NotificationGate {
 /** The same semantics in memory, for tests and local runs. */
 export class InMemoryNotificationGate implements NotificationGate {
   private readonly claims = new Map<string, number>();
-  private readonly clock: Clock;
 
-  constructor(clock: Clock = systemClock) {
-    this.clock = clock;
-  }
+  constructor(private readonly clock: Clock = systemClock) {}
 
   claim(key: string, ttlSec: number): Promise<boolean> {
     assertClaim(key, ttlSec);

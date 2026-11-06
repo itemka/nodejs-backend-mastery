@@ -96,18 +96,10 @@ interface ExpiryDue {
 
 /** The daily cron's login warnings. */
 export class LoginWarnings {
-  private readonly clock: Clock;
-  private readonly gate: NotificationGate;
-  private readonly logger: Logger;
-  private readonly notifications: Pick<JobNotifications, 'loginWarning'>;
   private readonly warningDays: readonly number[];
 
-  constructor({ clock, gate, logger, notifications, warningDays }: LoginWarningsOptions) {
-    this.clock = clock;
-    this.gate = gate;
-    this.logger = logger;
-    this.notifications = notifications;
-    this.warningDays = [...warningDays].toSorted((a, b) => a - b);
+  constructor(private readonly options: LoginWarningsOptions) {
+    this.warningDays = [...options.warningDays].toSorted((a, b) => a - b);
   }
 
   /**
@@ -115,7 +107,11 @@ export class LoginWarnings {
    * per 24 h.
    */
   async lost(service: LoginService): Promise<void> {
-    await this.notifications.loginWarning({ howToFix: loginFixes[service], kind: 'lost', service });
+    await this.options.notifications.loginWarning({
+      howToFix: loginFixes[service],
+      kind: 'lost',
+      service,
+    });
   }
 
   /**
@@ -131,7 +127,7 @@ export class LoginWarnings {
     if (
       expiresAt === undefined ||
       due === undefined ||
-      !(await this.gate.claim(
+      !(await this.options.gate.claim(
         `warning:notion:${expiresAt}:${due.nearest}`,
         Math.ceil((due.leftMs + DAY_MS) / 1000),
       ))
@@ -141,14 +137,14 @@ export class LoginWarnings {
 
     const { daysLeft, nearest } = due;
 
-    await this.notifications.loginWarning({
+    await this.options.notifications.loginWarning({
       daysLeft,
       expiresAt,
       howToFix: loginFixes.notion,
       kind: 'expiring',
       service: 'notion',
     });
-    this.logger.info('login.expiring', { daysLeft, threshold: nearest });
+    this.options.logger.info('login.expiring', { daysLeft, threshold: nearest });
 
     return nearest;
   }
@@ -166,7 +162,7 @@ export class LoginWarnings {
       return undefined;
     }
 
-    const leftMs = Date.parse(expiresAt) - this.clock.now().getTime();
+    const leftMs = Date.parse(expiresAt) - this.options.clock.now().getTime();
 
     // An unreadable expiry is NaN: neither past nor future, so no warning.
     if (Number.isNaN(leftMs) || leftMs <= 0) {

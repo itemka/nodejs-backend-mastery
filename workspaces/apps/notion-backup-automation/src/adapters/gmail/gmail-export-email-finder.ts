@@ -29,12 +29,13 @@ export interface GmailExportEmailFinderOptions {
 
 /** `ExportEmailFinder` over Gmail REST (`gmail.readonly`). */
 export class GmailExportEmailFinder implements ExportEmailFinder {
-  private readonly gmail: GmailApi;
-  private readonly logger: Logger;
-  private readonly maxPages: number;
-  private readonly maxResults: number;
+  private readonly options: Required<GmailExportEmailFinderOptions>;
 
-  constructor({ gmail, logger, maxPages = 10, maxResults = 10 }: GmailExportEmailFinderOptions) {
+  constructor(options: GmailExportEmailFinderOptions) {
+    this.options = { maxPages: 10, maxResults: 10, ...options };
+
+    const { maxPages, maxResults } = this.options;
+
     if (
       !Number.isInteger(maxPages) ||
       maxPages < 1 ||
@@ -46,11 +47,6 @@ export class GmailExportEmailFinder implements ExportEmailFinder {
         'Expected positive integer page limits and maxResults no greater than 500',
       );
     }
-
-    this.gmail = gmail;
-    this.logger = logger;
-    this.maxPages = maxPages;
-    this.maxResults = maxResults;
   }
 
   /**
@@ -62,22 +58,22 @@ export class GmailExportEmailFinder implements ExportEmailFinder {
     requestedAfter,
   }: ExportEmailSearch): Promise<ExportEmailSearchResult> {
     const notBefore = new Date(requestedAfter.getTime() - SEARCH_SKEW_MS);
-    const { emailAddress: expectedRecipient } = await this.gmail.getProfile();
+    const { emailAddress: expectedRecipient } = await this.options.gmail.getProfile();
     const rejected: Partial<Record<ExportEmailRejection, number>> = {};
     let pageToken: string | undefined;
     let hits = 0;
 
-    for (let page = 0; page < this.maxPages; page += 1) {
-      const { ids, nextPageToken } = await this.gmail.listMessageIds(
+    for (let page = 0; page < this.options.maxPages; page += 1) {
+      const { ids, nextPageToken } = await this.options.gmail.listMessageIds(
         exportEmailQuery(notBefore),
-        this.maxResults,
+        this.options.maxResults,
         pageToken,
       );
       const messages: GmailMessage[] = [];
 
       for (const id of ids) {
         try {
-          messages.push(await this.gmail.getMessage(id));
+          messages.push(await this.options.gmail.getMessage(id));
         } catch (error) {
           // A listed message can disappear; other failures must still abort discovery.
           if (!(error instanceof GoogleApiError) || error.status !== 404) {
@@ -94,20 +90,23 @@ export class GmailExportEmailFinder implements ExportEmailFinder {
 
         if (rejection !== undefined) {
           rejected[rejection] = (rejected[rejection] ?? 0) + 1;
-          this.logger.info('gmail.export_email.rejected', { messageId: message.id, rejection });
+          this.options.logger.info('gmail.export_email.rejected', {
+            messageId: message.id,
+            rejection,
+          });
           continue;
         }
 
         this.requireLink(message);
         const receivedAt = new Date(Number(message.internalDate)).toISOString();
 
-        this.logger.info('gmail.export_email.found', { messageId: message.id, receivedAt });
+        this.options.logger.info('gmail.export_email.found', { messageId: message.id, receivedAt });
 
         return { email: { messageId: message.id, receivedAt }, status: 'found' };
       }
 
       if (nextPageToken === undefined) {
-        this.logger.info('gmail.export_email.not_found', { hits, rejected });
+        this.options.logger.info('gmail.export_email.not_found', { hits, rejected });
 
         return { rejected, status: 'not_found' };
       }
@@ -115,7 +114,11 @@ export class GmailExportEmailFinder implements ExportEmailFinder {
       pageToken = nextPageToken;
     }
 
-    this.logger.warn('gmail.export_email.search_limit', { hits, pages: this.maxPages, rejected });
+    this.options.logger.warn('gmail.export_email.search_limit', {
+      hits,
+      pages: this.options.maxPages,
+      rejected,
+    });
 
     throw new IntegrationError('EMAIL_SEARCH_LIMIT');
   }
@@ -125,7 +128,7 @@ export class GmailExportEmailFinder implements ExportEmailFinder {
     let message: GmailMessage;
 
     try {
-      message = await this.gmail.getMessage(messageId);
+      message = await this.options.gmail.getMessage(messageId);
     } catch (error) {
       if (error instanceof GoogleApiError && error.status === 404) {
         throw new IntegrationError('EMAIL_UNRECOGNIZED', 'The export email no longer exists');
@@ -134,7 +137,7 @@ export class GmailExportEmailFinder implements ExportEmailFinder {
       throw error;
     }
 
-    const { emailAddress: expectedRecipient } = await this.gmail.getProfile();
+    const { emailAddress: expectedRecipient } = await this.options.gmail.getProfile();
     const rejection = checkExportEmail(message, {
       excludeIds: [],
       expectedRecipient,
@@ -142,7 +145,7 @@ export class GmailExportEmailFinder implements ExportEmailFinder {
     });
 
     if (rejection !== undefined) {
-      this.logger.warn('gmail.export_email.rejected', { messageId, rejection });
+      this.options.logger.warn('gmail.export_email.rejected', { messageId, rejection });
 
       throw new IntegrationError(
         'EMAIL_UNRECOGNIZED',
@@ -160,7 +163,7 @@ export class GmailExportEmailFinder implements ExportEmailFinder {
       return result.link;
     }
 
-    this.logger.warn('gmail.export_email.unrecognized', {
+    this.options.logger.warn('gmail.export_email.unrecognized', {
       messageId: message.id,
       problem: result.problem,
     });

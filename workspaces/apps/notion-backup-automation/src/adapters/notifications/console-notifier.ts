@@ -21,11 +21,7 @@ import type { Logger } from '../../shared/logger.js';
  * Hobby keeps these for an hour; the job events keep the same text.
  */
 export class ConsoleNotifier implements Notifier {
-  private readonly logger: Logger;
-
-  constructor(logger: Logger) {
-    this.logger = logger;
-  }
+  constructor(private readonly logger: Logger) {}
 
   attention(notification: AttentionNotification): Promise<void> {
     this.logger.warn('notify.attention', {

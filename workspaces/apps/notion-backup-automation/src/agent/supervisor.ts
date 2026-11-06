@@ -81,25 +81,13 @@ export interface SupervisorOptions {
  */
 export class Supervisor {
   readonly limits: AgentLimits;
-  private readonly clock: Clock;
-  private readonly limiter: RateLimiter;
-  private readonly logger: Logger;
-  private readonly model: AgentModel;
-  private readonly policy: BackupPolicy;
-  private readonly workspaceName: string | undefined;
 
-  constructor(options: SupervisorOptions) {
-    this.clock = options.clock;
-    this.limiter = options.limiter;
+  constructor(private readonly options: SupervisorOptions) {
     this.limits = options.limits;
-    this.logger = options.logger;
-    this.model = options.model;
-    this.policy = options.policy;
-    this.workspaceName = options.workspaceName;
   }
 
   get modelId(): string {
-    return this.model.id;
+    return this.options.model.id;
   }
 
   /** Whether the next decision needs the recent events and health, which `inspect_status` added. */
@@ -113,7 +101,7 @@ export class Supervisor {
     signal: AbortSignal,
   ): Promise<SupervisorPlan> {
     const { incident } = job;
-    const now = this.clock.now();
+    const now = this.options.clock.now();
 
     if (incident === undefined) {
       return forced('context', 'The job has no open incident to triage.');
@@ -131,7 +119,7 @@ export class Supervisor {
       return budget;
     }
 
-    const daily = await this.limiter.take(DAILY_DECISIONS, dailyDecisionLimit(this.limits));
+    const daily = await this.options.limiter.take(DAILY_DECISIONS, dailyDecisionLimit(this.limits));
 
     if (!daily.allowed) {
       return forced(
@@ -147,8 +135,8 @@ export class Supervisor {
         job,
         limits: this.limits,
         now,
-        policy: this.policy,
-        workspaceName: this.workspaceName,
+        policy: this.options.policy,
+        workspaceName: this.options.workspaceName,
         ...(inspected === undefined ? {} : { inspected }),
       });
     } catch (error) {
@@ -156,7 +144,7 @@ export class Supervisor {
         throw error;
       }
 
-      this.logger.warn('agent.context.invalid', { jobId: job.id, reason: error.message });
+      this.options.logger.warn('agent.context.invalid', { jobId: job.id, reason: error.message });
 
       return forced('context', 'The supervisor could not build a safe context for this incident.');
     }
@@ -170,7 +158,10 @@ export class Supervisor {
     }
 
     if (decision === undefined) {
-      this.logger.warn('agent.decision.invalid', { jobId: job.id, model: this.model.id });
+      this.options.logger.warn('agent.decision.invalid', {
+        jobId: job.id,
+        model: this.options.model.id,
+      });
 
       return this.onModelFailure(job, incident, 'invalid_output');
     }
@@ -180,14 +171,14 @@ export class Supervisor {
       job,
       limits: this.limits,
       now,
-      policy: this.policy,
+      policy: this.options.policy,
     });
 
-    this.logger.info('agent.decision', {
+    this.options.logger.info('agent.decision', {
       action: decision.action.action,
       confidence: decision.confidence,
       jobId: job.id,
-      model: this.model.id,
+      model: this.options.model.id,
       ...(refused === undefined ? {} : { refused }),
     });
 
@@ -247,11 +238,11 @@ export class Supervisor {
     const failures =
       incident.decisions.filter(({ modelFailure }) => modelFailure !== undefined).length + 1;
 
-    this.logger.warn('agent.model.failed', {
+    this.options.logger.warn('agent.model.failed', {
       failure,
       failures,
       jobId: job.id,
-      model: this.model.id,
+      model: this.options.model.id,
     });
 
     return failures >= MAX_MODEL_FAILURES
@@ -263,7 +254,7 @@ export class Supervisor {
   private async decide(context: AgentContext, signal: AbortSignal): Promise<unknown> {
     const callSignal = AbortSignal.any([signal, AbortSignal.timeout(this.limits.timeoutMs)]);
 
-    return abortable(this.model.decide(context, callSignal), callSignal);
+    return abortable(this.options.model.decide(context, callSignal), callSignal);
   }
 }
 

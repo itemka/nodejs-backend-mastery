@@ -16,19 +16,13 @@ export interface GoogleHealthProbeOptions {
  * mailbox address is read and dropped; only the scopes are reported.
  */
 export class GoogleHealthProbe {
-  private readonly gmail: Pick<GmailApi, 'getProfile'>;
-  private readonly tokens: Pick<OAuthTokenProvider, 'grantedScopes'>;
-
-  constructor({ gmail, tokens }: GoogleHealthProbeOptions) {
-    this.gmail = gmail;
-    this.tokens = tokens;
-  }
+  constructor(private readonly options: GoogleHealthProbeOptions) {}
 
   async run(signal?: AbortSignal): Promise<GoogleProbeResult> {
     let scopes: string[];
 
     try {
-      scopes = await abortable(this.tokens.grantedScopes(), signal);
+      scopes = await abortable(this.options.tokens.grantedScopes(), signal);
     } catch (error) {
       // A token endpoint outage says nothing about the refresh token itself.
       throw error instanceof GoogleTokenUnavailableError
@@ -36,7 +30,7 @@ export class GoogleHealthProbe {
         : error;
     }
 
-    await abortable(this.gmail.getProfile(), signal);
+    await abortable(this.options.gmail.getProfile(), signal);
 
     return { scopes: scopes.map((scope) => shortScope(scope)) };
   }

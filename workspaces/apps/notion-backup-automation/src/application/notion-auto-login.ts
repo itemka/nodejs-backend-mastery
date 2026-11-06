@@ -51,11 +51,7 @@ export interface NotionLoginRequestsOptions {
  * day's attempt rather than risking a second one. The supervisor never calls this.
  */
 export class NotionLoginRequests {
-  private readonly options: NotionLoginRequestsOptions;
-
-  constructor(options: NotionLoginRequestsOptions) {
-    this.options = options;
-  }
+  constructor(private readonly options: NotionLoginRequestsOptions) {}
 
   async request(trigger: NotionLoginTrigger): Promise<NotionLoginRequestOutcome> {
     const { enabled, ids, logger, queue, slot } = this.options;
@@ -129,11 +125,7 @@ export interface NotionAutoLoginOptions {
  * warning it replaced, or `lost` once the saved sign-in has expired meanwhile. Either way one Telegram message, and the outcome is kept in `health`.
  */
 export class NotionAutoLogin {
-  private readonly options: NotionAutoLoginOptions;
-
-  constructor(options: NotionAutoLoginOptions) {
-    this.options = options;
-  }
+  constructor(private readonly options: NotionAutoLoginOptions) {}
 
   async run({ attempt, trigger }: NotionLoginRequest): Promise<NotionLoginRunResult> {
     const { clock, enabled, gate, jobs, logger, login, slot } = this.options;

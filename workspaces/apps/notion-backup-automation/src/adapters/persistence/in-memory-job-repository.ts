@@ -36,15 +36,12 @@ const nextTurn = () => new Promise<void>((resolve) => setImmediate(resolve));
  */
 export class InMemoryJobRepository implements JobRepository {
   private activeJobId: string | undefined;
-  private readonly clock: Clock;
   private readonly emails = new Map<string, string>();
   private readonly events = new Map<string, string[]>();
   private readonly jobs = new Map<string, StoredRecord>();
   private readonly leases = new Map<string, { expiresAtMs: number; workerId: string }>();
 
-  constructor(clock: Clock = systemClock) {
-    this.clock = clock;
-  }
+  constructor(private readonly clock: Clock = systemClock) {}
 
   async acquireLease(jobId: string, workerId: string, ttlMs: number): Promise<LeaseResult> {
     await nextTurn();

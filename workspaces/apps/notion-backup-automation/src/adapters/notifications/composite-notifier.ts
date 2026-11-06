@@ -22,13 +22,10 @@ type NotificationKind = 'attention' | 'failure' | 'lateEmail' | 'loginWarning' |
  * notification fails a tick or the cron run.
  */
 export class CompositeNotifier implements Notifier {
-  private readonly logger: Logger;
-  private readonly notifiers: readonly NamedNotifier[];
-
-  constructor(notifiers: readonly NamedNotifier[], logger: Logger) {
-    this.logger = logger;
-    this.notifiers = notifiers;
-  }
+  constructor(
+    private readonly notifiers: readonly NamedNotifier[],
+    private readonly logger: Logger,
+  ) {}
 
   attention(notification: AttentionNotification): Promise<void> {
     return this.fanOut('attention', (notifier) => notifier.attention(notification));

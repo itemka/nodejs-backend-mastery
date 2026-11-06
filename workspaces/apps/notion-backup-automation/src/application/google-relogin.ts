@@ -35,11 +35,7 @@ export interface GoogleReloginReport {
  * not undo the renewal: it stays waiting for the next daily cron.
  */
 export class GoogleRelogin {
-  private readonly options: GoogleReloginOptions;
-
-  constructor(options: GoogleReloginOptions) {
-    this.options = options;
-  }
+  constructor(private readonly options: GoogleReloginOptions) {}
 
   async afterRenewal(): Promise<GoogleReloginReport> {
     const { jobs, logger, notifications, probes } = this.options;
