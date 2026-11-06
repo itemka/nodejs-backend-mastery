@@ -6,13 +6,12 @@ Workflow diagrams for the [telegram-webhook-hub workspace](../). Codes and limit
 
 ## Webhook — `handleWebhookRequest`
 
-Only successful responses acknowledge delivery (`200` in this handler). Telegram retries
-non-2xx responses, as described in the [Bot API](https://core.telegram.org/bots/api#setwebhook).
-Before delivery processing, `serveWebhook` returns `401` for a missing or wrong secret, `405`
-for an authenticated non-POST, and `503 CONFIG_INCOMPLETE` for invalid configuration; the
-handler itself runs only after these checks. They do not claim a delivery lease.
+Telegram retries any non-2xx response ([Bot API](https://core.telegram.org/bots/api#setwebhook)),
+so only `200` acknowledges a delivery. Before the handler runs, `serveWebhook` returns `401` for
+a missing or wrong secret, `405` for a non-POST, and `503 CONFIG_INCOMPLETE` for invalid
+configuration; none of these claims a lease.
 
-The flow below starts after those checks, with a configured, authenticated POST:
+The flow below starts with a configured, authenticated POST:
 
 ```mermaid
 flowchart TD
@@ -31,37 +30,58 @@ flowchart TD
   Forward -->|5xx, 408, 429, timeout| Retry([Release owned lease: 503])
 ```
 
-Malformed JSON, oversized bodies and invalid updates follow the ignored `200` path. A Redis
-failure during claim, quota or completion (including an expired lease), or a Telegram or
-network failure, returns `503 DELIVERY_UNAVAILABLE` with `Retry-After: 5`. The handler tries
-to release a lease only if this request claimed it; if release fails, the lease expires after
-60 s. `503 DELIVERY_IN_PROGRESS` leaves the other request's lease intact.
+Malformed JSON, oversized bodies and invalid updates take the ignored `200` path. A Redis
+failure during claim, quota or completion (including an expired lease), or a Telegram or network
+failure, returns `503 DELIVERY_UNAVAILABLE` with `Retry-After: 5`. The handler releases a lease
+only if this request claimed it; if the release fails, the lease expires after 60 s.
+`503 DELIVERY_IN_PROGRESS` leaves the other request's lease intact.
 
 ## Button Tap Across Both Apps
 
-A tap on a backup report's Retry button. The backup app replies through the hub's messages
-endpoint before it answers the forwarded request, so the hub completes its receipt only after
-the action and the reply are done.
+What happens when you tap **Retry** on a backup report. Arrows are numbered; notes are work done
+inside one endpoint.
 
 ```mermaid
 sequenceDiagram
+  autonumber
+  actor You
   participant T as Telegram
-  participant H as Hub /api/webhook
-  participant B as Backup /api/integrations/telegram
-  participant M as Hub /api/messages
+  box telegram-webhook-hub
+    participant H as /api/webhook
+    participant M as /api/messages
+  end
+  box notion-backup-automation
+    participant B as /api/integrations/telegram
+  end
+  You->>T: Tap Retry
   T->>H: callback "nb-prod:r:2026-10" + secret header
-  H->>H: owner check, lease, quota, route by namespace
-  H->>B: { updateId, input: { data: "r:2026-10" } } + bearer
-  B->>B: claim updateId, backup_retry, save a reply receipt
-  B->>M: sendMessage, removeButtons, answerCallbackQuery + bearer
-  M->>T: Bot API calls to the owner chat
+  Note over H: Owner check, lease, quota,<br/>route by the "nb-prod:" prefix
+  H->>B: { updateId, input: { kind: "callback", callbackId,<br/>data: "r:2026-10", messageId } } + bearer
+  Note over B: Claim updateId, run backup_retry,<br/>save the reply as a receipt
+  B->>M: sendMessage (the result)
+  M->>T: sendMessage
+  B->>M: removeButtons (the old report)
+  M->>T: editMessageReplyMarkup
+  B->>M: answerCallbackQuery (stop the spinner)
+  M->>T: answerCallbackQuery
+  Note over B: Mark updateId done
   B-->>H: 200
-  H->>H: complete the receipt
+  Note over H: Complete the receipt
   H-->>T: 200
 ```
 
-If the backup app answers 503 (Redis, QStash or the hub unavailable), the hub releases its
-lease and returns 503, and Telegram redelivers the same `updateId`. The backup app's own
-receipt makes the redelivery replay the saved reply instead of retrying the job twice.
-Outgoing notifications (backup stored, needs attention) use only the last two participants:
-the backup worker or cron calls `/api/messages` directly.
+The backup app replies (arrows 4–9) before it answers the hub (arrow 10). So the hub marks the
+update done only after the job was retried and you saw the reply.
+
+**If something fails**
+
+- **Temporary failure** (Redis, QStash or the hub unavailable): the backup app answers 503, the
+  hub releases its lease and answers 503 instead of arrow 11, and Telegram redelivers the same
+  `updateId`.
+- **Redelivery:** the backup app finds the receipt it saved before arrow 4, so it sends the saved
+  reply again and does not retry the job a second time.
+- **Final refusal** (a 4xx other than 408/429 from the backup app): the hub sends a short notice,
+  completes the receipt and answers 200; a resend would fail the same way.
+
+Outgoing notifications (backup stored, needs attention) skip the webhook: the backup worker or
+cron calls `/api/messages` with `sendMessage`, as in arrows 4–5.
