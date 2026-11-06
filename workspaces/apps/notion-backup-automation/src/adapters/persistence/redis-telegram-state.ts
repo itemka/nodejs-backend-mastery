@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 
 import type { Clock } from '../../shared/clock.js';
 import { systemClock } from '../../shared/clock.js';
-import type { TelegramState } from '../../telegram/webhook.js';
+import type { ConfirmationClaim, TelegramState } from '../../telegram/webhook.js';
 import { persistenceKeys } from './keys.js';
 
 /** Raw reads/writes and atomic Lua scripts supplied by the Redis adapter. */
@@ -144,7 +144,7 @@ export class RedisTelegramState implements TelegramState {
     }
   }
 
-  async claimConfirmation(nonce: string): Promise<string | undefined> {
+  async claimConfirmation(nonce: string): Promise<ConfirmationClaim> {
     if (!noncePattern.test(nonce)) {
       return undefined;
     }
@@ -156,11 +156,18 @@ export class RedisTelegramState implements TelegramState {
       [token, UPDATE_LEASE_SEC],
     );
 
-    if (raw !== null && raw !== 'busy') {
-      this.confirmationClaims.set(nonce, token);
+    if (raw === null) {
+      return undefined;
     }
 
-    return raw ?? undefined;
+    // The script answers `busy` in place of the pending action, which is always JSON.
+    if (raw === 'busy') {
+      return 'busy';
+    }
+
+    this.confirmationClaims.set(nonce, token);
+
+    return { pending: raw };
   }
 
   async completeConfirmation(nonce: string): Promise<void> {

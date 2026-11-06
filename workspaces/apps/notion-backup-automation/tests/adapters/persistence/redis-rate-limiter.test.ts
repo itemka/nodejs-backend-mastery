@@ -74,7 +74,9 @@ describe('RedisTelegramState', () => {
     await state.saveConfirmation(nonce, '{"action":"cancel"}', 600);
 
     expect(redis.expirySeconds.get(`${PREFIX}telegram:confirm:${nonce}`)).toBe(600);
-    await expect(state.claimConfirmation(nonce)).resolves.toBe('{"action":"cancel"}');
+    await expect(state.claimConfirmation(nonce)).resolves.toEqual({
+      pending: '{"action":"cancel"}',
+    });
     await expect(state.claimConfirmation(nonce)).resolves.toBe('busy');
     await state.completeConfirmation(nonce);
     await expect(state.claimConfirmation(nonce)).resolves.toBeUndefined();
@@ -108,10 +110,14 @@ describe('RedisTelegramState', () => {
     const nonce = 'abcdefghijklmnop_-012';
 
     await state.saveConfirmation(nonce, '{"action":"cancel"}', 600);
-    await expect(state.claimConfirmation(nonce)).resolves.toBe('{"action":"cancel"}');
+    await expect(state.claimConfirmation(nonce)).resolves.toEqual({
+      pending: '{"action":"cancel"}',
+    });
     await expect(competing.claimConfirmation(nonce)).resolves.toBe('busy');
     await state.releaseConfirmation(nonce);
-    await expect(competing.claimConfirmation(nonce)).resolves.toBe('{"action":"cancel"}');
+    await expect(competing.claimConfirmation(nonce)).resolves.toEqual({
+      pending: '{"action":"cancel"}',
+    });
     await state.releaseConfirmation(nonce);
     await competing.completeConfirmation(nonce);
     await expect(state.claimConfirmation(nonce)).resolves.toBeUndefined();

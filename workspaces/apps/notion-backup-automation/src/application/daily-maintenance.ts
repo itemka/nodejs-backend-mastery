@@ -64,6 +64,13 @@ export interface DailyReport {
   readonly watchdog: 'failed' | WatchdogOutcome;
 }
 
+/** What the day's probes found: each one's result, the jobs resumed, the login asked for. */
+interface ProbeRound {
+  readonly notionLogin: NotionLoginRequestOutcome | undefined;
+  readonly probes: DailyReport['probes'];
+  readonly resumed: readonly string[];
+}
+
 export interface DailyMaintenanceOptions {
   readonly autoStart: { readonly dayOfMonth: number; readonly enabled: boolean };
   /** The automatic Notion login (Phase 14); without it, the warnings stay as they were. */
@@ -152,42 +159,10 @@ export class DailyMaintenance {
     const autoStart =
       (lookup && (await step('autoStart', () => this.autoStart(active)))) ?? 'failed';
     const watchdog = (lookup && (await step('watchdog', () => this.watchdog(active)))) ?? 'failed';
-    const probes: Partial<Record<ProbeName, 'failed' | 'ok' | ErrorCode>> = {};
-    const resumed: string[] = [];
-    let notionLogin: NotionLoginRequestOutcome | undefined;
-
-    // At once, so the slowest budget (Notion's 120 s) bounds the probes, not their sum (210 s):
-    // the record and the heartbeat stay well inside the function's 300 s. Results are taken in
-    // the probes' order, so the report does not depend on which one finished first.
-    const results = await Promise.all(
-      this.probesDue(active?.job).map(async (name) => {
-        try {
-          return { name, outcome: await this.probeAndWatch(name) };
-        } catch (error) {
-          return { error, name };
-        }
-      }),
-    );
-
-    for (const result of results) {
-      if ('error' in result) {
-        failed(`probe.${result.name}`, result.error);
-        probes[result.name] = 'failed';
-        continue;
-      }
-
-      probes[result.name] = result.outcome.code ?? 'ok';
-      notionLogin = result.outcome.notionLogin ?? notionLogin;
-
-      if (result.outcome.resumed !== undefined) {
-        resumed.push(result.outcome.resumed);
-      }
-    }
-
-    const warnings = await step('warnings', async () => this.warnings(notionLogin));
+    const { notionLogin: probeLogin, probes, resumed } = await this.runProbes(active?.job, failed);
+    const warnings = await step('warnings', async () => this.warnings(probeLogin));
     const warnedDays = warnings?.warnedDays;
-
-    notionLogin = warnings?.notionLogin ?? notionLogin;
+    const notionLogin = warnings?.notionLogin ?? probeLogin;
 
     await step('record', () => health.write('cron', { ok: failedSteps.length === 0, ranAt }));
 
@@ -350,6 +325,47 @@ export class DailyMaintenance {
       ...(notionLogin === undefined || notionLogin === 'disabled' ? {} : { notionLogin }),
       ...(warnedDays === undefined ? {} : { warnedDays }),
     };
+  }
+
+  /**
+   * The probes due today, at once, so the slowest budget (Notion's 120 s) bounds them, not their
+   * sum (210 s): the record and the heartbeat stay well inside the function's 300 s. Results are
+   * taken in the probes' order, so the report does not depend on which one finished first. A
+   * probe that throws goes to `failed` and is reported as `failed`.
+   */
+  private async runProbes(
+    active: BackupJob | undefined,
+    failed: (step: string, error: unknown) => void,
+  ): Promise<ProbeRound> {
+    const results = await Promise.all(
+      this.probesDue(active).map(async (name) => {
+        try {
+          return { name, outcome: await this.probeAndWatch(name) };
+        } catch (error) {
+          return { error, name };
+        }
+      }),
+    );
+    const probes: Partial<Record<ProbeName, 'failed' | 'ok' | ErrorCode>> = {};
+    const resumed: string[] = [];
+    let notionLogin: NotionLoginRequestOutcome | undefined;
+
+    for (const result of results) {
+      if ('error' in result) {
+        failed(`probe.${result.name}`, result.error);
+        probes[result.name] = 'failed';
+        continue;
+      }
+
+      probes[result.name] = result.outcome.code ?? 'ok';
+      notionLogin = result.outcome.notionLogin ?? notionLogin;
+
+      if (result.outcome.resumed !== undefined) {
+        resumed.push(result.outcome.resumed);
+      }
+    }
+
+    return { notionLogin, probes, resumed };
   }
 
   /** Google and Drive daily; Notion on its probe days, or while the active job waits for it. */
