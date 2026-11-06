@@ -10,6 +10,34 @@ The only integration today is [notion-backup-automation](../notion-backup-automa
 (`nb-prod`). Deployed as its own Vercel project; public webhook:
 `https://telegram-webhook-hub.vercel.app/api/webhook`.
 
+## Resources
+
+Every service the hub uses, one click each. The links need your own sign-in; the credentials
+are in 1Password, not here.
+
+- **Vercel**
+  - [telegram-webhook-hub](https://vercel.com/artsem-paulenkas-projects/telegram-webhook-hub):
+    environment variables and settings.
+  - [Deployments](https://vercel.com/artsem-paulenkas-projects/telegram-webhook-hub/deployments):
+    production and the rollback targets for the webhook.
+  - [Logs](https://vercel.com/artsem-paulenkas-projects/telegram-webhook-hub/logs): runtime
+    logs, kept for 1 hour on Hobby.
+- **Live endpoint:** [Hub health](https://telegram-webhook-hub.vercel.app/api/health): `ok` from
+  the hub.
+- **Telegram**
+  - [@artsem_automation_bot](https://t.me/artsem_automation_bot): the owner's chat with the bot.
+  - [@BotFather](https://t.me/BotFather): the bot token, name and settings.
+- **Upstash:** [console](https://console.upstash.com/home): the hub's Redis database, keys
+  under `HUB_KEY_PREFIX` (`telegram-hub:prod`).
+- **GitHub**
+  - [nodejs-backend-mastery](https://github.com/itemka/nodejs-backend-mastery): source, PRs and
+    CI; Vercel deploys `main` to production.
+  - [Clean up Vercel deployments](https://github.com/itemka/nodejs-backend-mastery/actions/workflows/vercel-deployment-cleanup.yml):
+    runs of the deployment cleanup workflow.
+- **Integrations:**
+  [notion-backup-automation resources](../notion-backup-automation/README.md#resources): the
+  backup app's own links.
+
 ## How It Works
 
 ```mermaid
