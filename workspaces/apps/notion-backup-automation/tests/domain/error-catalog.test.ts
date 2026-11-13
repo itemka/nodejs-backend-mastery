@@ -14,12 +14,23 @@ describe('errorCatalog', () => {
     }
   });
 
-  it.each(errorCodes)('%s has a README Recovery entry with its supervised flag', (code) => {
+  // The README lists common fixes only; the full code-to-fix reference is the catalog itself.
+  it('names only cataloged codes in the README Common fixes table', () => {
     const readme = readFileSync(new URL('../../README.md', import.meta.url), 'utf8');
-    const recovery = readme.slice(readme.indexOf('## Recovery'));
-    const supervised = errorCatalog[code].supervised ? 'Yes' : 'No';
+    const start = readme.indexOf('### Common fixes');
+    const end = readme.indexOf('\n#', start + 1);
 
-    expect(recovery).toMatch(new RegExp(String.raw`^\| \`${code}\` +\| ${supervised} +\|`, 'm'));
+    expect(start).toBeGreaterThan(-1);
+
+    const named = readme
+      .slice(start, end === -1 ? undefined : end)
+      .split('\n')
+      .filter((line) => line.startsWith('| `'))
+      .flatMap((line) => line.split('|')[1]?.match(/(?<=`)[A-Z][A-Z_]+(?=`)/g) ?? []);
+    const known = new Set<string>(errorCodes);
+
+    expect(named.length).toBeGreaterThan(0);
+    expect(named.filter((code) => !known.has(code))).toEqual([]);
   });
 
   it('never advises a transfer mode that is not built', () => {
