@@ -3,6 +3,112 @@
 [Setup, limits and recovery](../README.md) live in the README. Notion's browser work is shown
 in [Notion export and login](notion-export-flow.md).
 
+## One Backup — Call Sequence
+
+A `backup_start` on the normal path, with no backup of the period in Drive yet. Each `QStash →
+Worker` arrow is a separate delivery and Vercel invocation (a tick).
+
+```mermaid
+sequenceDiagram
+  autonumber
+  actor You as You (MCP client)
+  participant Ctl as /mcp
+  participant R as Redis
+  participant Q as QStash
+  participant W as Worker
+  participant N as Notion
+  participant G as Gmail
+  participant D as Drive
+  participant H as Telegram hub
+
+  You->>Ctl: backup_start
+  Ctl->>R: create job YYYY-MM: CREATED, token T1
+  Ctl->>Q: publish wakeup T1, delay 0
+  Ctl-->>You: job created
+
+  Note over Q,W: Tick 1, light: begin_trigger
+  Q->>W: signed POST with T1
+  W->>R: take the lease, reload, is T1 current?
+  W->>R: CREATED → TRIGGERING_EXPORT
+  W->>Q: publish wakeup T2, delay 0
+  W->>R: save T2, release the lease
+
+  Note over Q,D: Tick 2, heavy: trigger_export. Every tick checks its lease and token<br/>first, and publishes the next wakeup before saving its token.
+  Q->>W: signed POST with T2
+  W->>D: verified backup of this period?
+  D-->>W: none
+  W->>N: Playwright: session gate, Settings, Workspace content
+  alt an export is already running
+    N-->>W: already_in_progress, nothing clicked
+  else no export running
+    W->>N: set the export dialog, find its Export button
+    W->>R: save exportClickAt (write-ahead marker)
+    W->>N: click Export once
+    N-->>W: confirmed, or in_doubt without confirmation
+  end
+  W->>R: TRIGGERING_EXPORT → WAITING_FOR_EMAIL
+  W->>Q: next wakeup, +5 min
+
+  loop check_email ticks, light: +5 min, +15 min, then every 30 min
+    Q->>W: signed POST
+    W->>G: newest trusted export email, from 10 min before the request
+    alt no email yet
+      W->>R: count the check
+      W->>Q: next wakeup
+    else email found
+      W->>R: claim the email for this job
+      W->>R: WAITING_FOR_EMAIL → EMAIL_FOUND
+      W->>Q: next wakeup, delay 0
+    end
+  end
+
+  Note over Q,D: Transfer tick, heavy: download, verify and upload in one invocation
+  Q->>W: signed POST
+  W->>D: verified backup of this period?
+  D-->>W: none
+  W->>G: read the download link from the claimed email
+  W->>R: EMAIL_FOUND → DOWNLOADING
+  W->>N: download the ZIP to /tmp, hashing as it streams
+  W->>R: DOWNLOADING → VERIFYING
+  W->>W: verify every ZIP entry
+  W->>R: VERIFYING → UPLOADING
+  W->>D: resumable upload to the year folder
+  D-->>W: Drive's size and SHA-256 match
+  W->>R: UPLOADING → COMPLETE, with the shrink check
+  opt NOTIFIERS includes telegram
+    W->>H: backup stored report
+  end
+```
+
+- `backup_start` saves the job with its first token before publishing, so the first wakeup
+  never arrives early. The daily cron's auto-start creates jobs the same way.
+- Tick 1 shows the envelope every tick follows; [one tick](#one-tick--processjobusecaseexecute)
+  and [schedule token](#schedule-token--publish-then-save) cover leases, stale tokens and failed
+  publishes. Notifications go out after the step's save and before the next wakeup.
+- A verified Drive backup found before the export or the transfer completes the job at once.
+  A crash after `exportClickAt` is saved makes the next tick record `in_doubt` and wait for Gmail.
+- The search starts 10 min before the request, so an earlier unclaimed export email can be
+  claimed; one another job has claimed is skipped. A late email gets a daily notice after
+  45 min; no email within 48 h needs attention.
+- The link is a Mailgun redirect, checked for expiry before the download, which uses the saved
+  session's `file_token` cookie. With `WRITE_SHA256_SIDECAR` on (the default), Drive also gets
+  a `.sha256` sidecar; a sidecar failure does not fail the backup.
+- An expired link spends the email: a new export starts while attempts remain, otherwise the
+  job needs attention.
+- Each transfer marker is saved before its work starts. Once `DOWNLOADING` is saved, an invalid
+  ZIP, checksum mismatch, time-out or dead worker rolls the transfer back to `EMAIL_FOUND` for a
+  second run with the same email. After that, an invalid ZIP starts a new export while attempts
+  remain; the rest need attention. A time-out before `DOWNLOADING` needs attention at once. See
+  [job states](#job-states) and [failures](#failures-and-incidents).
+- An upload Drive cannot verify (checksum mismatch or no checksum), ZIP or `.sha256` sidecar,
+  is deleted. If that fails, the worker logs `drive.upload.delete_failed` with the unverified
+  file's `driveFileId`; check that file before deleting it by hand. Job status and events show
+  only the error code.
+
+Source: [backup-service.ts](../src/application/backup-service.ts),
+[process-job.ts](../src/application/process-job.ts), [job steps](../src/application/job-steps/)
+and [export-transfer.ts](../src/adapters/transfer/export-transfer.ts).
+
 ## Job States
 
 The normal path, including transfer progress markers. `DOWNLOADING`, `VERIFYING` and `UPLOADING`
